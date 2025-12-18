@@ -1,0 +1,7 @@
+models/*
+results/*
+lib/*
+**__pycache__/
+*.bak
+*.pyc 
+test/generated_images/*

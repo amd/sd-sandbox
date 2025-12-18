@@ -1,0 +1,645 @@
+# Pipeline Configuration File
+# This file defines all available pipeline configurations and settings
+
+# Project paths configuration
+paths:
+  # Path to the source code directory containing src/ and utils/
+  # If not specified, will use the parent directory of the scripts folder
+  source_path: null  # Example: "C:\\\\Users\\\\amd87\\\\Desktop\\\\GenAI-SD"
+  
+  # Path to models directory (relative to source_path if not absolute)
+  models_path: "C:/Users/amd87/model_load/models"
+  
+  # Path to test scripts directory (relative to source_path if not absolute)
+  test_path: "C:/Users/amd87/sd_ref_design/test"
+
+# Default settings
+defaults:
+  width: 512
+  height: 512
+  # Streaming display settings
+  streaming_output: true # Enable real-time output by default
+  # Execution provider settings
+  execution:
+    force_cpu: false  # Set to true to force CPU-only execution (disables DML)
+  prompts:
+    medieval: "Photo of a bustling medieval marketplace, vibrant colors, detailed costumes, lively crowd, cinematic lighting, 8k resolution, masterpiece, art by Pieter Bruegel and John Howe"
+    anime: 'Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text "InstantX" on image'
+  prompt_file: "C:/Users/amd87/sd_ref_design/config/artistic_prompts.json"
+
+
+# Available pipeline configurations
+pipelines:
+
+# Default prompt for 1.5 : Photo of a ultra realistic sailing ship, dramatic light, pale sunrise, cinematic lighting
+  sd_15:
+    name: "SD 1.5 Pipeline"
+    script: "run_sd.py"
+    # prompt_file: "C:/Users/amd87/sd_ref_design/config/anime_prompts.json"
+    model_ids:
+      - "runwayml/stable-diffusion-v1-5"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd15"
+      - "--num_inference_steps"
+      - "20"
+
+# Default prompt: "A cinematic shot of a baby racoon wearing an intricate italian priest robe."
+  sd_turbo:
+    name: "SD Turbo Pipeline"
+    script: "run_sd.py"
+    streaming_output: false # Disable streaming for fast pipelines to reduce noise
+    # Execution provider settings (overrides defaults)
+    model_ids:
+      - "stabilityai/sd-turbo"
+    # prompt_file: "C:/Users/amd87/sd_ref_design/config/alt_prompts.json"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd_turbo"
+      - "--num_inference_steps"
+      - "1"
+      - "--guidance_scale"
+      - "0.0"
+
+  sd_turbo_bs1:
+    name: "SD Turbo BS1 Pipeline"
+    script: "run_sd.py"
+    streaming_output: false # Disable streaming for fast pipelines to reduce noise
+    model_ids:
+      - "stabilityai/sd-turbo"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd_turbo_bs1"
+      - "--num_inference_steps"
+      - "1"
+      - "--guidance_scale"
+      - "0.0"
+      - "--num_images_per_prompt"
+      - "1"
+
+#Default prompt: "An astronaut riding a green horse"
+  sdxl_base:
+    name: "SDXL Base Pipeline"
+    script: "run_sd_xl.py"
+    width: 1024  # SDXL requires 1024x1024 for 128x128 latents
+    height: 1024
+    streaming_output: true  # Enable to see error output
+    model_ids:
+      - "stabilityai/stable-diffusion-xl-base-1.0"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sdxl-base-1.0"
+      - "--num_inference_steps"
+      - "50"
+
+# Default prompt: "A cinematic shot of a baby racoon wearing an intricate italian priest robe."
+  sdxl_turbo:
+    name: "SDXL Turbo Pipeline"
+    script: "run_sd_xl.py"
+    width: 512  # SDXL Turbo optimized for 512x512 for speed
+    height: 512
+    prompt: "A cat sitting on a fluffy cloud, reading a book, whimsical and dreamy atmosphere"
+    model_ids:
+      - "stabilityai/sdxl-turbo"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sdxl_turbo"
+      - "--num_inference_steps"
+      - "1"
+      - "--guidance_scale"
+      - "0.0"
+
+  sdxl_turbo_bs1:
+    name: "SDXL Turbo BS1 Pipeline"
+    script: "run_sd_xl.py"
+    width: 512  # BS1 model optimized for 512x512 resolution
+    height: 512
+    model_ids:
+      - "stabilityai/sdxl-turbo"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sdxl_turbo_bs1"
+      - "--num_inference_steps"
+      - "1"
+      - "--guidance_scale"
+      - "0.2"
+      - "--num_images_per_prompt"
+      - "1"
+
+# Default prompt: "a blue paradise bird in the jungle",
+  sd15_controlnet:
+    name: "SD15 ControlNet Pipeline"
+    script: "run_sd15_controlnet.py"
+    streaming_output: true # Disable streaming for progress bar
+    model_ids:
+      - "runwayml/stable-diffusion-v1-5"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd15_controlnet"
+      - "--num_inference_steps"
+      - "20"
+      - "-W"
+      - "512"
+      - "-H"
+      - "512"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/canny.jpg"
+      - "--controlnet_conditioning_scale"
+      - "0.25"
+
+## SD 2
+# Default prompt: "A photo of an astronaut riding a horse on mars."
+  sd21_base:
+    name: "SD21 Base Pipeline"
+    script: "run_sd.py"
+    width: 512
+    height: 512
+    model_ids:
+      - "stabilityai/stable-diffusion-2-1-base"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd21_base"
+      - "--num_inference_steps"
+      - "50"
+  
+  sd21_v:
+    name: "SD21 V-Param Pipeline"
+    script: "run_sd.py"
+    width: 768
+    height: 768
+    model_ids:
+      - "stabilityai/stable-diffusion-2-1"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd-2.1-v"
+      - "--num_inference_steps"
+      - "50"
+
+### SD3
+  sd3_base:
+    name: "SD3 Pipeline"
+    script: "run_sd3_dynamic.py"
+    model_ids:
+      - "stabilityai/stable-diffusion-3-medium-diffusers"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3"
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "768"
+      - "--controlnet"
+      - "None"
+      - "--guidance_scale"
+      - "4.5"
+      - "--dynamic_shape"
+
+  sd3_controlnet_canny:
+    name: "SD3 ControlNet Canny Pipeline"
+    script: "run_sd3_dynamic.py"
+    model_ids:
+      - "stabilityai/stable-diffusion-3-medium-diffusers"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3"
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "512"
+      - "--height"
+      - "768"
+      - "--controlnet"
+      - "Canny"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/canny.jpg"
+      - "--controlnet_conditioning_scale"
+      - "0.2"
+      - "--guidance_scale"
+      - "4.5"
+      - "--dynamic_shape"
+
+  sd3_controlnet_pose:
+    name: "SD3 ControlNet Pose Pipeline"
+    script: "run_sd3_dynamic.py"
+    model_ids:
+      - "stabilityai/stable-diffusion-3-medium-diffusers"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3"
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "Pose"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/pose.jpg"
+      - "--controlnet_conditioning_scale"
+      - "0.2"
+      - "--guidance_scale"
+      - "4.5"
+
+
+  sd3_controlnet_tile:
+    name: "SD3 ControlNet Tile Pipeline"
+    script: "run_sd3_dynamic.py"
+    model_ids:
+      - "stabilityai/stable-diffusion-3-medium-diffusers"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3/"
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "512"
+      - "--height"
+      - "512"
+      - "--controlnet"
+      - "Tile"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/tile.jpg"
+      - "--guidance_scale"
+      - "4.5"
+ 
+
+
+
+### SD 3.5
+  sd35_base:
+    name: "SD3.5 Pipeline"
+    script: "run_sd3_dynamic.py"
+    model_ids:
+      - "stabilityai/stable-diffusion-3-5"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3.5"
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "None"
+      - "--guidance_scale"
+      - "4.5"
+
+
+  sd35_controlnet_canny:
+    name: "SD3.5 ControlNet Canny Pipeline"
+    script: "run_sd3_dynamic.py"
+    model_ids:
+      - "stabilityai/stable-diffusion-3-5"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3.5"
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "Canny"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/canny.jpg"
+      - "--controlnet_conditioning_scale"
+      - "0.2"
+      - "--guidance_scale"
+      - "4.5"
+
+
+  sd35_controlnet_pose:
+    name: "SD3.5 ControlNet Pose Pipeline"
+    script: "run_sd3_dynamic.py"
+    model_ids:
+      - "stabilityai/stable-diffusion-3-5"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3.5"
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "Pose"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/pose.jpg"
+      - "--controlnet_conditioning_scale"
+      - "0.2"
+      - "--guidance_scale"
+      - "4.5"
+
+
+  sd35_controlnet_tile:
+    name: "SD3.5 ControlNet Tile Pipeline"
+    script: "run_sd3_dynamic.py"
+    model_ids:
+      - "stabilityai/stable-diffusion-3-5"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3.5"
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "Tile"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/tile.jpg"
+      - "--controlnet_conditioning_scale"
+      - "0.2"
+      - "--guidance_scale"
+      - "4.5"
+
+
+
+### SD3 OutPainting/InPainting/Removal
+  sd3_controlnet_outpainting:
+    name: "SD3 ControlNet OutPainting Pipeline"
+    script: "run_sd3_controlnet_outpainting.py"
+    streaming_output: true
+    prompt: "background, nothing, blank"
+    model_ids:
+      - "stabilityai/stable-diffusion-3-medium-diffusers"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3"
+      - "--num_inference_steps"
+      - "28"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "OutPainting"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/outpainting_input_512x512.png"
+      - "--image_pads"
+      - "512"
+      - "0"
+      - "0"
+      - "512"
+
+
+  sd3_controlnet_removal:
+    name: "SD3 ControlNet Removal Pipeline"
+    script: "run_sd3_controlnet_outpainting.py"
+    streaming_output: true
+    model_ids:
+      - "stabilityai/stable-diffusion-3-medium-diffusers"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3"
+      - "--num_inference_steps"
+      - "28"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "Removal"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/removal_input_1024x1024.jpg"
+      - "--control_mask_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/removal_input_mask_1024x1024.jpg"
+
+  sd3_controlnet_inpainting:
+    name: "SD3 ControlNet InPainting Pipeline"
+    script: "run_sd3_controlnet_outpainting.py"
+    streaming_output: true
+    prompt: "A girl taking a pig for a walk on the street"
+    model_ids:
+      - "stabilityai/stable-diffusion-3-medium-diffusers"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3"
+      - "--num_inference_steps"
+      - "28"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "InPainting"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/inpainting_input_1024x1024.png"
+      - "--control_mask_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/inpainting_mask_1024x1024.png"
+
+
+### SD3.5 OutPainting/InPainting/Removal
+  sd35_controlnet_outpainting:
+    name: "SD3.5 ControlNet OutPainting Pipeline"
+    script: "run_sd3_controlnet_outpainting.py"
+    streaming_output: true
+    model_ids:
+      - "stabilityai/stable-diffusion-3.5-medium"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3.5"
+      - "--num_inference_steps"
+      - "28"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "OutPainting"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/outpainting_input_512x512.png"
+      - "--image_pads"
+      - "512"
+      - "0"
+      - "0"
+      - "512"
+
+  sd35_controlnet_removal:
+    name: "SD3.5 ControlNet Removal Pipeline"
+    script: "run_sd3_controlnet_outpainting.py"
+    streaming_output: true
+    model_ids:
+      - "stabilityai/stable-diffusion-3.5-medium"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3.5"
+      - "--num_inference_steps"
+      - "28"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "Removal"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/removal_input_1024x1024.jpg"
+      - "--control_mask_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/removal_input_mask_1024x1024.jpg"
+
+  sd35_controlnet_inpainting:
+    name: "SD3.5 ControlNet InPainting Pipeline"
+    script: "run_sd3_controlnet_outpainting.py"
+    streaming_output: true
+    model_ids:
+      - "stabilityai/stable-diffusion-3.5-medium"
+    extra_args:
+      - "--model_path"
+      - "C:/Users/amd87/model_load/models/sd3.5"
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "InPainting"
+      - "--control_image_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/inpainting_input_1024x1024.png"
+      - "--control_mask_path"
+      - "C:/Users/amd87/sd_ref_design/test/assets/inpainting_mask_1024x1024.png"
+
+# Default pipelines to run (if no --pipelines specified)
+# You can specify which pipelines to run by their keys from the pipelines section above
+default_run:
+  - sd3_base
+  - sd3_controlnet_canny
+  - sd3_controlnet_pose
+  - sd3_controlnet_tile
+
+# Available pipeline groups for convenience
+pipeline_groups:
+  all_sd3:
+    - sd3_base
+    - sd3_controlnet_canny
+    - sd3_controlnet_pose
+    - sd3_controlnet_tile
+    - sd3_controlnet_outpainting
+    - sd3_controlnet_removal
+    - sd3_controlnet_inpainting
+    - sd35_base
+    - sd35_controlnet_canny
+    - sd35_controlnet_pose
+    - sd35_controlnet_tile
+    - sd35_controlnet_outpainting
+    - sd35_controlnet_removal
+    - sd35_controlnet_inpainting
+
+  sd_35:
+    - sd35_base
+    - sd35_controlnet_canny
+    - sd35_controlnet_pose
+    - sd35_controlnet_tile
+    - sd35_controlnet_outpainting
+    - sd35_controlnet_removal
+    - sd35_controlnet_inpainting
+
+  sd_30:
+    - sd3_base
+    - sd3_controlnet_canny
+    - sd3_controlnet_pose
+    - sd3_controlnet_tile
+    - sd3_controlnet_outpainting
+    - sd3_controlnet_removal
+    - sd3_controlnet_inpainting
+  
+  all_sd15:
+    - sd_15
+    - sd15_controlnet
+  
+  all_sdxl:
+    - sdxl_base
+    - sdxl_turbo
+    - sdxl_turbo_bs1
+  
+  sd_15:
+    - sd_15
+
+  quick_test:
+    - sd_turbo
+    - sd_turbo_bs1
+    - sdxl_turbo
+    - sdxl_turbo_bs1
+  
+  txt2img:
+    - sd_15
+    - sd_turbo
+    - sd_turbo_bs1
+    - sdxl_base
+    - sdxl_turbo
+    - sdxl_turbo_bs1
+    - sd21_base
+    - sd21_v
+    - sd3_base
+    - sd35_base
+  
+  controlnet:
+    - sd15_controlnet
+    - sd3_controlnet_canny
+    - sd3_controlnet_pose
+    - sd3_controlnet_tile
+    - sd35_controlnet_canny
+    - sd35_controlnet_pose
+    - sd35_controlnet_tile
+
+  outpainting:
+    - sd3_controlnet_outpainting
+    - sd35_controlnet_outpainting
+
+  inpainting:
+    - sd3_controlnet_inpainting
+    - sd35_controlnet_inpainting
+
+  removal:
+    - sd3_controlnet_removal
+    - sd35_controlnet_removal
+
+  image_editing:
+    - sd3_controlnet_outpainting
+    - sd3_controlnet_removal
+    - sd3_controlnet_inpainting
+    - sd35_controlnet_outpainting
+    - sd35_controlnet_removal
+    - sd35_controlnet_inpainting
+  
+  sd_21:
+    - sd21_base
+    - sd21_v
+  
+  turbo_models:
+    - sd_turbo
+    - sd_turbo_bs1
+    - sdxl_turbo
+    - sdxl_turbo_bs1
+
+  all:
+    - sd_15
+    - sd_turbo
+    - sd_turbo_bs1
+    - sdxl_base
+    - sdxl_turbo
+    - sdxl_turbo_bs1
+    - sd15_controlnet
+    - sd21_base
+    - sd21_v
+    - sd3_base
+    - sd3_controlnet_canny
+    - sd3_controlnet_pose
+    - sd3_controlnet_tile
+    - sd3_controlnet_outpainting
+    - sd3_controlnet_removal
+    - sd3_controlnet_inpainting
+    - sd35_base
+    - sd35_controlnet_canny
+    - sd35_controlnet_pose
+    - sd35_controlnet_tile
+    - sd35_controlnet_outpainting
+    - sd35_controlnet_removal
+    - sd35_controlnet_inpainting
