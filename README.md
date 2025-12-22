@@ -48,21 +48,21 @@
 Here is a list of currently supported SD models. Note that these models have had nodes replaced with custom ops specifically designed for AMD NPUs. The models can be downloaded from the Ryzen AI docs site here: 
 **[Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps)**. Note that the 2 ZIP files for download are **~16 GB** each and may take some time.
 
-| Model | Folder Name | Output Resolution | Text-To-Image | Image-To-Image | Inpainting | Removal | Outpainting |
-|-------|-------|---------------|----------------|------------|-------------|-------------| -------------|
-| SD 1.5 | sd_15 | 512x512 | ✅ | | | | |
-| SD Turbo | sd_turbo | 512x512 | ✅ | | | | |
-| SD Turbo Batch Size 1 | sd_turbo_bs1 | 512x512 | ✅ | | | | |
-| SD XL Base | sdxl-base-1.0 | 1024x1024 |  ✅ | | | | |
-| SD XL Turbo | sdxl_turbo | 512x512 | ✅ | | | | |
-| SD XL Turbo Batch Size 1  | sdxl_turbo_bs1 | 512x512 |  ✅ | | | | |
-| SD 2.1 | sd21_base | 512x512 | ✅ | | | | |
-| SD 2.1-V | sd-2.1-v | 768x768 | ✅ | | | | |
-| SD 3.0 Medium | [By request only] | Multiple*  | ✅ | ☑️ | ✅ | ☑️ | ✅ | 
-| SD 3.5 | [By request only] | Multiple*  | ✅ | ☑️ | ✅ | ☑️ | ✅ | 
-| SD 1.5 ControlNet (Canny) | sd15_controlnet | 512x512 | | ☑️ | | | |
-| SD 3.0 ControlNet (Canny, Depth, Tile) | [By request only] | Multiple* | ✅ | ☑️ |  |  |  | 
-| SD 3.5 ControlNet (Canny, Depth, Tile) | [By request only] | Multiple* | ✅ | ☑️ |  |  |  | 
+| Model | Folder Name | Output Resolution | Text-To-Image | Image-To-Image | Inpainting | Removal | Outpainting | SD Sandbox Support |
+|-------|-------|---------------|----------------|------------|-------------|-------------| -------------|-------------|
+| SD 1.5 | sd_15 | 512x512 | ✅ | | | | | ☑️ |
+| SD 1.5 ControlNet (Canny) | sd15_controlnet | 512x512 | | ✅ | | | | ☑️ |
+| SD Turbo | sd_turbo | 512x512 | ✅ | | | | | ☑️ |
+| SD Turbo Batch Size 1 | sd_turbo_bs1 | 512x512 | ✅ | | | | | ☑️ |
+| SD XL Base | sdxl-base-1.0 | 1024x1024 |  ✅ | | | | | ☑️ |
+| SD XL Turbo | sdxl_turbo | 512x512 | ✅ | | | | | ☑️ |
+| SD XL Turbo Batch Size 1  | sdxl_turbo_bs1 | 512x512 |  ✅ | | | | | ☑️ |
+| SD 2.1 | sd21_base | 512x512 | ✅ | | | | | ☑️ |
+| SD 2.1-V | sd-2.1-v | 768x768 | ✅ | | | | | ☑️ |
+| SD 3.0 Medium | [By request only] | Multiple*  | ✅ | ✅ | ✅ | ✅ | ✅ | ☑️ |
+| SD 3.5 | [By request only] | Multiple*  | ✅ | ✅ | ✅ | ✅ | ✅ | ☑️ |
+| SD 3.0 ControlNet (Canny, Depth, Tile) | [By request only] | Multiple* | ✅ | ✅ |  |  |  | ☑️ |
+| SD 3.5 ControlNet (Canny, Depth, Tile) | [By request only] | Multiple* | ✅ | ✅ |  |  |  | ☑️ |
 
 *The output resolutions supported are 512x512, 512x768, 768x512, 576x1024, 1024x576, 768x1024, 1024x768, 1024x1024.
 
@@ -122,7 +122,7 @@ Here are some explanations of each of the SD methods. Note that pre- and post-pr
 | Original Image | Extended Result |
 |:------------------------:|:---------------------------:|
 | ![Outpainting Input](test/assets/outpainting_input_512x512.png) | ![Outpainting Output](test/assets/outpainting_output_1024x1024.png) |
-> **Prompt:** *"Extend top and right by 512 pixels"*. Image Source: Created by author.
+> Extend top and right by 512 pixels. Image Source: Created by author.
 
 [Back to Table of Contents](#-contents)
 
