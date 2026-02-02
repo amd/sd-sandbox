@@ -446,8 +446,8 @@ def save_results(results: List[Dict[str, Any]], mode_str: str,
                 for timing_line in result['timing_lines']:
                     f.write(f"      {timing_line}\n")
             elif not result['success']:
-                error = result['error'][:200] + "..." if len(result['error']) > 200 else result['error']
-                f.write(f"   Error: {error}\n")
+                # Write full error message including traceback (if --traceback was enabled)
+                f.write(f"   Error: {result['error']}\n")
             f.write("\n")
     
     return str(filepath)

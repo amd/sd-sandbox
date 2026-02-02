@@ -156,7 +156,7 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
             t0_npu_start = time.perf_counter()
             start_mem = common.measure_mem()
             self.text_encoder_3 = common.LoadT5NPUTorchModel(
-                root_path, abs_common_model_path, "text_encoder_3_gptq_v1"
+                root_path, abs_common_model_path, "text_encoder_3_gptq_v2"
             )
             mem_change = common.measure_mem() - start_mem
 
@@ -398,6 +398,7 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
             pipe._clear_time_dict()
 
             t_start = time.perf_counter()
+            # Renamed _  to round_idx bc it's used in a print statement
             for round_idx in range(self.profiling_rounds):
                 total_mem += common.measure_mem()
                 _ = pipe(
@@ -420,6 +421,7 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
                 ).images
 
                 Logger.debug(f"Current Mem: {common.measure_mem()}MB")
+                # CHANGED: Added progress marker for orchestrator real-time tracking (sd_ref_design integration)
                 print(f"__ROUND_COMPLETE__ {round_idx+1}/{self.profiling_rounds}", flush=True)
             t_total = time.perf_counter() - t_start
 

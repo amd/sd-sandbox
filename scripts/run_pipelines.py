@@ -70,12 +70,19 @@ def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, P
         # Setup execution providers for this specific pipeline
         setup_pipeline_execution_provider(config_item, args, config)
         
+        # Determine custom_op_path: command-line > per-pipeline config > global defaults > None
+        custom_op_path = args.custom_op_path
+        if not custom_op_path:
+            custom_op_path = config_item.get('custom_op_path')
+        if not custom_op_path:
+            custom_op_path = config_defaults.get('custom_op_path')
+        
         for model_id in config_item["model_ids"]:
             result = run_pipeline(config_item, model_id, paths['test_path'], paths['source_path'],
                                 args.benchmark, args.timeout, args.prompt, 
                                 args.prompt_file, getattr(args, 'sd3_controlnet_mode', 'text2img'), 
                                 config.get('defaults', {}), log_buffer, determine_prompt_source,
-                                args.image_only)
+                                args.image_only, args.traceback, custom_op_path)
             
             # Print immediate feedback
             if result['success']:
@@ -138,6 +145,10 @@ def main():
                        help="Save complete log output to a text file when any pipeline has streaming output enabled")
     parser.add_argument("--image-only", action="store_true",
                        help="Generate images only without profiling (batch mode). Disables warmup and profiling rounds for fastest execution.")
+    parser.add_argument("--traceback", action="store_true",
+                       help="Include full traceback in error messages for detailed debugging")
+    parser.add_argument("--custom-op-path", type=str,
+                       help="Path to onnx_custom_ops.dll (Windows) or libonnx_custom_ops.so (Linux). If not specified, will use default locations.")
     
     args = parser.parse_args()
     

@@ -1,4 +1,5 @@
 # Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+#!/usr/bin/env python3
 """
 Post-process benchmark result files and generate CSV summaries.
 

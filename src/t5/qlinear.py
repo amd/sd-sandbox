@@ -3,11 +3,11 @@
 #
 
 import gc
-import os
 from collections import defaultdict
+
+import atom
 import torch
 from torch import Tensor
-import atom, time
 
 
 class AIEGEMM:
@@ -65,7 +65,6 @@ class QLinearPerGrp(torch.nn.Module):
         self.model_name = model_name
         self.biasexists = None
         self.weights_quantized = False
-        self.weights_packed = False
         self.pickle = pickle
         if pickle:
             self.aiegemm = QLinearPerGrp.single_aiegemm
@@ -144,7 +143,7 @@ class QLinearPerGrp(torch.nn.Module):
                 and self.qweight.size(1) == self.group_size
             )
 
-            self.qweight = self.qweight.reshape(self.w_shape_orig)
+            self.qweight = self.qweight.reshape(self.w_shape_orig).to(torch.int8)
             self.qzeros = self.qzeros.reshape(
                 (self.w_shape_orig[0], int(self.w_shape_orig[1] / self.group_size))
             ).to(torch.int8)
@@ -159,7 +158,7 @@ class QLinearPerGrp(torch.nn.Module):
             self.scales.requires_grad_(False)
             gc.collect()
         else:
-            print(f"Skipping - weights already quantized for this layer.")
+            print("Skipping - weights already quantized for this layer.")
 
     def initialize_parameters(self):
         if self.bias is not None:
@@ -169,18 +168,15 @@ class QLinearPerGrp(torch.nn.Module):
             self.bias = torch.zeros((self.out_features), dtype=torch.float32)
             self.biasexists = "False"
 
-        if self.weights_quantized == True:
-            # if not self.weights_packed:
-            #     self.qweight = self.unpack(
-            #         self.qweight, self.qzeros.shape[1] * self.group_size
-            #     )
+        if self.weights_quantized is True:
+            self.qweight = self.unpack(
+                self.qweight, self.qzeros.shape[1] * self.group_size
+            )
 
             if self.device == "aie":
-                # self.qweight = self.qweight.transpose(0, 1)
-                # self.qzeros = self.qzeros.transpose(0, 1)
-                # self.scales = self.scales.to(torch.float).transpose(0, 1)
-                # AIEGEMM.select_op_handle()
-                # self.aiegemm = AIEGEMM.single_aiegemm
+                self.qweight = self.qweight.transpose(0, 1)
+                self.qzeros = self.qzeros.transpose(0, 1)
+                self.scales = self.scales.to(torch.float).transpose(0, 1)
                 self.wts_index = QLinearPerGrp.wts_cnt
                 if self.pickle:
                     nodes = self.aiegemm.initialize_params(
@@ -204,8 +200,6 @@ class QLinearPerGrp(torch.nn.Module):
                     )
                 QLinearPerGrp.wts_cnt += nodes
 
-                if not os.path.exists("./logs"):
-                    os.makedirs("./logs")
                 self.c_token = torch.zeros(1, self.out_features, dtype=torch.bfloat16)
 
                 if self.pickle:
@@ -230,7 +224,6 @@ class QLinearPerGrp(torch.nn.Module):
                     self.scales, self.group_size, dim=1
                 )
                 self.weight = self.weight.transpose(0, 1).to(torch.bfloat16)
-                self.qzeros.to(torch.int8)
                 if self.bias is not None:
                     self.bias.data = self.bias.data.to(torch.bfloat16)
                 self.forward_func = self.forward_cpu
@@ -259,9 +252,11 @@ class QLinearPerGrp(torch.nn.Module):
         return c
 
     def forward_aie_token_mladf2(self, x: Tensor) -> Tensor:
+        x = x.to(torch.bfloat16)
         return self.aiegemm.execute_2_aie_bo(x, self.wts_index)
 
     def forward_aie_prefill_mladf2(self, x: Tensor) -> Tensor:
+        x = x.to(torch.bfloat16)
         return self.aiegemm.execute_2_aie_bo(x, self.wts_index)
 
     def _get_forward_aie_prefill_mladf2(self):
@@ -271,21 +266,17 @@ class QLinearPerGrp(torch.nn.Module):
         return self.forward_dict_aie[x.shape[0]](x)
 
     def forward(self, x: Tensor) -> Tensor:
-        # start = time.perf_counter()
         if len(x.shape) == 3:
             has_batch = True
         else:
             x = x.unsqueeze(0)
             has_batch = False
-        x = x.to(torch.bfloat16)
         y = torch.empty(
-            (x.shape[0], x.shape[1], self.out_features), dtype=torch.float16
+            (x.shape[0], x.shape[1], self.out_features), dtype=torch.bfloat16
         )
         for i in range(x.shape[0]):
             y[i] = self.forward_func(x[i])
-        # end = time.perf_counter()
-        # print(f"latency : {end - start:.6f}s")
         if has_batch is False:
             return y.squeeze(0)
         else:
-            return y.to(torch.float16)
+            return y

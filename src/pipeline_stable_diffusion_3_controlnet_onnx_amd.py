@@ -879,7 +879,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
 
         return image
 
-    def create_zero_control_blocks(self, height, width):
+    def create_zero_control_blocks(self, height, width, batch_size):
         inputs_info = self.transformer.model.get_inputs()
         block0_meta = next(
             (
@@ -903,12 +903,17 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
         block0_shape = []
         for dim in block0_meta.shape:
             block0_shape.append(dim)
+        if isinstance(block0_shape[0], str):
+            block0_shape[0] = batch_size
         block0_shape[1] = height // 16 * width // 16
+        zero_block = np.zeros(block0_shape, dtype=np_dtype)
 
         zero_block_dict = {}
         for i, input_info in enumerate(inputs_info):
             if input_info.name.startswith("block_controlnet_hidden_states_"):
-                zero_block_dict[input_info.name] = np.zeros(block0_shape, dtype=np_dtype)
+                zero_block_dict[input_info.name] = zero_block
+                # zero_block_dict[input_info.name] = np.zeros(block0_shape, dtype=np_dtype)
+
 
         return zero_block_dict
 
@@ -1311,6 +1316,8 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
 
                     cond_scale = np.full(1, cond_scale).astype(np.float16)
                     cond_scale = np.full(1, cond_scale).astype(np.float16)
+                    has_encoder_hidden_states = any(input.name == "encoder_hidden_states" for input in self.controlnet.model.get_inputs())
+                    if has_encoder_hidden_states:
                     model_input = {
                         "hidden_states": latent_model_input,
                         "controlnet_cond": controlnet_cond,
@@ -1319,7 +1326,17 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
                         "pooled_projections": controlnet_pooled_projections,
                         "timestep": timestep,
                     }
+                    else:
+                        model_input = {
+                            "hidden_states": latent_model_input,
+                            "controlnet_cond": controlnet_cond,
+                            "conditioning_scale": cond_scale,
+                            "pooled_projections": controlnet_pooled_projections,
+                            "timestep": timestep,
+                        }
                     control_block_samples = self.controlnet.model.run(None, model_input)
+                    num_control_block_samples = len(control_block_samples)
+                    if num_control_block_samples == 6:
                     model_input = {
                         "hidden_states": latent_model_input,
                         "timestep": timestep,
@@ -1338,6 +1355,27 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
                         "block_controlnet_hidden_states_10": control_block_samples[5],
                         "block_controlnet_hidden_states_11": control_block_samples[5],
                     }
+                    elif num_control_block_samples == 12:
+                        model_input = {
+                            "hidden_states": latent_model_input,
+                            "timestep": timestep,
+                            "encoder_hidden_states": prompt_embeds,
+                            "pooled_projections": pooled_prompt_embeds,
+                            "block_controlnet_hidden_states_0": control_block_samples[0],
+                            "block_controlnet_hidden_states_1": control_block_samples[1],
+                            "block_controlnet_hidden_states_2": control_block_samples[2],
+                            "block_controlnet_hidden_states_3": control_block_samples[3],
+                            "block_controlnet_hidden_states_4": control_block_samples[4],
+                            "block_controlnet_hidden_states_5": control_block_samples[5],
+                            "block_controlnet_hidden_states_6": control_block_samples[6],
+                            "block_controlnet_hidden_states_7": control_block_samples[7],
+                            "block_controlnet_hidden_states_8": control_block_samples[8],
+                            "block_controlnet_hidden_states_9": control_block_samples[9],
+                            "block_controlnet_hidden_states_10": control_block_samples[10],
+                            "block_controlnet_hidden_states_11": control_block_samples[11],
+                        }
+                    else:
+                        raise ValueError(f"Currently, only ControlNet output numbers of 6 or 12 are supported.")
                 else:
                     model_input = {
                         "hidden_states": latent_model_input,
@@ -1345,7 +1383,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
                         "encoder_hidden_states": prompt_embeds,
                         "pooled_projections": pooled_prompt_embeds,
                     }
-                    control_block_samples = self.create_zero_control_blocks(height, width)
+                    control_block_samples = self.create_zero_control_blocks(height, width, latents.shape[0])
                     model_input.update(control_block_samples)
                 ctrlnet_time = time.perf_counter() - ctrlnet_start_time
                 self.perf_time_dict["ctrlnet"].append(ctrlnet_time)

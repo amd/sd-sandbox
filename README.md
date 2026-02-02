@@ -45,8 +45,10 @@
 
 ## 📜 Supported Models
 
+The RAI 1.7.0 release of the sd_sandbox supports a limited set of models focused on text-to-image generation.
+
 Here is a list of currently supported SD models. Note that these models have had nodes replaced with custom ops specifically designed for AMD NPUs. The models can be downloaded from the Ryzen AI docs site here: 
-**[Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps)**. Note that the 2 ZIP files for download are **~16 GB** each and may take some time.
+**[Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps)**.
 
 | Model | Folder Name | Output Resolution | Text-To-Image | Image-To-Image | Inpainting | Removal | Outpainting |
 |-------|-------|---------------|----------------|------------|-------------|-------------| -------------|
@@ -58,16 +60,11 @@ Here is a list of currently supported SD models. Note that these models have had
 | SD XL Turbo Batch Size 1  | sdxl_turbo_bs1 | 512x512 |  ✅ | | | | |
 | SD 2.1 | sd21_base | 512x512 | ✅ | | | | |
 | SD 2.1-V | sd-2.1-v | 768x768 | ✅ | | | | |
-| SD 3.0 Medium | [By request only] | Multiple*  | ✅ | ☑️ | ✅ | ☑️ | ✅ | 
-| SD 3.5 | [By request only] | Multiple*  | ✅ | ☑️ | ✅ | ☑️ | ✅ | 
-| SD 1.5 ControlNet (Canny) | sd15_controlnet | 512x512 | | ☑️ | | | |
-| SD 3.0 ControlNet (Canny, Depth, Tile) | [By request only] | Multiple* | ✅ | ☑️ |  |  |  | 
-| SD 3.5 ControlNet (Canny, Depth, Tile) | [By request only] | Multiple* | ✅ | ☑️ |  |  |  | 
-
-*The output resolutions supported are 512x512, 512x768, 768x512, 576x1024, 1024x576, 768x1024, 1024x768, 1024x1024.
+| Segmind-Vega | segmind_vega | 1024x1024 | ✅ | | | | |
 
 [Back to Table of Contents](#-contents)
 
+**No modification has been made to the image generation methods sections from RAI 1.6.0 release docs). The models and examples described below will by supported in RAI 1.7.1**
 ---
 
 ## 🏞️ Image Generation Methods 
@@ -96,18 +93,23 @@ Here are some explanations of each of the SD methods. Note that pre- and post-pr
 **🖌️ Inpainting** — Edit or modify specific regions within an existing image. You provide an image, mark the area you want to change with a mask, and describe what should appear in that region. The model intelligently fills in the masked area while blending seamlessly with the surrounding content.
 *Example Use Cases: Object removal/replacement, photo retouching, fixing defects, adding elements to scenes*
 
-*Example below: Edit specific regions of an image while preserving the rest.*
+*Example: Edit specific regions of an image while preserving the rest:*
+**Prompt:** *"A girl taking a pig for a walk on the street"*
+
+
 | Original Image | Mask (Region to Edit) | Result |
 |:--------------:|:---------------------:|:------:|
 | <img src="test/assets/inpainting_input_1024x1024.png" width="300"> | <img src="test/assets/inpainting_mask_1024x1024.png" width="300"> | <img src="test/assets/inpainting_output_1024x1024.png" width="300"> |
-> **Prompt:** *"A girl taking a dog for a walk on the street"*. Image Source: Created by author.
+> Image Source: Created by author.
 
 <p align="center">• • •</p>
 
 **🧹 Removal** — Intelligently remove unwanted objects, people, or elements from images. Similar to inpainting, but specifically optimized for removing content and filling the space naturally with appropriate background or context-aware content.
 *Example Use Cases: Removing photobombers, cleaning up backgrounds, deleting unwanted objects, decluttering scenes*
 
-*Example below: Clean object removal with intelligent background fill.*
+*Example: Clean object removal with intelligent background fill*
+**Prompt:** *"A majestic landscape painting of mountains at sunrise, oil painting style, detailed brushwork with a blue moon in the sky with detailed reflection"*
+
 | Original Image | Mask (Object to Remove) | Result |
 |:--------------:|:-----------------------:|:------:|
 | <img src="test/assets/removal_input_1024x1024.jpg" width="300"> | <img src="test/assets/removal_input_mask_1024x1024.jpg" width="300"> | <img src="test/assets/removal_output_1024x1024.png" width="300"> |
@@ -118,11 +120,13 @@ Here are some explanations of each of the SD methods. Note that pre- and post-pr
 **🖼️ Outpainting** — Extend an image beyond its original boundaries while maintaining visual coherence. Provide an image and the model generates new content around the edges, effectively expanding your canvas while keeping the style and context consistent with the original.
 *Example use cases: expanding cropped photos, creating wider panoramas, extending backgrounds, enlarging canvas for composition*
 
-*Example below: Expand canvas while maintaining style and context coherence*
+*Example: Expand canvas while maintaining style and context coherence*
+**Prompt:** *"Extend top and right by 512 pixels"*
+
 | Original Image | Extended Result |
 |:------------------------:|:---------------------------:|
 | ![Outpainting Input](test/assets/outpainting_input_512x512.png) | ![Outpainting Output](test/assets/outpainting_output_1024x1024.png) |
-> **Prompt:** *"Extend top and right by 512 pixels"*. Image Source: Created by author.
+> Image Source: Created by author.
 
 [Back to Table of Contents](#-contents)
 
@@ -152,31 +156,40 @@ Follow the instructions here to download necessary NPU drivers and Ryzen AI SW: 
 #### Step 2: Clone this repository
 
 ```bash
-git clone https://github.com/amd/sd-sandbox.git
-cd sd-sandbox
+git clone https://github.com/amd/sd_sandbox.git
+cd sd_sandbox
 ```
 
 #### Step 3: Set Up Conda Environment
 
-From step 1, the conda environment should already be installed. Activate it and update it with [rai_env_update.yaml](rai_env_update.yaml):
+From step 1, the conda environment should already be installed. No modifications are needed to the conda environment for this release
+. Activate it with 
+```powershell
+conda activate ryzen-ai-1.7.0
+
+```
+
+#### Step 4: Install Python Dependencies
+
+Install the required Python packages using pip:
 
 ```powershell
-conda activate ryzen-ai-1.6.0
-conda env update -f rai_env_update.yaml
+pip install -r requirements.txt
 ```
+
 
 #### Step 4: Copy Required Libraries
 
-Copy the Ryzen AI runtime libraries `lib` to the `sd-sandbox` main project folder.
+Copy the Ryzen AI runtime libraries `lib` to the `sd_sandbox` main project folder.
 
 ```powershell
 # PowerShell command
-Copy-Item -Path "C:\Program Files\RyzenAI\1.6.0\GenAI-SD\lib" -Destination . -Recurse -Force
+Copy-Item -Path "C:\Program Files\RyzenAI\1.7.0\GenAI-SD\lib" -Destination . -Recurse -Force
 ```
 
 #### Step 5: Download Models
 
-1. Visit the [Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps) and download the ZIP files with the models (SD 1.5, SDXL, etc.). Note that the two ZIP files for download are **~16 GB** each and may take some time to download.
+1. Visit the [Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps) and download the ZIP files with the models (SD 1.5, SDXL, etc.).
 
 2. Create the models directory, extract the zipped files, and place the folders per the structure outlined below.
 
@@ -200,9 +213,9 @@ Now that you have the models, you need to configure paths by editing [config/pip
 1. The global paths `models_path`, the image output path `test_path`, and the `prompt_file` path:
 ```yaml
 paths:
-  models_path: "C:/Users/bconsolv/sd-sandbox/models"
-  test_path: "C:/Users/bconsolv/sd-sandbox/test"
-  prompt_file: "C:/Users/bconsolv/sd-sandbox/config/artistic_prompts.json"
+  models_path: "C:/Users/amd87/sd_sandbox/models"
+  test_path: "C:/Users/amd87/sd_sandbox/test"
+  prompt_file: "C:/Users/amd87/sd_sandbox/config/artistic_prompts.json"
 ```
 
 2. The `--model_path` for each individual pipeline. For example, for the `sd_15` pipeline:
@@ -212,12 +225,16 @@ pipelines:
   sd_15:
     extra_args:
       - "--model_path"
-      - "C:/Users/bconsolv/sd-sandbox/models/sd_15"
+      - "C:/Users/amd87/sd_sandbox/models/sd_15"
 ```
 
 More details on configurations can be found in the [Pipelines and Pipeline Groups Configuration](#-pipelines-and-pipeline-groups-configuration) section.
 
-#### Step 7: Hugging Face Credentials
+
+#### Step 7: Configure onnx_custom_ops.dll Path
+In order to run the models, you need to provide a path to the `onnx_custom_ops.dll` file used by the models. The default location of this file is `C:\Program Files\RyzenAI\1.7.0\deployment\onnx_custom_ops.dll`.
+
+#### Step 8: Hugging Face Credentials
 
 In order to access some files from the Stability AI models, you may need to visit the Hugging Face website and request access. 
 
@@ -261,7 +278,9 @@ Available Pipelines
 ==================================================
 Available Pipeline Groups
 ==================================================
-  all_sd3                   - sd3_base, sd3_controlnet_canny, sd3_controlnet_pose, sd3_controlnet_tile, sd3_controlnet_outpainting, sd3_controlnet_removal, sd3_controlnet_inpainting, sd35_base, sd35_controlnet_canny, sd35_controlnet_pose, sd35_controlnet_tile, sd35_controlnet_outpainting, sd35_controlnet_removal, 
+  all_sdxl      - sdxl_base, sdxl_turbo, sdxl_turbo_bs1 
+  all turbo    - sd_turbo, sd_turbo_bs1, sdxl_turbo, sdxl_turbo_bs1
+  sd_21     - sd21_base, sd-2.1-v 
 ...
 ```
 
@@ -301,7 +320,7 @@ Total runs: 1
 Successful: 1/1 (100.0%)
 Total duration: 0:00:36.465767
 
-Results saved to: C:\Users\User\bconsolv\sd-sandbox\results\pipeline_results_quick_20251124_101145.txt
+Results saved to: C:\Users\User\bconsolv\sd_sandbox\results\pipeline_results_quick_20251124_101145.txt
 
 ```
 
@@ -364,17 +383,12 @@ The following pipeline scripts ( in `tests/run*.py`), are used under the hood to
 | Script | Model(s) |
 |--------|----------|
 | run_sd.py | SD 1.5, SD Turbo, SD 2.1, SD 2.1-V |
-| run_sd_xl.py | SDXL Base, SDXL Turbo |
-| run_sd15_controlnet.py | SD 1.5 ControlNet |
-| run_sd3_dynamic.py | SD 3 base, SD 3 ControlNet, SD 3.5 base, SD 3.5 ControlNet , Used by all SD3 models that support dynamic shapes|
-| run_sd3.py | Not used, supports static SD3 models only |
-| run_sd3_contolnet_outptainting.py | SD 3 Out painting, Inpainting, and Removal |
+| run_sd_xl.py | SDXL Base, SDXL Turbo, Segmind-Vega   |
 
 Most pipeline-specific option are passed via the `extra_args` list in the yaml file. Not all options are supported yet, but most are.
 
 The **best** way to become familiar with the available parameters is to examine the [config/pipeline_configs.yaml](config/pipeline_configs.yaml) file. 
 
-**SD3/SD3.5 Dynamic Shape Support**: All SD3 and SD3.5 pipelines support dynamic shapes, allowing a single model to handle multiple resolutions without recompilation. This is enabled by default for these models The available resolutions are: 512x512, 512x768, 768x512, 576x1024, 1024x576, 768x1024, 1024x768, and 1024x1024.
 
 **3. Pipeline Groups**
 
@@ -454,16 +468,17 @@ python scripts/run_pipelines.py --pipelines sdxl_turbo --prompt "a serene mounta
 2. Image-Only Mode (`--image-only`) - Fastest execution for batch image generation with zero warmup and one generation pass, producing a single image per prompt without any profiling overhead.
 
 ```powershell
-# Generate 5 images from artistic_prompts.json using SD3, no profiling
-python scripts/run_pipelines.py --image-only --pipelines sd3_base --prompt_file config/anime_prompts.json
+# Generate 5 images from artistic_prompts.json using SDXL Base, no profiling
+python scripts/run_pipelines.py --image-only --pipelines sdxl_base --prompt_file config/anime_prompts.json
+
 ```
 *Output: 5 images total (the anime_prompts.json file contains 5 prompts), 0 warmup rounds, no performance metrics*
 
 3. Benchmark Mode (`--benchmark`) - Comprehensive profiling with one warmup iteration followed by ten profiled generations, producing eleven images total with detailed timing statistics for thorough performance analysis.
 
 ```powershell
-# Benchmark SD3 with detailed profiling across all SD3 models
-python scripts/run_pipelines.py --benchmark --pipeline_groups all_sd3
+# Benchmark SDXL with detailed profiling across all SDXL models
+python scripts/run_pipelines.py --benchmark --pipeline_groups all_sdxl
 ```
 *Output: 11 images per pipeline (1 warmup + 10 profiled), detailed performance report with timing averages and standard deviations*
 
@@ -489,12 +504,12 @@ python scripts/run_pipelines.py --help
 | --timeout | int | 600 | Timeout in seconds for each run (default: 600) |
 | --script | list |  | Run only these script names (e.g. --script run_sd.py run_sd_xl.py) |
 | --model_id | list |  | Run only these model IDs (e.g. --model_id runwayml/stable-diffusion-v1-5) |
-| --pipelines | list |  | Run specific pipelines by name (e.g. --pipelines sd_15 sd3_base) |
-| --pipeline_groups | list |  | Run pipeline groups (e.g. --pipeline_groups all_sd3 quick_test) |
+| --pipelines | list |  | Run specific pipelines by name (e.g. --pipelines sd_15 sdxl_base) |
+| --pipeline_groups | list |  | Run pipeline groups (e.g. --pipeline_groups sd_21 quick_test) |
 | --list | flag | False | List available pipelines and groups, then exit |
 | --prompt | str |  | Custom prompt to use for all pipelines |
 | --prompt_file | str |  | Path to JSON file containing list of prompts to run through each pipeline |
-| --sd3-controlnet-mode | str | controlnet | For SD3 ControlNet with prompt files: 'controlnet' uses custom prompts with ControlNet enabled (recommended), 'text2img' converts to text-to-image mode without ControlNet guidance (default: controlnet) |
+| ~~--sd3-controlnet-mode~~ | ~~str~~ | ~~controlnet~~ | ~~For SD3 ControlNet with prompt files: 'controlnet' uses custom prompts with ControlNet enabled (recommended), 'text2img' converts to text-to-image mode without ControlNet guidance (default: controlnet)~~ |
 | --force-cpu | flag | False | Force CPU-only execution (disables GPU, DML, and all accelerators). Overrides config setting. |
 | --disable-vitisai | flag | False | Disable Vitis AI acceleration (FPGA/AI accelerators). Use with --force-cpu for complete CPU-only execution. Overrides config setting. |
 | --no-summary | flag | False | Skip printing the detailed summary report and skip saving results to disk |
@@ -502,6 +517,9 @@ python scripts/run_pipelines.py --help
 | --clean-images | flag | False | Remove all existing images and Excel files from generated_images folder before running pipelines |
 | --clean-results | flag | False | Remove all existing result files from results folder before running pipelines |
 | --save-log | flag | False | Save complete log output to a text file when any pipeline has streaming output enabled |
+| --image-only | flag | Fale | Generate images only without profiling (batch mode). Disables warmup and profiling rounds for fastest execution. |
+| --traceback | flag | False | Include full traceback in error messages for detailed debugging |
+| --custom-op-path | str | | Path to onnx_custom_ops.dll (Windows)
 
 [Back to Table of Contents](#-contents)
 

@@ -77,7 +77,7 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
                 os.path.join(model_path, "scheduler")
             )
         except:
-            raise ValueError("scheuler not found")
+            raise ValueError("scheduler not found")
         t0 = time.perf_counter()
         self.t_npu = 0
         t0_unet = time.perf_counter()

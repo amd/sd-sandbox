@@ -21,7 +21,7 @@ from .pipeline_stable_diffusion_3_controlnet_onnx_amd import (
 )
 from .utils import common
 
-
+# Change: added control_image_path as class attribute 
 class StableDiffusion3PipelineTrigger:
     def __init__(
         self,
@@ -83,10 +83,16 @@ class StableDiffusion3PipelineTrigger:
             )
 
         self.text_encoder = common.LoadModel(
-            abs_common_model_path, "text_encoder", "text_encoder"
+            abs_common_model_path,
+            "text_encoder",
+            "text_encoder",
+            providers=["DmlExecutionProvider", "CPUExecutionProvider"],
         )
         self.text_encoder_2 = common.LoadModel(
-            abs_common_model_path, "text_encoder_2", "text_encoder_2"
+            abs_common_model_path,
+            "text_encoder_2",
+            "text_encoder_2",
+            providers=["DmlExecutionProvider", "CPUExecutionProvider"],
         )
 
         self.scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(
@@ -98,21 +104,18 @@ class StableDiffusion3PipelineTrigger:
         # Load T5 model
         start_mem = common.measure_mem()
         self.text_encoder_3 = common.LoadT5NPUTorchModel(
-            root_path, abs_common_model_path, "text_encoder_3_gptq_v1"
+            root_path, abs_common_model_path, "text_encoder_3_gptq_v2"
         )
         mem_change = common.measure_mem() - start_mem
         self.mem_dict["t5"] = mem_change
         Logger.debug(f"T5 Mem: {mem_change}MB")
         self.control_image = None
-        self.control_img_url = ""
+
+        model_type_mmdit = common.get_normal_transformer_model_name(abs_sub_model_path, controlnet_str)
         if controlnet_str.lower() != "none":
-            controlnet_model_name, default_control_img_url, prompt, n_prompt = (
+            controlnet_model_name = (
                 common.get_normal_controlnet_model_name(controlnet_str)
             )
-            # Use provided control_image_path if given, otherwise use default
-            self.control_img_url = control_image_path if control_image_path else default_control_img_url
-
-            # Load vae encoder model
             start_mem = common.measure_mem()
             self.vae_encoder = common.load_model_with_session(
                 MODEL_PATH=abs_common_model_path,
@@ -120,7 +123,7 @@ class StableDiffusion3PipelineTrigger:
                 model_file="replaced.onnx",
                 custom_op_path=custom_op_path,
                 enable_dd_fusion_compile=enable_compile,
-                providers=["DmlExecutionProvider"],
+                providers=["CPUExecutionProvider"],
                 width=width,
                 t5_sequence_len=t5_sequence_len,
                 is_dynamic=is_dynamic,
@@ -137,7 +140,7 @@ class StableDiffusion3PipelineTrigger:
                 model_file="replaced.onnx",
                 custom_op_path=custom_op_path,
                 enable_dd_fusion_compile=enable_compile,
-                providers=["DmlExecutionProvider"],
+                providers=["CPUExecutionProvider"],
                 width=width,
                 t5_sequence_len=t5_sequence_len,
                 is_dynamic=is_dynamic,
@@ -146,9 +149,6 @@ class StableDiffusion3PipelineTrigger:
             mem_change = common.measure_mem() - start_mem
             self.mem_dict["controlnet"] = mem_change
             Logger.debug(f"controlnet Mem: {mem_change}MB")
-            self.control_image = load_image(self.control_img_url)
-            # Load control image
-            Logger.debug(f"Load control image from : {self.control_img_url}")
             model_type_mmdit = "transformer"
             model_type_decoder = "vae_decoder"
         else:
@@ -173,7 +173,7 @@ class StableDiffusion3PipelineTrigger:
             model_file="replaced.onnx",
             custom_op_path=custom_op_path,
             enable_dd_fusion_compile=enable_compile,
-            providers=["DmlExecutionProvider"],
+            providers=["CPUExecutionProvider"],
             width=width,
             t5_sequence_len=t5_sequence_len,
             is_dynamic=is_dynamic,
@@ -190,7 +190,7 @@ class StableDiffusion3PipelineTrigger:
             model_file="replaced.onnx",
             custom_op_path=custom_op_path,
             enable_dd_fusion_compile=enable_compile,
-            providers=["DmlExecutionProvider"],
+            providers=["CPUExecutionProvider"],
             width=width,
             t5_sequence_len=t5_sequence_len,
             is_dynamic=is_dynamic,
@@ -230,7 +230,7 @@ class StableDiffusion3PipelineTrigger:
         if self.controlnet is not None:
             del self.controlnet.model
             del self.vae_encoder.model
-        # ADDED: Force garbage collection to release AMD Ryzen AI accelerator resources
+        # CHANGED: Force NPU resource cleanup for sequential pipeline runs (sd_ref_design integration)
         import gc
         gc.collect()
         Logger.debug("Models in StableDiffusion3PipelineTrigger are released")
@@ -243,6 +243,7 @@ class StableDiffusion3PipelineTrigger:
         n_prompt="",
         num_inference_steps=8,
         num_images_per_prompt=1,
+        control_image_path=None,
         controlnet_conditioning_scale=0.5,
         guidance_scale=3.0,
         seed=None,
@@ -271,7 +272,16 @@ class StableDiffusion3PipelineTrigger:
         config_dict["seed"] = seed
         if self.controlnet:
             config_dict["controlnet_conditioning_scale"] = controlnet_conditioning_scale
-            config_dict["control_img_url"] = self.control_img_url
+            config_dict["control_img_url"] = control_image_path
+            start_mem = common.measure_mem()
+            control_image = load_image(control_image_path)
+            mem_change = common.measure_mem() - start_mem
+            self.mem_dict["control_image"] = mem_change
+            Logger.debug(f"Control image Mem: {mem_change}MB")
+            Logger.debug(f"Load control image from : {control_image_path}")
+        else:
+            control_image = None
+
         common.print_config(config_dict)
         if self.enable_profile:
             # Warm-up
@@ -282,7 +292,8 @@ class StableDiffusion3PipelineTrigger:
                 height=height,
                 width=width,
                 negative_prompt=n_prompt,
-                control_image=self.control_image,
+                control_image=control_image,
+                num_images_per_prompt=num_images_per_prompt,
                 controlnet_conditioning_scale=controlnet_conditioning_scale,
                 generator=(
                     torch.Generator().manual_seed(seed) if seed is not None else torch.Generator()
@@ -308,7 +319,9 @@ class StableDiffusion3PipelineTrigger:
                     height=height,
                     width=width,
                     negative_prompt=n_prompt,
-                    control_image=self.control_image,
+                    # control_image=control_image,
+                    control_image=control_image,
+                    num_images_per_prompt=num_images_per_prompt,
                     controlnet_conditioning_scale=controlnet_conditioning_scale,
                     generator=(
                         torch.Generator().manual_seed(seed) if seed is not None else torch.Generator()
@@ -317,7 +330,7 @@ class StableDiffusion3PipelineTrigger:
                     guidance_scale=guidance_scale,
                 )
                 Logger.debug(f"Current Mem: {common.measure_mem()}MB")
-                # ADDED: Emit round-complete marker for orchestrator progress tracking
+                # CHANGED: Added progress marker for orchestrator real-time tracking (sd_ref_design integration)
                 try:
                     print(f"__ROUND_COMPLETE__ {round_idx+1}/{self.profiling_rounds}", flush=True)
                 except Exception:
@@ -354,7 +367,8 @@ class StableDiffusion3PipelineTrigger:
                 height=height,
                 width=width,
                 negative_prompt=n_prompt,
-                control_image=self.control_image,
+                # control_image=control_image,
+                control_image=control_image,
                 num_images_per_prompt=num_images_per_prompt,
                 controlnet_conditioning_scale=controlnet_conditioning_scale,
                 generator=(
