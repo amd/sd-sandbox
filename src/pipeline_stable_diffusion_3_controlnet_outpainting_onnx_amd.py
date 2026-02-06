@@ -16,7 +16,7 @@
 
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-from diffusers.pipelines.onnx_utils import OnnxRuntimeModel
+from diffusers.pipelines import OnnxRuntimeModel
 import torch
 from transformers import (
     CLIPTokenizer,
@@ -1353,8 +1353,30 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
                 "MultiControlNetModel is not supported for SD3ControlNetInpaintingPipeline."
             )
         else:
-            self.perf_time_dict["vae_encoder"].append(0)
-            assert False
+            # FIX: Handle controlnet type mismatch (Jan 9, 2026)
+            # Issue: isinstance(self.controlnet, OnnxRuntimeModel) was returning False
+            # even though common.LoadModel() should return OnnxRuntimeModel type.
+            # Root cause: Possible type wrapping or import mismatch between modules.
+            # Solution: Prepare control_image in this fallback case to avoid AttributeError
+            # when trying to call .to() method on unprepared PIL Image object.
+            # Without this fix, control_image remains a PIL Image and lacks .to() method,
+            # causing: AttributeError: Image object has no attribute to
+            control_image, origin_image = self.prepare_image_with_mask(
+                image=control_image,
+                mask=control_mask,
+                width=width,
+                height=height,
+                batch_size=batch_size * num_images_per_prompt,
+                num_images_per_prompt=num_images_per_prompt,
+                device=device,
+                dtype=dtype,
+                do_classifier_free_guidance=self.do_classifier_free_guidance,
+                guess_mode=False,
+            )
+            latent_height, latent_width = control_image.shape[-2:]
+
+            height = latent_height * self.vae_scale_factor
+            width = latent_width * self.vae_scale_factor
         controlnet_cond = control_image.to(dtype=torch.float16).cpu().numpy()
         if control_name == "inpainting":
             controlnet_pooled_projections = pooled_prompt_embeds
@@ -1365,6 +1387,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
                 controlnet_pooled_projections = (
                     controlnet_pooled_projections or pooled_prompt_embeds
                 )
+
 
         # 4. Prepare timesteps
         timesteps, num_inference_steps = retrieve_timesteps(

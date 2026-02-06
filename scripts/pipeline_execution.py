@@ -10,8 +10,10 @@ import os
 import sys
 import time
 import json
+import re
 import subprocess
 import argparse
+import traceback  # Used for detailed error tracebacks when --traceback flag is enabled
 from pathlib import Path
 from datetime import datetime
 from collections import deque
@@ -28,7 +30,8 @@ from pipeline_helpers import (
 # ============================================================================
 
 def build_command(script_path: Path, script_name: str, model_id: str, 
-                  profiling_rounds: int, extra_args: List[str], image_only: bool = False) -> List[str]:
+                  profiling_rounds: int, extra_args: List[str], image_only: bool = False,
+                  custom_op_path: Optional[str] = None) -> List[str]:
     """
     Construct the command line arguments for running a pipeline script.
     
@@ -42,6 +45,7 @@ def build_command(script_path: Path, script_name: str, model_id: str,
         profiling_rounds (int): Number of profiling rounds to run
         extra_args (List[str]): Additional arguments from configuration
         image_only (bool): If True, run in batch mode without profiling (default: False)
+        custom_op_path (str, optional): Path to onnx_custom_ops.dll or libonnx_custom_ops.so
         
     Returns:
         List[str]: Complete command list ready for subprocess execution
@@ -73,13 +77,12 @@ def build_command(script_path: Path, script_name: str, model_id: str,
         # Most other scripts don't support --output_image
         filtered_extra_args = filter_extra_args(extra_args, ["--output_image"])
         
-        # Auto-add --dynamic_shape for SD3/SD3.5 scripts if not already present
-        if script_name in ["run_sd3_dynamic.py", "run_sd3_controlnet_outpainting.py"]:
-            if "--dynamic_shape" not in filtered_extra_args:
-                filtered_extra_args.append("--dynamic_shape")
-        
         cmd.extend(["--model_id", model_id] + common_args + 
                   ["--profiling_rounds", str(profiling_rounds)] + filtered_extra_args)
+    
+    # Add custom_op_path if provided
+    if custom_op_path:
+        cmd.extend(["--custom_op_path", custom_op_path])
     
     return cmd
 
@@ -329,7 +332,7 @@ def setup_process_environment(source_path: Path) -> Dict[str, str]:
 def stream_process_output(process: subprocess.Popen, streaming_enabled: bool, 
                          benchmark_mode: bool, profiling_rounds: int, prompt_count: int,
                          log_buffer: Optional[List[str]], 
-                         pipeline_name: str, model_id: str) -> Tuple[deque, int]:
+                         pipeline_name: str, model_id: str) -> Tuple[deque, int, List[str]]:
     """
     Stream and capture subprocess output with progress tracking.
     
@@ -344,9 +347,10 @@ def stream_process_output(process: subprocess.Popen, streaming_enabled: bool,
         model_id: Model ID for logging
         
     Returns:
-        Tuple of (last_lines deque, rounds_completed count)
+        Tuple of (last_lines deque, rounds_completed count, error_lines list)
     """
     last_lines = deque(maxlen=9)
+    error_lines = []  # Capture error/traceback/exception lines
     
     # Stream output based on configuration
     if streaming_enabled:
@@ -375,6 +379,16 @@ def stream_process_output(process: subprocess.Popen, streaming_enabled: bool,
             break
 
         text = line.rstrip()
+        
+        # Strip ANSI color codes for keyword detection (red terminal text often has ANSI codes)
+        # ANSI escape sequences: \x1b[...m or \033[...m
+        text_clean = re.sub(r'\x1b\[[0-9;]*m', '', text)
+        text_lower = text_clean.lower()
+        
+        # Capture error, traceback, and exception lines for error reporting
+        # Check both the original line and cleaned version to catch red terminal output
+        if any(keyword in text_lower for keyword in ['error', 'traceback', 'exception', 'failed', 'errno', 'assert']):
+            error_lines.append(text)  # Keep original with color codes for full context
         
         # Add to log buffer if streaming is enabled and log buffer exists
         if streaming_enabled and log_buffer is not None:
@@ -409,7 +423,7 @@ def stream_process_output(process: subprocess.Popen, streaming_enabled: bool,
         # Keep only last 9 lines for timing summary
         last_lines.append(text)
     
-    return last_lines, rounds_completed
+    return last_lines, rounds_completed, error_lines
 
 
 def finalize_execution_log(streaming_enabled: bool, log_buffer: Optional[List[str]],
@@ -494,7 +508,9 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
                 config_defaults: Optional[Dict[str, Any]] = None,
                 log_buffer: Optional[List[str]] = None,
                 determine_prompt_source_func: Optional[Callable[[Dict[str, Any], Optional[str], Optional[str], Optional[Dict[str, Any]]], Tuple[List[str], str, int]]] = None,
-                image_only: bool = False) -> Dict[str, Any]:
+                image_only: bool = False,
+                traceback_enabled: bool = False,
+                custom_op_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Execute a single pipeline configuration with metrics collection.
     
@@ -512,6 +528,8 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
         log_buffer: Optional list to collect log output (only used if streaming_enabled=True)
         determine_prompt_source_func: Function to determine prompt source
         image_only: If True, run in batch mode without profiling
+        traceback_enabled: If True, include full traceback in error messages
+        custom_op_path: Optional path to onnx_custom_ops.dll or libonnx_custom_ops.so
         
     Returns:
         Dictionary with execution results and metrics
@@ -554,7 +572,7 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
     )
     
     # Build and run command
-    cmd = build_command(script_path, script_name, model_id, profiling_rounds, extra_args, image_only)
+    cmd = build_command(script_path, script_name, model_id, profiling_rounds, extra_args, image_only, custom_op_path)
     
     # Print mode information
     if image_only:
@@ -584,7 +602,7 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
         )
         
         # Stream output and track progress
-        last_lines, rounds_completed = stream_process_output(
+        last_lines, rounds_completed, error_lines = stream_process_output(
             process, streaming_enabled, benchmark_mode, profiling_rounds, 
             prompt_count, log_buffer, pipeline_name, model_id
         )
@@ -601,7 +619,15 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
         
         duration = time.time() - start_time
         success = return_code == 0
-        stderr_output = f"Process exited with code {return_code}" if not success else ""
+        
+        # Build error message with captured error lines if process failed
+        if not success:
+            stderr_output = f"Process exited with code {return_code}"
+            if error_lines:
+                # Include captured error lines in the error message
+                stderr_output += "\n\nError Output:\n" + "\n".join(error_lines[-20:])  # Last 20 error lines
+        else:
+            stderr_output = ""
         
         # Convert deque to list for timing summary
         timing_lines = list(last_lines)
@@ -615,7 +641,27 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
                                 model_path)
                                 
     except Exception as e:
-        return create_result_dict(script_name, model_id, pipeline_name, error=str(e), 
-                                resolution=resolution, num_inference_steps=num_inference_steps,
+        # Traceback Feature: Provides detailed error diagnostics when enabled via --traceback flag
+        # When traceback_enabled=True, includes full Python stack trace with error message
+        # When False (default), shows only the error message for cleaner output
+        duration = time.time() - start_time
+        if traceback_enabled:
+            error_message = f"{str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+        else:
+            error_message = str(e)
+        
+        # Add exception info to log buffer if it exists
+        if log_buffer is not None:
+            log_buffer.append(f"[FAILED] Exception occurred: {str(e)}")
+            if traceback_enabled:
+                log_buffer.append("\nFull Traceback:")
+                log_buffer.append(traceback.format_exc())
+            log_buffer.append(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            log_buffer.append(f"Duration: {duration:.1f}s")
+            log_buffer.append("-" * 60)
+        
+        return create_result_dict(script_name, model_id, pipeline_name, error=error_message, 
+                                duration=duration, resolution=resolution, 
+                                num_inference_steps=num_inference_steps,
                                 model_path=model_path)
 

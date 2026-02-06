@@ -16,6 +16,7 @@ from pathlib import Path
 import pandas as pd
 
 process = psutil.Process()
+from diffusers import OnnxRuntimeModel
 
 # Fix diffusers ONNX detection issue
 try:
@@ -31,6 +32,9 @@ except ImportError:
     pass
 
 from diffusers.pipelines.onnx_utils import OnnxRuntimeModel
+from datetime import datetime
+from typing import List, Optional, Tuple, Any
+from pathlib import Path
 
 # CHANGE ADDED: Dynamic provider label helper for --force-cpu functionality
 # This function returns "CPU" when --force-cpu is used (ORT_DISABLE_GPU=1), "NPU" otherwise
@@ -41,8 +45,95 @@ def _get_provider_label():
     else:
         return "NPU"
         
+def get_absolute_path(sub_path: str) -> str:
+    project_root = Path(__file__).resolve().parents[2]
+    absolute_path = project_root / sub_path
+    return str(absolute_path.resolve())
+
+
+def generate_filename(
+    model_id: str,
+    width: int,
+    height: int,
+    num_steps: int,
+    prompt_idx: Optional[int] = None,
+    image_idx: Optional[int] = None,
+    controlnet: Optional[str] = None,
+    run_mode: Optional[str] = None,
+    batch_size: Optional[int] = None,
+    suffix: Optional[str] = ".png",
+) -> str:
+    """
+    Generate standardized filename.
+    
+    Supports various filename patterns used across different scripts.
+    
+    Args:
+        model_id: Model identifier (e.g., "stabilityai/sd3")
+        width: Image width
+        height: Image height
+        num_steps: Number of inference steps
+        image_idx: Image index in batch
+        prompt_idx: Prompt index
+        controlnet: ControlNet type (optional, e.g., "canny", "pose")
+        run_mode: Run mode (optional, e.g., "profiling", "batch")
+        batch_size: Batch size (optional, included in filename if provided)
+        suffix: File extension (optional, default is ".png")
+    Returns:
+        Generated filename
+        
+    Examples:
+        # Simple filename
+        filename = generate_filename(
+            "stabilityai/sd-turbo", width=512, height=512, num_steps=20, suffix=".png", image_idx=0, prompt_idx=0
+        )
+        # -> "sd-turbo_img0_512x512_steps20_prompt0_20250108_120000.png"
+        
+        # ControlNet filename  
+        filename = generate_filename(   
+            "stabilityai/sd3", width=1024, height=1024, num_steps=8, suffix=".png", image_idx=0, prompt_idx=0,
+            controlnet="canny", run_mode="profiling"
+        )
+        # -> "sd3_img0_canny_profiling_1024x1024_steps8_prompt0_20250108_120000.png"
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    model_name = model_id.split('/')[-1]
+    parts = [model_name]
+
+    if image_idx is not None:
+        parts.append(f"img{image_idx}")
+    
+    # Add controlnet info
+    if controlnet and controlnet.lower() != "none":
+        parts.append(controlnet)
+    
+    # Add run mode
+    if run_mode:
+        parts.append(run_mode)
+    
+    # Add resolution
+    parts.append(f"{width}x{height}")
+    
+    # Add steps
+    parts.append(f"steps{num_steps}")
+    
+    # Add prompt index
+    if prompt_idx is not None:
+        parts.append(f"prompt{prompt_idx}")
+    
+    # Add batch size if provided
+    if batch_size is not None:
+        parts.append(f"bs{batch_size}")
+    
+    # Add timestamp
+    parts.append(timestamp)
+    
+    return "_".join(parts) + suffix
+
+
 def setup_npu_runntime(root_path, bin_path):
-    sys.path.append("../src/t5")
+    sys.path.append(get_absolute_path("src/t5"))
     os.environ["mha_npu"] = "1"
     os.environ["bo_path"] = bin_path
 
@@ -108,12 +199,15 @@ def LoadModel(
 def config_session_options(
     custom_op_path, dd_model_path, enable_dd_fusion_compile
 ):
-    ctypes.CDLL(custom_op_path)
+    print(f'custom op   path: {custom_op_path}')
+    # CHANGED: Check if custom_op_path exists before loading to prevent errors when path is None/invalid
+    if custom_op_path and os.path.exists(custom_op_path):
+        ctypes.CDLL(custom_op_path)
     session_options = onnxruntime.SessionOptions()
     session_options.graph_optimization_level = (
         onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     )
-    if os.path.exists(custom_op_path):
+    if custom_op_path and os.path.exists(custom_op_path):
         session_options.add_session_config_entry("dd_cache", (Path(dd_model_path).parent / ".cache").as_posix())
         # model loading optimization
         session_options.add_session_config_entry(
@@ -121,27 +215,48 @@ def config_session_options(
         )
         # can be commented out to reduce compiling time if you have compiled before
         if enable_dd_fusion_compile:
-            session_options.add_session_config_entry("compile_fusion_rt", "True")
+            session_options.add_session_config_entry("compile_fusion_rt", "1")
         session_options.register_custom_ops_library(custom_op_path)
     return session_options
 
 
-def get_sd_dd_model_dir(model_type, width=None):
+def get_sd_dd_model_dir(MODEL_PATH, model_type, width=None):
     if width:
-        return f"{model_type}/{str(width)}/dd"
+        model_dir = f"{model_type}/{str(width)}/dd"
+        if os.path.exists(os.path.join(MODEL_PATH, model_dir)):
+            return model_dir
+        elif os.path.exists(os.path.join(MODEL_PATH, f"{model_type}/dynamic/dd")):
+            return f"{model_type}/dynamic/dd"
+        # Fallback to non-width-specific dd directory
+        elif os.path.exists(os.path.join(MODEL_PATH, f"{model_type}/dd")):
+            return f"{model_type}/dd"
+        else:
+            raise ValueError(f"Model directory {os.path.join(MODEL_PATH, model_dir)} not found")
     return f"{model_type}/dd"
 
 def get_sd_dd_dynamic_model_dir(model_type):
     return f"{model_type}/dynamic/dd"
 
-def get_sd3_dd_model_dir(model_type, width, t5_sequence_len=None):
+def get_sd3_dd_model_dir(MODEL_PATH, model_type, width, t5_sequence_len=None):
     width_str = "512" if width == 512 else "1024"
 
     # Add t5_sequence_len to path for controlnet or transformer models
     if t5_sequence_len is not None:
-        return f"{model_type}/{width_str}_{t5_sequence_len}/dd"
-
-    return f"{model_type}/{width_str}/dd"
+        model_dir = f"{model_type}/{width_str}_{t5_sequence_len}/dd"
+        if os.path.exists(os.path.join(MODEL_PATH, model_dir)):
+            return model_dir
+        elif os.path.exists(os.path.join(MODEL_PATH, f"{model_type}/dynamic/dd")):
+            return f"{model_type}/dynamic/dd"
+        else:
+            raise ValueError(f"Model directory {os.path.join(MODEL_PATH, model_dir)} not found")
+    else:
+        model_dir = f"{model_type}/{width_str}/dd"
+        if os.path.exists(os.path.join(MODEL_PATH, model_dir)):
+            return model_dir
+        elif os.path.exists(os.path.join(MODEL_PATH, f"{model_type}/dynamic/dd")):
+            return f"{model_type}/dynamic/dd"
+        else:
+            raise ValueError(f"Model directory {os.path.join(MODEL_PATH, model_dir)} not found")
 
 
 def load_model_with_session(
@@ -161,9 +276,9 @@ def load_model_with_session(
         if is_dynamic:
             dd_model_dir = get_sd_dd_dynamic_model_dir(model_type)
         elif model_type.startswith("controlnet-") or model_type.startswith("transformer"):
-            dd_model_dir = get_sd3_dd_model_dir(model_type, width, t5_sequence_len)
+            dd_model_dir = get_sd3_dd_model_dir(MODEL_PATH, model_type, width, t5_sequence_len)
         else:
-            dd_model_dir = get_sd_dd_model_dir(model_type, width)
+            dd_model_dir = get_sd_dd_model_dir(MODEL_PATH, model_type, width)
         session = config_session_options(
             custom_op_path,
             os.path.join(MODEL_PATH, dd_model_dir, model_file),
@@ -177,22 +292,6 @@ def load_model_with_session(
         filename=model_file,
         providers=providers,
     )
-
-
-def get_folder(model_id):
-    save_folders = {
-        "runwayml/stable-diffusion-v1-5": "./SD1.5",
-        "stabilityai/stable-diffusion-2-1-base": "./SD2.1-base",
-        "stabilityai/sd-turbo": "./SD-turbo",
-        "stabilityai/stable-diffusion-2-1": "./SD2.1",
-    }
-    try:
-        save_folder = save_folders[model_id]
-    except:
-        save_folder = model_id.replace("/", "_")
-    if not os.path.exists(save_folder):
-        os.makedirs(save_folder)
-    return save_folder
 
 
 def print_config(config):
@@ -285,7 +384,7 @@ def log_pipeline_metrics(pipeline_metrics):
 def save_pipeline_metrics_to_excel(save_path, data):
     def format_float(val):
         try:
-            return round(val, 2)
+            return round(val, 4)
         except:
             return ""
 
@@ -352,29 +451,31 @@ def get_controlnet_model_name(target: str):
 def get_normal_controlnet_model_name(target: str):
     if target.lower() == "Canny".lower():
         model_name = "controlnet-canny"
-        control_img_url = "ref/canny.jpg"  # "https://huggingface.co/InstantX/SD3-Controlnet-Canny/resolve/main/canny.jpg"
-        prompt = 'Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text "InstantX" on image'
-        n_prompt = "NSFW, nude, naked, porn, ugly"
     elif target.lower() == "Tile".lower():
         model_name = "controlnet-tile"
-        control_img_url = "ref/tile.jpg"  # "https://huggingface.co/InstantX/SD3-Controlnet-Tile/resolve/main/tile.jpg"
-        prompt = 'Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text "InstantX" on image'
-        n_prompt = "NSFW, nude, naked, porn, ugly"
     elif target.lower() == "Pose".lower():
         model_name = "controlnet-pose"
-        control_img_url = "ref/pose.jpg"  # "https://huggingface.co/InstantX/SD3-Controlnet-Pose/resolve/main/pose.jpg"
-        prompt = 'Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text "InstantX" on image'
-        n_prompt = "NSFW, nude, naked, porn, ugly"
+    elif target.lower() == "union".lower():
+        model_name = "controlnet-union"
     elif target.lower() in ["outpainting", "removal", "inpainting"]:
         raise ValueError(f"Unsupported controlnet type: {target}, please try run_sd3_controlnet_outpainting.py instead.")
     else:
         model_name = "controlnet-canny"
-        control_img_url = "https://huggingface.co/InstantX/SD3-Controlnet-Canny/resolve/main/canny.jpg"
-        prompt = 'Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text "InstantX" on image'
-        n_prompt = "NSFW, nude, naked, porn, ugly"
-
         Logger.warning(
             f"Unhandled target: {target}, will use Canny by default in normal controlnet pipeline"
         )
+    return model_name
 
-    return model_name, control_img_url, prompt, n_prompt
+def get_normal_transformer_model_name(abs_sub_model_path: str, target: str):
+    if target.lower() == "none":
+        if os.path.exists(os.path.join(abs_sub_model_path, "transformer_igpu")):
+            model_name = "transformer_igpu"
+        elif os.path.exists(os.path.join(abs_sub_model_path, "transformer-union")):
+            model_name = "transformer-union"
+        else:
+            model_name = "transformer"
+    elif target.lower() == "union":
+        model_name = "transformer-union"
+    else:
+        model_name = "transformer"
+    return model_name

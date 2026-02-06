@@ -78,7 +78,7 @@ class StableDiffusionONNXPipelineAMDTrigger:
                 custom_op_path=custom_op_path,
                 enable_dd_fusion_compile=enable_compile,
                 # Dynamic provider selection instead of hardcoded providers
-                providers=self._get_execution_providers(),
+                providers=["CPUExecutionProvider"],
             )
             self.t_npu += time.perf_counter() - t0_npu_start
         else:
@@ -105,7 +105,7 @@ class StableDiffusionONNXPipelineAMDTrigger:
                 custom_op_path=custom_op_path,
                 enable_dd_fusion_compile=enable_compile,
                 # CHANGE MODIFIED: Dynamic provider selection instead of hardcoded providers
-                providers=self._get_execution_providers(),
+                providers=["CPUExecutionProvider"],
             )
             self.t_npu += time.perf_counter() - t0_npu_start
         else:

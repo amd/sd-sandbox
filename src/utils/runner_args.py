@@ -4,6 +4,8 @@ import argparse
 import os
 import sys
 import logging as Logger
+import platform
+from src.utils.common import get_absolute_path
 
 parser = argparse.ArgumentParser(description="Pipeline Config")
 # Env related args
@@ -153,13 +155,19 @@ parser.add_argument(
 parser.add_argument(
     "-ds", "--dynamic_shape", action="store_true", help="Enable dynamic shape flow."
 )
+# IMPORTANT: Default is None (not a JSON file path) to support two distinct use cases:
+# 1. --dynamic_shape with --width/--height: Use specified resolution with dynamic shape models
+# 2. --dynamic_shape with --dynamic_shape_file_path: Iterate through all resolutions in JSON file
+# Previously defaulted to "config/sd3_dynamic_shape.json" which always iterated through all shapes,
+# preventing single-resolution testing with dynamic models. Setting default=None allows the
+# run_sd3.py script to differentiate between these two modes based on whether the file path is provided.
 parser.add_argument(
     "--dynamic_shape_file_path",
     type=str,
     nargs="?",
     const="",
-    default=None,  # MODIFIED: Changed from "../config/sd3_dynamic_shape.json" to None
-    help="Path to the dynamic shape configuration file. If not provided, uses single resolution from width/height args.",
+    default=None,
+    help="Path to the dynamic shape configuration file.",
 )
 
 
@@ -170,6 +178,7 @@ def check_sd3_normal_args(args):
         "canny",
         "tile",
         "pose",
+        "union",
         "none",
         "outpainting",
         "removal",
@@ -228,7 +237,7 @@ def config_sd3_controlnet_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 5.0
         )
-        args.control_image_path = args.control_image_path or "ref/outpainting.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/outpainting.jpg")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -252,8 +261,8 @@ def config_sd3_controlnet_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 5.0
         )
-        args.control_image_path = args.control_image_path or "ref/removal/origin.jpg"
-        args.control_mask_path = args.control_mask_path or "ref/removal/mask.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/removal/origin.jpg")
+        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/removal/mask.jpg")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -281,8 +290,8 @@ def config_sd3_controlnet_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 2.5
         )
-        args.control_image_path = args.control_image_path or "ref/inpainting/origin.jpg"
-        args.control_mask_path = args.control_mask_path or "ref/inpainting/mask.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/inpainting/origin.jpg")
+        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/inpainting/mask.jpg")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -299,7 +308,7 @@ def config_sd3_controlnet_args(args):
         args.sub_model_path = "normal/"
         # Set prompt file path if neither prompt nor prompt file is specified
         if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = "../config/prompts_config.json"
+            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
         # Only set default prompt if no prompt and no prompt file
         if not args.prompt and not args.prompt_file_path:
             args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
@@ -313,7 +322,7 @@ def config_sd3_controlnet_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 7.0
         )
-        args.control_image_path = args.control_image_path or "ref/canny.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/canny.jpg")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -326,7 +335,7 @@ def config_sd3_controlnet_args(args):
         args.sub_model_path = "normal/"
         # Set prompt file path if neither prompt nor prompt file is specified
         if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = "../config/prompts_config.json"
+            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
         # Only set default prompt if no prompt and no prompt file
         if not args.prompt and not args.prompt_file_path:
             args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
@@ -340,7 +349,7 @@ def config_sd3_controlnet_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 7.0
         )
-        args.control_image_path = args.control_image_path or "ref/tile.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/tile.jpg")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -353,7 +362,7 @@ def config_sd3_controlnet_args(args):
         args.sub_model_path = "normal/"
         # Set prompt file path if neither prompt nor prompt file is specified
         if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = "../config/prompts_config.json"
+            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
         # Only set default prompt if no prompt and no prompt file
         if not args.prompt and not args.prompt_file_path:
             args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
@@ -367,7 +376,28 @@ def config_sd3_controlnet_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 7.0
         )
-        args.control_image_path = args.control_image_path or "ref/pose.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/pose.jpg")
+        if not os.path.exists(args.control_image_path):
+            raise EnvironmentError(
+                f"can't find control image path  {args.control_image_path}"
+            )
+    # union
+    elif args.controlnet.lower() == "union":
+        args.height = args.height or 512
+        args.width = args.width or 512
+        args.sub_model_path = "normal/"
+        args.prompt = args.prompt or "a lovely dog"
+        args.n_prompt = args.n_prompt or ""
+        args.seed = args.seed if args.seed is not None else 0
+        args.controlnet_conditioning_scale = (
+            args.controlnet_conditioning_scale
+            if args.controlnet_conditioning_scale is not None
+            else 0.7
+        )
+        args.guidance_scale = (
+            args.guidance_scale if args.guidance_scale is not None else 3.5
+        )
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/union.jfif")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -386,7 +416,7 @@ def config_sd3_controlnet_args(args):
                     intricate artwork by john william turner"
         )
         if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = "../config/prompts_config.json"
+            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
         args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 3.0
@@ -413,7 +443,7 @@ def config_sd35_controlnet_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 5.0
         )
-        args.control_image_path = args.control_image_path or "ref/outpainting.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/outpainting.jpg")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -437,8 +467,8 @@ def config_sd35_controlnet_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 5.0
         )
-        args.control_image_path = args.control_image_path or "ref/removal/origin.jpg"
-        args.control_mask_path = args.control_mask_path or "ref/removal/mask.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/removal/origin.jpg")
+        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/removal/mask.jpg")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -466,8 +496,8 @@ def config_sd35_controlnet_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 5.0
         )
-        args.control_image_path = args.control_image_path or "ref/inpainting/origin.jpg"
-        args.control_mask_path = args.control_mask_path or "ref/inpainting/mask.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/inpainting/origin.jpg")
+        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/inpainting/mask.jpg")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -483,7 +513,7 @@ def config_sd35_controlnet_args(args):
         args.sub_model_path = "normal/"
         # Set prompt file path if neither prompt nor prompt file is specified
         if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = "../config/prompts_config.json"
+            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
         # Only set default prompt if no prompt and no prompt file
         if not args.prompt and not args.prompt_file_path:
             args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
@@ -497,7 +527,7 @@ def config_sd35_controlnet_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 5.0
         )
-        args.control_image_path = args.control_image_path or "ref/canny.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/canny.jpg")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -510,7 +540,7 @@ def config_sd35_controlnet_args(args):
         args.sub_model_path = "normal/"
         # Set prompt file path if neither prompt nor prompt file is specified
         if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = "../config/prompts_config.json"
+            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
         # Only set default prompt if no prompt and no prompt file
         if not args.prompt and not args.prompt_file_path:
             args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
@@ -524,7 +554,7 @@ def config_sd35_controlnet_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 5.0
         )
-        args.control_image_path = args.control_image_path or "ref/tile.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/tile.jpg")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -537,7 +567,7 @@ def config_sd35_controlnet_args(args):
         args.sub_model_path = "normal/"
         # Set prompt file path if neither prompt nor prompt file is specified
         if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = "../config/prompts_config.json"
+            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
         # Only set default prompt if no prompt and no prompt file
         if not args.prompt and not args.prompt_file_path:
             args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
@@ -561,7 +591,7 @@ def config_sd35_controlnet_args(args):
             args.guidance_scale = (
                 args.guidance_scale if args.guidance_scale is not None else 5.0
             )
-        args.control_image_path = args.control_image_path or "ref/pose.jpg"
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/pose.jpg")
         if not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
@@ -575,7 +605,7 @@ def config_sd35_controlnet_args(args):
         args.common_model_path = "common/"
         args.prompt = args.prompt or "A capybara holding a sign that reads Hello World"
         if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = "../config/prompts_config.json"
+            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
         args.n_prompt = ""
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 4.5
@@ -638,7 +668,7 @@ def check_args(args):
                 else 1.5
             )
             args.prompt = args.prompt or "a blue paraidse bird in the jungle"
-            args.control_image_path = args.control_image_path or "ref/control.png"
+            args.control_image_path = args.control_image_path or get_absolute_path("test/ref/control.png")
         elif args.controlnet.lower() == "none":
             args.prompt = (
                 args.prompt
@@ -690,6 +720,9 @@ def check_args(args):
         check_sd3_normal_args(args)
         # default prompt, n_prompt, seed, guidance_scale, controlnet_conditioning_scale are set in check_sd3_normal_args
         config_sd3_controlnet_args(args)
+        if args.dynamic_shape_file_path is None and args.height is None and args.width is None:
+            args.height = 1024
+            args.width = 1024
 
     elif (
         "stable-diffusion-3.5-medium" in args.model_id
@@ -705,6 +738,9 @@ def check_args(args):
         check_sd3_normal_args(args)
         # default prompt, n_prompt, seed, guidance_scale, controlnet_conditioning_scale are set in check_sd3_normal_args
         config_sd35_controlnet_args(args)
+        if args.dynamic_shape_file_path is None and args.height is None and args.width is None:
+            args.height = 1024
+            args.width = 1024
 
     elif "sdxl-turbo" in args.model_id:
         args.height = args.height or 512
@@ -733,36 +769,51 @@ def check_args(args):
         args.n_prompt = args.n_prompt or ""
         args.model_path = args.model_path or args.root_path + "/models/sdxl-base-1.0/"
 
+    elif "Segmind-Vega" in args.model_id:
+        args.height = args.height or 1024
+        args.width = args.width or 1024
+        args.num_inference_steps = args.num_inference_steps or 50
+        args.guidance_scale = (
+            args.guidance_scale if args.guidance_scale is not None else 7.5
+        )
+        args.num_images_per_prompt = args.num_images_per_prompt or 1
+        args.prompt = args.prompt or "An astronaut riding a green horse"
+        args.n_prompt = args.n_prompt or ""
+        args.model_path = args.model_path or args.root_path + "/models/Segmind-Vega_bfp/"
+
     if not args.model_path:
         args.model_path = args.root_path + "/models/sd3/"
         if not os.path.exists(args.model_path):
             raise FileNotFoundError(f"model_path {args.model_path} not exist")
 
+    system = platform.system()
+    share_obj_name = ""
+    if system == "Windows":
+        share_obj_name = "onnx_custom_ops.dll"
+    elif system == "Linux":
+        share_obj_name = "libonnx_custom_ops.so"
     if not args.custom_op_path:
         onnx_utils_root = os.environ.get("ONNX_UTILS_ROOT", "")
         if onnx_utils_root:
             args.custom_op_path = os.path.join(
-                onnx_utils_root, "build", "install", "bin", "onnx_custom_ops.dll"
+                onnx_utils_root, "build", "install", "bin", share_obj_name
             )
         else:
             # Use absolute path to the lib directory in the current project
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-            args.custom_op_path = os.path.join(project_root, "lib", "onnx_custom_ops.dll")
+            args.custom_op_path = get_absolute_path("lib/" + share_obj_name)
     if not os.path.exists(args.custom_op_path):
-        raise EnvironmentError(f"can't find onnx_custom_ops.dll {args.custom_op_path}")
+        raise EnvironmentError(f"can't find onnx custom op plugin : {share_obj_name} in {args.custom_op_path}")
 
     if args.dynamic_shape:
         if "DD_PLUGINS_ROOT" not in os.environ:
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-            os.environ["DD_PLUGINS_ROOT"] = os.path.join(project_root, "lib", "transaction", "stx")
+            os.environ["DD_PLUGINS_ROOT"] = get_absolute_path("lib/transaction/stx")
         if not os.path.exists(os.environ["DD_PLUGINS_ROOT"]):
             raise EnvironmentError(
                 f"invalid DD_PLUGINS_ROOT {os.environ['DD_PLUGINS_ROOT']}"
             )
 
     if "DD_ROOT" not in os.environ:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        os.environ["DD_ROOT"] = os.path.join(project_root, "lib") + "/"
+        os.environ["DD_ROOT"] = get_absolute_path("lib")
     if not os.path.exists(os.environ["DD_ROOT"]):
         raise EnvironmentError(f"invalid DD_ROOT {os.environ['DD_ROOT']}")
 

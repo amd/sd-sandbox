@@ -37,10 +37,8 @@ def load_config(config_file: Optional[str] = None, config_dir: Optional[Path] = 
         FileNotFoundError: If the configuration file is not found
     """
     if config_file:
+        # Use the path exactly as provided by the user
         config_path = Path(config_file)
-        # If relative path, make it relative to CONFIG_DIR
-        if not config_path.is_absolute() and config_dir:
-            config_path = config_dir / config_file
     else:
         if not config_dir:
             raise ValueError("config_dir must be provided")

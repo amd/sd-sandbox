@@ -195,7 +195,7 @@ class StableDiffusionControlnetONNXPipelineTrigger:
         del self.unet.model
         del self.controlnet.model
         del self.vae_decoder.model
-        # ADDED: Force garbage collection to release AMD Ryzen AI accelerator resources
+        # CHANGED: Force NPU resource cleanup for sequential pipeline runs (sd_ref_design integration)
         import gc
         gc.collect()
         Logger.debug(

@@ -1429,7 +1429,7 @@ class StableDiffusionXLPipelineAMD(
                 timestep = (
                     np.ones(self.unet.model.get_inputs()[1].shape, dtype=timestep_dtype)
                     * t.item()
-                )
+                ).astype(timestep_dtype)
                 start = time.time_ns()
                 noise_pred = self.unet(
                     sample=latent_model_input,

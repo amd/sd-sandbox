@@ -1,12 +1,12 @@
 # Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
 
-import sys
 from pathlib import Path
-from datetime import datetime  # ADDED: For timestamp-based unique filenames
-
-project_root = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(project_root))
+import logging as Logger
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
+
 from src.StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger import (
     StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger,
 )
@@ -44,7 +44,8 @@ if __name__ == "__main__":
     else:
         prompt_list = [args.prompt]
 
-    for idx, prompt in enumerate(prompt_list):
+    run_mode = "profiling" if args.enable_profile else "batch"
+    for prompt_idx, prompt in enumerate(prompt_list):
         images, origin_width, origin_height = pipe_trigger.run(
             height=args.height,
             width=args.width,
@@ -61,17 +62,18 @@ if __name__ == "__main__":
 
         output_dir = Path(args.output_path)
         if not args.no_images:  # ADDED: Check --no_images flag
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # ADDED: Unique timestamp per run
-            for i in range(len(images)):
-                image = images[i]
+            for image_idx in range(len(images)):
+                image = images[image_idx]
                 image = image.resize((origin_width, origin_height))
-                image.save(
-                    f"{output_dir}/{args.model_id.split('/')[-1]}_{i}_{args.controlnet}_{args.width}x{args.height}_steps{args.num_inference_steps}_idx{idx}_{timestamp}.png"  # MODIFIED: Added timestamp to filename
+                filename = common.generate_filename(
+                    args.model_id, args.width, args.height, args.num_inference_steps, prompt_idx, image_idx, args.controlnet, run_mode, suffix=".png"
                 )
-        if args.enable_profile:
-            if args.controlnet.lower() != "none":
-                save_path = f"{output_dir}/{args.model_id.split('/')[-1]}_{args.controlnet}_{args.width}x{args.height}_steps{args.num_inference_steps}_idx{idx}.xlsx"
-            else:
-                save_path = f"{output_dir}/{args.model_id.split('/')[-1]}_without_controlnet_{args.width}x{args.height}_steps{args.num_inference_steps}_idx{idx}.xlsx"
-            if not args.no_excel:  # MODIFIED: Added --no_excel check
+                img_path = f"{output_dir}/{filename}"
+                image.save(img_path)
+                Logger.info(f"[Image saved] {img_path}")
+        if args.enable_profile and not args.no_excel:
+            excel_filename = common.generate_filename(
+                args.model_id, args.width, args.height, args.num_inference_steps, prompt_idx, controlnet=args.controlnet, run_mode=run_mode, suffix=".xlsx"
+                )
+            save_path = f"{output_dir}/{excel_filename}"
                 common.save_pipeline_metrics_to_excel(save_path, pipe_trigger.pipeline_metrics)
