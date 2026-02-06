@@ -239,7 +239,7 @@ pipelines:
 
 More details on configurations can be found in the [Pipelines and Pipeline Groups Configuration](#-pipelines-and-pipeline-groups-configuration) section.
 
-#### Step 9: Hugging Face Credentials
+#### Step 7: Hugging Face Credentials
 
 In order to access model files, you may need to visit the Hugging Face website and request access. 
 
