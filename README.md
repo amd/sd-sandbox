@@ -45,7 +45,7 @@
 
 ## 📜 Supported Models
 
-The RAI 1.7.0 release of the sd_sandbox supports a limited set of models focused on text-to-image generation.
+The RAI 1.7.0 release of the sd-sandbox supports a limited set of models focused on text-to-image generation.
 
 Here is a list of currently supported SD models. Note that these models have had nodes replaced with custom ops specifically designed for AMD NPUs. The models can be downloaded from the Ryzen AI docs site here: 
 **[Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps)**.
@@ -64,10 +64,12 @@ Here is a list of currently supported SD models. Note that these models have had
 
 [Back to Table of Contents](#-contents)
 
-**No modification has been made to the image generation methods sections from RAI 1.6.0 release docs). The models and examples described below will by supported in RAI 1.7.1**
+
 ---
 
 ## 🏞️ Image Generation Methods 
+
+> Note: *No modification has been made to the image generation methods sections from RAI 1.6.0 release docs. The models and examples described below will by supported in RAI 1.7.1*
 
 Here are some explanations of each of the SD methods. Note that pre- and post-processing padding and depadding are applied to the images where the resolutions do not match the model's inference resolution.
 
@@ -94,6 +96,7 @@ Here are some explanations of each of the SD methods. Note that pre- and post-pr
 *Example Use Cases: Object removal/replacement, photo retouching, fixing defects, adding elements to scenes*
 
 *Example: Edit specific regions of an image while preserving the rest:*
+
 **Prompt:** *"A girl taking a pig for a walk on the street"*
 
 
@@ -108,7 +111,6 @@ Here are some explanations of each of the SD methods. Note that pre- and post-pr
 *Example Use Cases: Removing photobombers, cleaning up backgrounds, deleting unwanted objects, decluttering scenes*
 
 *Example: Clean object removal with intelligent background fill*
-**Prompt:** *"A majestic landscape painting of mountains at sunrise, oil painting style, detailed brushwork with a blue moon in the sky with detailed reflection"*
 
 | Original Image | Mask (Object to Remove) | Result |
 |:--------------:|:-----------------------:|:------:|
@@ -121,6 +123,7 @@ Here are some explanations of each of the SD methods. Note that pre- and post-pr
 *Example use cases: expanding cropped photos, creating wider panoramas, extending backgrounds, enlarging canvas for composition*
 
 *Example: Expand canvas while maintaining style and context coherence*
+
 **Prompt:** *"Extend top and right by 512 pixels"*
 
 | Original Image | Extended Result |
@@ -156,8 +159,8 @@ Follow the instructions here to download necessary NPU drivers and Ryzen AI SW: 
 #### Step 2: Clone this repository
 
 ```bash
-git clone https://github.com/amd/sd_sandbox.git
-cd sd_sandbox
+git clone https://github.com/amd/sd-sandbox.git
+cd sd-sandbox
 ```
 
 #### Step 3: Set Up Conda Environment
@@ -180,7 +183,7 @@ pip install -r requirements.txt
 
 #### Step 4: Copy Required Libraries
 
-Copy the Ryzen AI runtime libraries `lib` to the `sd_sandbox` main project folder.
+Copy the Ryzen AI runtime libraries `lib` to the `sd-sandbox` main project folder.
 
 ```powershell
 # PowerShell command
@@ -218,7 +221,13 @@ paths:
   prompt_file: "C:/Users/amd87/sd_sandbox/config/artistic_prompts.json"
 ```
 
-2. The `--model_path` for each individual pipeline. For example, for the `sd_15` pipeline:
+2. The `onnx_custom_ops.dll` file:
+```yaml
+defaults:
+  custom_op_path: "C:/Program Files/RyzenAI/1.7.0/deployment/onnx_custom_ops.dll"
+```
+
+3. The `--model_path` for each individual pipeline. For example, for the `sd_15` pipeline:
 
 ```yaml
 pipelines:
@@ -230,13 +239,9 @@ pipelines:
 
 More details on configurations can be found in the [Pipelines and Pipeline Groups Configuration](#-pipelines-and-pipeline-groups-configuration) section.
 
+#### Step 9: Hugging Face Credentials
 
-#### Step 7: Configure onnx_custom_ops.dll Path
-In order to run the models, you need to provide a path to the `onnx_custom_ops.dll` file used by the models. The default location of this file is `C:\Program Files\RyzenAI\1.7.0\deployment\onnx_custom_ops.dll`.
-
-#### Step 8: Hugging Face Credentials
-
-In order to access some files from the Stability AI models, you may need to visit the Hugging Face website and request access. 
+In order to access model files, you may need to visit the Hugging Face website and request access. 
 
 1. For SD 3, you can visit https://huggingface.co/stabilityai/stable-diffusion-3-medium-diffusers and request access.
 2. Generate and copy your token from https://huggingface.co/settings/tokens. Select "Read access to contents of all repos under your personal namespace" and "Read access to contents of all public gated repos you can access" and then "Create token". 
@@ -280,7 +285,6 @@ Available Pipeline Groups
 ==================================================
   all_sdxl      - sdxl_base, sdxl_turbo, sdxl_turbo_bs1 
   all turbo    - sd_turbo, sd_turbo_bs1, sdxl_turbo, sdxl_turbo_bs1
-  sd_21     - sd21_base, sd-2.1-v 
 ...
 ```
 
