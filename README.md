@@ -180,16 +180,6 @@ Install the required Python packages using pip:
 pip install -r requirements.txt
 ```
 
-
-#### Step 4: Copy Required Libraries
-
-Copy the Ryzen AI runtime libraries `lib` to the `sd-sandbox` main project folder.
-
-```powershell
-# PowerShell command
-Copy-Item -Path "C:\Program Files\RyzenAI\1.7.0\GenAI-SD\lib" -Destination . -Recurse -Force
-```
-
 #### Step 5: Download Models
 
 1. Visit the [Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps) and download the ZIP files with the models (SD 1.5, SDXL, etc.).
