@@ -1,4 +1,6 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+#
+# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
+#
 
 from pathlib import Path
 import logging as Logger
@@ -36,6 +38,7 @@ if __name__ == "__main__":
         controlnet_name=args.controlnet,
         width=args.width,
         t5_sequence_len=args.t5_sequence_len,
+        revision=args.revision,
     )
 
     if args.prompt_file_path:
@@ -67,13 +70,14 @@ if __name__ == "__main__":
                 image = image.resize((origin_width, origin_height))
                 filename = common.generate_filename(
                     args.model_id, args.width, args.height, args.num_inference_steps, prompt_idx, image_idx, args.controlnet, run_mode, suffix=".png"
-                )
+                )   
                 img_path = f"{output_dir}/{filename}"
                 image.save(img_path)
                 Logger.info(f"[Image saved] {img_path}")
         if args.enable_profile and not args.no_excel:
             excel_filename = common.generate_filename(
                 args.model_id, args.width, args.height, args.num_inference_steps, prompt_idx, controlnet=args.controlnet, run_mode=run_mode, suffix=".xlsx"
-                )
+            )
             save_path = f"{output_dir}/{excel_filename}"
-                common.save_pipeline_metrics_to_excel(save_path, pipe_trigger.pipeline_metrics)
+            common.save_pipeline_metrics_to_excel(save_path, pipe_trigger.pipeline_metrics)
+            Logger.info(f"[Excel saved] {save_path}")

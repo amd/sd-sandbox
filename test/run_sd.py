@@ -1,4 +1,7 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+
+#
+# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
+#
 
 import sys
 from pathlib import Path
@@ -23,6 +26,7 @@ if __name__ == "__main__":
         gpu=args.gpu,
         enable_profile=args.enable_profile,
         profiling_rounds=args.profiling_rounds,
+        revision=args.revision,
     )
 
     if args.prompt_file_path:
@@ -57,7 +61,7 @@ if __name__ == "__main__":
         if args.enable_profile and not args.no_excel:
             excel_filename = common.generate_filename(
                 args.model_id, args.width, args.height, args.num_inference_steps, prompt_idx, controlnet=None, run_mode=run_mode, suffix=".xlsx"
-                )
+            )
             excel_path = f"{output_dir}/{excel_filename}"
             common.save_pipeline_metrics_to_excel(excel_path, pipe_trigger.pipeline_metrics)
             Logger.info(f"[Excel saved] {excel_path}")   

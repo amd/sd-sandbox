@@ -1,4 +1,5 @@
-# Modifications Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+# Modifications Copyright (C) 2025 Advanced Micro Devices, 
+# Inc.  All rights reserved.
 #
 # Copyright 2025 Stability AI, The HuggingFace Team and The InstantX Team. All rights reserved.
 #
@@ -398,8 +399,10 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
                 device=device, dtype=torch.float16
             )
         else:
-            prompt_embeds = self.text_encoder_3(**text_inputs)["last_hidden_state"]
-            prompt_embeds = prompt_embeds.to(device=device, dtype=torch.float16)
+            prompt_embeds = self.text_encoder_3(
+                input_ids=text_inputs["input_ids"],
+            )["last_hidden_state"].to(device=device, dtype=torch.float16)
+
         self.perf_time_dict["t5"].append(time.perf_counter() - t0)
 
         _, seq_len, _ = prompt_embeds.shape
@@ -1318,14 +1321,14 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
                     cond_scale = np.full(1, cond_scale).astype(np.float16)
                     has_encoder_hidden_states = any(input.name == "encoder_hidden_states" for input in self.controlnet.model.get_inputs())
                     if has_encoder_hidden_states:
-                    model_input = {
-                        "hidden_states": latent_model_input,
-                        "controlnet_cond": controlnet_cond,
-                        "conditioning_scale": cond_scale,
-                        "encoder_hidden_states": prompt_embeds,
-                        "pooled_projections": controlnet_pooled_projections,
-                        "timestep": timestep,
-                    }
+                        model_input = {
+                            "hidden_states": latent_model_input,
+                            "controlnet_cond": controlnet_cond,
+                            "conditioning_scale": cond_scale,
+                            "encoder_hidden_states": prompt_embeds,
+                            "pooled_projections": controlnet_pooled_projections,
+                            "timestep": timestep,
+                        }
                     else:
                         model_input = {
                             "hidden_states": latent_model_input,
@@ -1337,24 +1340,24 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
                     control_block_samples = self.controlnet.model.run(None, model_input)
                     num_control_block_samples = len(control_block_samples)
                     if num_control_block_samples == 6:
-                    model_input = {
-                        "hidden_states": latent_model_input,
-                        "timestep": timestep,
-                        "encoder_hidden_states": prompt_embeds,
-                        "pooled_projections": pooled_prompt_embeds,
-                        "block_controlnet_hidden_states_0": control_block_samples[0],
-                        "block_controlnet_hidden_states_1": control_block_samples[0],
-                        "block_controlnet_hidden_states_2": control_block_samples[1],
-                        "block_controlnet_hidden_states_3": control_block_samples[1],
-                        "block_controlnet_hidden_states_4": control_block_samples[2],
-                        "block_controlnet_hidden_states_5": control_block_samples[2],
-                        "block_controlnet_hidden_states_6": control_block_samples[3],
-                        "block_controlnet_hidden_states_7": control_block_samples[3],
-                        "block_controlnet_hidden_states_8": control_block_samples[4],
-                        "block_controlnet_hidden_states_9": control_block_samples[4],
-                        "block_controlnet_hidden_states_10": control_block_samples[5],
-                        "block_controlnet_hidden_states_11": control_block_samples[5],
-                    }
+                        model_input = {
+                            "hidden_states": latent_model_input,
+                            "timestep": timestep,
+                            "encoder_hidden_states": prompt_embeds,
+                            "pooled_projections": pooled_prompt_embeds,
+                            "block_controlnet_hidden_states_0": control_block_samples[0],
+                            "block_controlnet_hidden_states_1": control_block_samples[0],
+                            "block_controlnet_hidden_states_2": control_block_samples[1],
+                            "block_controlnet_hidden_states_3": control_block_samples[1],
+                            "block_controlnet_hidden_states_4": control_block_samples[2],
+                            "block_controlnet_hidden_states_5": control_block_samples[2],
+                            "block_controlnet_hidden_states_6": control_block_samples[3],
+                            "block_controlnet_hidden_states_7": control_block_samples[3],
+                            "block_controlnet_hidden_states_8": control_block_samples[4],
+                            "block_controlnet_hidden_states_9": control_block_samples[4],
+                            "block_controlnet_hidden_states_10": control_block_samples[5],
+                            "block_controlnet_hidden_states_11": control_block_samples[5],
+                        }
                     elif num_control_block_samples == 12:
                         model_input = {
                             "hidden_states": latent_model_input,
@@ -1383,7 +1386,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
                         "encoder_hidden_states": prompt_embeds,
                         "pooled_projections": pooled_prompt_embeds,
                     }
-                    control_block_samples = self.create_zero_control_blocks(height, width, latents.shape[0])
+                    control_block_samples = self.create_zero_control_blocks(height, width, latent_model_input.shape[0])
                     model_input.update(control_block_samples)
                 ctrlnet_time = time.perf_counter() - ctrlnet_start_time
                 self.perf_time_dict["ctrlnet"].append(ctrlnet_time)

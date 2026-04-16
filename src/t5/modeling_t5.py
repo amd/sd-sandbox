@@ -1,6 +1,4 @@
 # coding=utf-8
-# Modifications Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
-#
 # Copyright 2018 Mesh TensorFlow authors, T5 Authors and HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +24,6 @@ from typing import Optional, Union
 import torch
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
-
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache, EncoderDecoderCache
 from transformers.generation import GenerationMixin
@@ -42,7 +39,22 @@ from transformers.modeling_outputs import (
     TokenClassifierOutput,
 )
 from transformers.modeling_utils import PreTrainedModel
-from transformers.pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
+from transformers.models.t5.configuration_t5 import T5Config
+from transformers.pytorch_utils import prune_linear_layer
+
+
+def _find_pruneable_heads_and_indices(
+    heads: list, n_heads: int, head_size: int, already_pruned_heads: set
+):
+    """Local implementation for compatibility with transformers that removed this from pytorch_utils."""
+    mask = torch.ones(n_heads, head_size)
+    heads = set(heads) - already_pruned_heads
+    for head in heads:
+        head = head - sum(1 if h < head else 0 for h in already_pruned_heads)
+        mask[head] = 0
+    mask = mask.view(-1).contiguous().eq(1)
+    index = torch.arange(len(mask))[mask].long()
+    return heads, index
 from transformers.utils import (
     DUMMY_INPUTS,
     DUMMY_MASK,
@@ -54,13 +66,42 @@ from transformers.utils import (
     logging,
 )
 from transformers.utils.deprecation import deprecate_kwarg
-from transformers.utils.model_parallel_utils import assert_device_map, get_device_map
-from transformers.models.t5.configuration_t5 import T5Config
 
+try:
+    from transformers.utils.model_parallel_utils import assert_device_map, get_device_map
+except ImportError:
+    # Fallback for newer transformers that removed model_parallel_utils
+    from math import ceil
+
+    def get_device_map(n_layers, devices):
+        """Returns a dictionary of layers distributed evenly across all devices."""
+        layers = list(range(n_layers))
+        n_blocks = int(ceil(n_layers / len(devices)))
+        layers_list = [layers[i : i + n_blocks] for i in range(0, n_layers, n_blocks)]
+        return dict(zip(devices, layers_list))
+
+    def assert_device_map(device_map, num_blocks):
+        blocks = list(range(0, num_blocks))
+        device_map_blocks = [item for sublist in list(device_map.values()) for item in sublist]
+        duplicate_blocks = [i for i in device_map_blocks if device_map_blocks.count(i) > 1]
+        duplicate_blocks = list(dict.fromkeys(duplicate_blocks))
+        missing_blocks = [i for i in blocks if i not in device_map_blocks]
+        extra_blocks = [i for i in device_map_blocks if i not in blocks]
+        if duplicate_blocks:
+            raise ValueError(
+                "Duplicate attention blocks specified in device_map: " + str(duplicate_blocks)
+            )
+        if missing_blocks:
+            raise ValueError(
+                "Missing attention blocks in device_map: " + str(missing_blocks)
+            )
+        if extra_blocks:
+            raise ValueError(
+                "Extra attention blocks in device_map: " + str(extra_blocks)
+            )
 
 if is_torch_flex_attn_available():
     from torch.nn.attention.flex_attention import BlockMask
-
     from transformers.integrations.flex_attention import make_flex_block_causal_mask
 
 
@@ -202,25 +243,20 @@ def load_tf_weights_in_t5(model, config, tf_checkpoint_path):
 ####################################################
 PARALLELIZE_DOCSTRING = r"""
     This is an experimental feature and is a subject to change at a moment's notice.
-
     Uses a device map to distribute attention modules of the model across several devices. If no device map is given,
     it will evenly distribute blocks across all devices.
-
     Args:
         device_map (`dict[int, list]`, *optional*):
             A dictionary that maps attention modules to devices. Note that the embedding module and LMHead are always
             automatically mapped to the first device (for esoteric reasons). That means that the first device should
             have fewer attention modules mapped to it than other devices. For reference, the t5 models have the
             following number of attention modules:
-
                 - google-t5/t5-small: 6
                 - google-t5/t5-base: 12
                 - google-t5/t5-large: 24
                 - google-t5/t5-3b: 24
                 - google-t5/t5-11b: 24
-
     Example:
-
     ```python
     # Here is an example of a device map on a machine with 4 GPUs using google-t5/t5-3b, which has a total of 24 attention modules:
     model = T5ForConditionalGeneration.from_pretrained("google-t5/t5-3b")
@@ -235,9 +271,7 @@ PARALLELIZE_DOCSTRING = r"""
 """
 DEPARALLELIZE_DOCSTRING = r"""
     Moves the model to cpu from a model parallel state.
-
     Example:
-
     ```python
     # On a 4 GPU machine with google-t5/t5-3b:
     model = T5ForConditionalGeneration.from_pretrained("google-t5/t5-3b")
@@ -388,7 +422,7 @@ class T5Attention(nn.Module):
     def prune_heads(self, heads):
         if len(heads) == 0:
             return
-        heads, index = find_pruneable_heads_and_indices(
+        heads, index = _find_pruneable_heads_and_indices(
             heads, self.n_heads, self.key_value_proj_dim, self.pruned_heads
         )
         # Prune linear layers
@@ -408,20 +442,17 @@ class T5Attention(nn.Module):
         """
         Adapted from Mesh Tensorflow:
         https://github.com/tensorflow/mesh/blob/0cb87fe07da627bf0b7e60475d59f95ed6b5be3d/mesh_tensorflow/transformer/transformer_layers.py#L593
-
         Translate relative position to a bucket number for relative attention. The relative position is defined as
         memory_position - query_position, i.e. the distance in tokens from the attending position to the attended-to
         position. If bidirectional=False, then positive relative positions are invalid. We use smaller buckets for
         small absolute relative_position and larger buckets for larger absolute relative_positions. All relative
         positions >=max_distance map to the same bucket. All relative positions <=-max_distance map to the same bucket.
         This should allow for more graceful generalization to longer sequences than the model has been trained on
-
         Args:
             relative_position: an int32 Tensor
             bidirectional: a boolean - whether the attention is bidirectional
             num_buckets: an integer
             max_distance: an integer
-
         Returns:
             a Tensor with the same shape as relative_position, containing int32 values in the range [0, num_buckets)
         """
@@ -512,8 +543,8 @@ class T5Attention(nn.Module):
 
         query_states = self.q(hidden_states)
         query_states = query_states.view(
-                batch_size, -1, self.n_heads, self.key_value_proj_dim
-            ).transpose(1, 2)
+            batch_size, -1, self.n_heads, self.key_value_proj_dim
+        ).transpose(1, 2)
 
         # Check is encoder-decoder model is being used. Otherwise we'll get `DynamicCache`
         if past_key_values is not None and isinstance(
@@ -523,9 +554,9 @@ class T5Attention(nn.Module):
             if is_cross_attention:
                 # after the first generated id, we can subsequently re-use all key/value_states from cache
                 curr_past_key_value = past_key_values.cross_attention_cache
-                else:
+            else:
                 curr_past_key_value = past_key_values.self_attention_cache
-                else:
+        else:
             curr_past_key_value = past_key_values
 
         current_states = key_value_states if is_cross_attention else hidden_states
@@ -551,7 +582,7 @@ class T5Attention(nn.Module):
                     value_states,
                     self.layer_idx,
                     {"cache_position": cache_position},
-        )
+                )
                 # set flag that curr layer for cross-attn is already updated so we can re-use in subsequent calls
                 if is_cross_attention:
                     past_key_values.is_updated[self.layer_idx] = True
@@ -593,17 +624,17 @@ class T5Attention(nn.Module):
         else:
             position_bias_masked = position_bias
 
-            scores += position_bias_masked
+        scores += position_bias_masked
 
         # (batch_size, n_heads, seq_length, key_length)
         attn_weights = nn.functional.softmax(scores.float(), dim=-1).type_as(scores)
-            attn_weights = nn.functional.dropout(
-                attn_weights, p=self.dropout, training=self.training
+        attn_weights = nn.functional.dropout(
+            attn_weights, p=self.dropout, training=self.training
         )
 
-            # Mask heads if we want to
-            if layer_head_mask is not None:
-                attn_weights = attn_weights * layer_head_mask
+        # Mask heads if we want to
+        if layer_head_mask is not None:
+            attn_weights = attn_weights * layer_head_mask
 
         attn_output = torch.matmul(attn_weights, value_states)
 
@@ -1004,6 +1035,19 @@ class T5Stack(T5PreTrainedModel):
         self.device_map = None
         self.gradient_checkpointing = False
 
+    @staticmethod
+    def get_head_mask(head_mask, num_layers):
+        """Convert head_mask to per-layer format. For compatibility with newer transformers."""
+        if head_mask is None:
+            return (None,) * num_layers
+        if head_mask.dim() == 1:
+            head_mask = head_mask.unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+            head_mask = head_mask.expand(num_layers, -1, -1, -1, -1)
+        elif head_mask.dim() == 2:
+            head_mask = head_mask.unsqueeze(1).unsqueeze(-1).unsqueeze(-1)
+            head_mask = head_mask.expand(-1, num_layers, -1, -1, -1)
+        return tuple(head_mask[i] for i in range(num_layers))
+
     @add_start_docstrings(PARALLELIZE_DOCSTRING)
     def parallelize(self, device_map=None):
         warnings.warn(
@@ -1170,7 +1214,7 @@ class T5Stack(T5PreTrainedModel):
                 if isinstance(past_key_values, EncoderDecoderCache)
                 else past_key_values,
                 output_attentions,
-        )
+            )
         elif attention_mask is not None:
             causal_mask = attention_mask[:, None, None, :]
             causal_mask = causal_mask.to(dtype=inputs_embeds.dtype)
@@ -1241,20 +1285,20 @@ class T5Stack(T5PreTrainedModel):
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
             layer_outputs = layer_module(
-                    hidden_states,
+                hidden_states,
                 causal_mask,
-                    position_bias,
-                    encoder_hidden_states,
-                    encoder_extended_attention_mask,
+                position_bias,
+                encoder_hidden_states,
+                encoder_extended_attention_mask,
                 encoder_decoder_position_bias,  # as a positional argument for gradient checkpointing
-                    layer_head_mask=layer_head_mask,
-                    cross_attn_layer_head_mask=cross_attn_layer_head_mask,
+                layer_head_mask=layer_head_mask,
+                cross_attn_layer_head_mask=cross_attn_layer_head_mask,
                 past_key_values=past_key_values,
-                    use_cache=use_cache,
-                    output_attentions=output_attentions,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
                 return_dict=return_dict,
                 cache_position=cache_position,
-                )
+            )
 
             hidden_states = layer_outputs[0]
 
@@ -1398,8 +1442,7 @@ class T5Stack(T5PreTrainedModel):
         """
         Creates a causal 4D mask of shape `(batch_size, 1, query_length, key_value_length)` from a 2D mask of shape
         `(batch_size, key_value_length)`, or if the input `attention_mask` is already 4D, do nothing.
-
-    Args:
+        Args:
             attention_mask (`torch.Tensor`):
                 A 2D attention mask of shape `(batch_size, key_value_length)` or a 4D attention mask of shape
                 `(batch_size, 1, query_length, key_value_length)`.
@@ -1568,59 +1611,49 @@ class T5Model(T5PreTrainedModel):
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
             Indices of input sequence tokens in the vocabulary. T5 is a model with relative position embeddings so you
             should be able to pad the inputs on both the right and the left.
-
             Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
             [`PreTrainedTokenizer.__call__`] for detail.
-
             [What are input IDs?](../glossary#input-ids)
-
             To know more on how to prepare `input_ids` for pretraining take a look a [T5 Training](./t5#training).
         decoder_input_ids (`torch.LongTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
             Indices of decoder input sequence tokens in the vocabulary.
-
             Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
             [`PreTrainedTokenizer.__call__`] for details.
-
             [What are decoder input IDs?](../glossary#decoder-input-ids)
-
             T5 uses the `pad_token_id` as the starting token for `decoder_input_ids` generation. If `past_key_values`
             is used, optionally only the last `decoder_input_ids` have to be input (see `past_key_values`).
-
             To know more on how to prepare `decoder_input_ids` for pretraining take a look at [T5
             Training](./t5#training).
         decoder_attention_mask (`torch.BoolTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
             Default behavior: generate a tensor that ignores pad tokens in `decoder_input_ids`. Causal mask will also
             be used by default.
+        head_mask (`torch.FloatTensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
+            Mask to nullify selected heads of the self-attention modules in the encoder. Mask values selected in `[0,
+            1]`:
+            - 1 indicates the head is **not masked**,
+            - 0 indicates the head is **masked**.
         decoder_head_mask (`torch.FloatTensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
             Mask to nullify selected heads of the self-attention modules in the decoder. Mask values selected in `[0,
             1]`:
-
             - 1 indicates the head is **not masked**,
             - 0 indicates the head is **masked**.
         cross_attn_head_mask (`torch.Tensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
             Mask to nullify selected heads of the cross-attention modules in the decoder. Mask values selected in
             `[0, 1]`:
-
             - 1 indicates the head is **not masked**,
             - 0 indicates the head is **masked**.
-
         Example:
-
         ```python
         >>> from transformers import AutoTokenizer, T5Model
-
         >>> tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-small")
         >>> model = T5Model.from_pretrained("google-t5/t5-small")
-
         >>> input_ids = tokenizer(
         ...     "Studies have been shown that owning a dog is good for you", return_tensors="pt"
         ... ).input_ids  # Batch size 1
         >>> decoder_input_ids = tokenizer("Studies show that", return_tensors="pt").input_ids  # Batch size 1
-
         >>> # preprocess: Prepend decoder_input_ids with start token which is pad token for T5Model.
         >>> # This is not needed for torch's T5ForConditionalGeneration as it does this internally using labels arg.
         >>> decoder_input_ids = model._shift_right(decoder_input_ids)
-
         >>> # forward pass
         >>> outputs = model(input_ids=input_ids, decoder_input_ids=decoder_input_ids)
         >>> last_hidden_states = outputs.last_hidden_state
@@ -1819,61 +1852,52 @@ class T5ForConditionalGeneration(T5PreTrainedModel, GenerationMixin):
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
             Indices of input sequence tokens in the vocabulary. T5 is a model with relative position embeddings so you
             should be able to pad the inputs on both the right and the left.
-
             Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
             [`PreTrainedTokenizer.__call__`] for detail.
-
             [What are input IDs?](../glossary#input-ids)
-
             To know more on how to prepare `input_ids` for pretraining take a look a [T5 Training](./t5#training).
         decoder_input_ids (`torch.LongTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
             Indices of decoder input sequence tokens in the vocabulary.
-
             Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
             [`PreTrainedTokenizer.__call__`] for details.
-
             [What are decoder input IDs?](../glossary#decoder-input-ids)
-
             T5 uses the `pad_token_id` as the starting token for `decoder_input_ids` generation. If `past_key_values`
             is used, optionally only the last `decoder_input_ids` have to be input (see `past_key_values`).
-
             To know more on how to prepare `decoder_input_ids` for pretraining take a look at [T5
             Training](./t5#training).
         decoder_attention_mask (`torch.BoolTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
             Default behavior: generate a tensor that ignores pad tokens in `decoder_input_ids`. Causal mask will also
             be used by default.
+        head_mask (`torch.FloatTensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
+            Mask to nullify selected heads of the self-attention modules in the encoder. Mask values selected in `[0,
+            1]`:
+            - 1 indicates the head is **not masked**,
+            - 0 indicates the head is **masked**.
         decoder_head_mask (`torch.FloatTensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
             Mask to nullify selected heads of the self-attention modules in the decoder. Mask values selected in `[0,
             1]`:
-
             - 1 indicates the head is **not masked**,
             - 0 indicates the head is **masked**.
         cross_attn_head_mask (`torch.Tensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
             Mask to nullify selected heads of the cross-attention modules in the decoder. Mask values selected in
             `[0, 1]`:
-
             - 1 indicates the head is **not masked**,
             - 0 indicates the head is **masked**.
         labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
             Labels for computing the sequence classification/regression loss. Indices should be in `[-100, 0, ...,
             config.vocab_size - 1]`. All labels set to `-100` are ignored (masked), the loss is only computed for
             labels in `[0, ..., config.vocab_size]`
-
         Examples:
-
         ```python
         >>> from transformers import AutoTokenizer, T5ForConditionalGeneration
-
         >>> tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-small")
         >>> model = T5ForConditionalGeneration.from_pretrained("google-t5/t5-small")
-
         >>> # training
         >>> input_ids = tokenizer("The <extra_id_0> walks in <extra_id_1> park", return_tensors="pt").input_ids
         >>> labels = tokenizer("<extra_id_0> cute dog <extra_id_1> the <extra_id_2>", return_tensors="pt").input_ids
         >>> outputs = model(input_ids=input_ids, labels=labels)
         >>> loss = outputs.loss
         >>> logits = outputs.logits
-
         >>> # inference
         >>> input_ids = tokenizer(
         ...     "summarize: studies have shown that owning a dog is good for you", return_tensors="pt"
@@ -2086,17 +2110,17 @@ class T5EncoderModel(T5PreTrainedModel):
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
             Indices of input sequence tokens in the vocabulary. T5 is a model with relative position embeddings so you
             should be able to pad the inputs on both the right and the left.
-
             Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
             [`PreTrainedTokenizer.__call__`] for detail.
-
             To know more on how to prepare `input_ids` for pretraining take a look a [T5 Training](./t5#training).
-
+        head_mask (`torch.FloatTensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
+            Mask to nullify selected heads of the self-attention modules in the encoder. Mask values selected in `[0,
+            1]`:
+            - 1 indicates the head is **not masked**,
+            - 0 indicates the head is **masked**.
         Example:
-
         ```python
         >>> from transformers import AutoTokenizer, T5EncoderModel
-
         >>> tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-small")
         >>> model = T5EncoderModel.from_pretrained("google-t5/t5-small")
         >>> input_ids = tokenizer(
@@ -2167,39 +2191,35 @@ class T5ForSequenceClassification(T5PreTrainedModel):
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
             Indices of input sequence tokens in the vocabulary. T5 is a model with relative position embeddings so you
             should be able to pad the inputs on both the right and the left.
-
             Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
             [`PreTrainedTokenizer.__call__`] for detail.
-
             [What are input IDs?](../glossary#input-ids)
-
             To know more on how to prepare `input_ids` for pretraining take a look a [T5 Training](./t5#training).
         decoder_input_ids (`torch.LongTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
             Indices of decoder input sequence tokens in the vocabulary.
-
             Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
             [`PreTrainedTokenizer.__call__`] for details.
-
             [What are decoder input IDs?](../glossary#decoder-input-ids)
-
             T5 uses the `pad_token_id` as the starting token for `decoder_input_ids` generation. If `past_key_values`
             is used, optionally only the last `decoder_input_ids` have to be input (see `past_key_values`).
-
             To know more on how to prepare `decoder_input_ids` for pretraining take a look at [T5
             Training](./t5#training).
         decoder_attention_mask (`torch.BoolTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
             Default behavior: generate a tensor that ignores pad tokens in `decoder_input_ids`. Causal mask will also
             be used by default.
+        head_mask (`torch.FloatTensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
+            Mask to nullify selected heads of the self-attention modules in the encoder. Mask values selected in `[0,
+            1]`:
+            - 1 indicates the head is **not masked**,
+            - 0 indicates the head is **masked**.
         decoder_head_mask (`torch.FloatTensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
             Mask to nullify selected heads of the self-attention modules in the decoder. Mask values selected in `[0,
             1]`:
-
             - 1 indicates the head is **not masked**,
             - 0 indicates the head is **masked**.
         cross_attn_head_mask (`torch.Tensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
             Mask to nullify selected heads of the cross-attention modules in the decoder. Mask values selected in
             `[0, 1]`:
-
             - 1 indicates the head is **not masked**,
             - 0 indicates the head is **masked**.
         labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
@@ -2331,13 +2351,15 @@ class T5ForTokenClassification(T5PreTrainedModel):
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
             Indices of input sequence tokens in the vocabulary. T5 is a model with relative position embeddings so you
             should be able to pad the inputs on both the right and the left.
-
             Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
             [`PreTrainedTokenizer.__call__`] for detail.
-
             [What are input IDs?](../glossary#input-ids)
-
             To know more on how to prepare `input_ids` for pretraining take a look a [T5 Training](./t5#training).
+        head_mask (`torch.FloatTensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
+            Mask to nullify selected heads of the self-attention modules in the encoder. Mask values selected in `[0,
+            1]`:
+            - 1 indicates the head is **not masked**,
+            - 0 indicates the head is **masked**.
         labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
             Labels for computing the token classification loss. Indices should be in `[0, ..., config.num_labels - 1]`.
         """
@@ -2449,39 +2471,35 @@ class T5ForQuestionAnswering(T5PreTrainedModel):
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
             Indices of input sequence tokens in the vocabulary. T5 is a model with relative position embeddings so you
             should be able to pad the inputs on both the right and the left.
-
             Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
             [`PreTrainedTokenizer.__call__`] for detail.
-
             [What are input IDs?](../glossary#input-ids)
-
             To know more on how to prepare `input_ids` for pretraining take a look a [T5 Training](./t5#training).
         decoder_input_ids (`torch.LongTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
             Indices of decoder input sequence tokens in the vocabulary.
-
             Indices can be obtained using [`AutoTokenizer`]. See [`PreTrainedTokenizer.encode`] and
             [`PreTrainedTokenizer.__call__`] for details.
-
             [What are decoder input IDs?](../glossary#decoder-input-ids)
-
             T5 uses the `pad_token_id` as the starting token for `decoder_input_ids` generation. If `past_key_values`
             is used, optionally only the last `decoder_input_ids` have to be input (see `past_key_values`).
-
             To know more on how to prepare `decoder_input_ids` for pretraining take a look at [T5
             Training](./t5#training).
         decoder_attention_mask (`torch.BoolTensor` of shape `(batch_size, target_sequence_length)`, *optional*):
             Default behavior: generate a tensor that ignores pad tokens in `decoder_input_ids`. Causal mask will also
             be used by default.
+        head_mask (`torch.FloatTensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
+            Mask to nullify selected heads of the self-attention modules in the encoder. Mask values selected in `[0,
+            1]`:
+            - 1 indicates the head is **not masked**,
+            - 0 indicates the head is **masked**.
         decoder_head_mask (`torch.FloatTensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
             Mask to nullify selected heads of the self-attention modules in the decoder. Mask values selected in `[0,
             1]`:
-
             - 1 indicates the head is **not masked**,
             - 0 indicates the head is **masked**.
         cross_attn_head_mask (`torch.Tensor` of shape `(num_heads,)` or `(num_layers, num_heads)`, *optional*):
             Mask to nullify selected heads of the cross-attention modules in the decoder. Mask values selected in
             `[0, 1]`:
-
             - 1 indicates the head is **not masked**,
             - 0 indicates the head is **masked**.
         """

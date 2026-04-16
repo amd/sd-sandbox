@@ -1,4 +1,6 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+#
+# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
+#
 
 import time
 import json
@@ -9,6 +11,7 @@ import logging as Logger
 import copy
 from transformers import CLIPTokenizer, CLIPTextModel, CLIPTextModelWithProjection
 from .pipeline_stable_diffusion_xl_onnx_amd import StableDiffusionXLPipelineAMD
+from diffusers.utils import load_image
 from .utils import common
 
 
@@ -22,62 +25,59 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
         gpu=False,
         enable_profile=False,
         profiling_rounds=4,
+        control_image_path: str = None,
+        revision: str = None,
     ):
         self.model_id = model_id
-        self.model_path = model_path
         self.enable_profile = enable_profile
         self.profiling_rounds = profiling_rounds
+        self.control_image_path = control_image_path
         self.pipeline_metrics = {}
         self.mem_dict = {
             "unet": 0,
             "vae_decoder": 0,
+            "vae_encoder": 0,
         }
-        try:
-            self.tokenizer = CLIPTokenizer.from_pretrained(
-                os.path.join(model_path, "tokenizer")
+        
+        # Auto-download from Hugging Face if model_path not provided
+        if model_path is None:
+            Logger.debug("=" * 60)
+            Logger.debug(f"model_path not provided, will download model from Hugging Face")
+            Logger.debug(f"Model ID: {model_id}")
+            if revision:
+                Logger.debug(f"Revision/Branch: {revision}")
+            Logger.debug("=" * 60)
+            model_path = common.download_model_from_huggingface(model_id, revision=revision)
+            Logger.debug("=" * 60)
+            Logger.debug(f"Model ready: {model_path}")
+            Logger.debug("Starting to load model components...")
+            Logger.debug("=" * 60)
+        
+        self.model_path = model_path
+        
+        self.tokenizer = CLIPTokenizer.from_pretrained(
+            os.path.join(model_path, "tokenizer")
+        )
+        self.tokenizer_2 = CLIPTokenizer.from_pretrained(
+            os.path.join(model_path, "tokenizer_2")
+        )
+        self.text_encoder = CLIPTextModel.from_pretrained(
+            os.path.join(model_path, "text_encoder")
+        )
+        self.text_encoder_2 = CLIPTextModelWithProjection.from_pretrained(
+            os.path.join(model_path, "text_encoder_2")
+        )
+        scheduler_name = json.load(
+            open(
+                os.path.join(model_path, "scheduler", "scheduler_config.json"), "r"
             )
-        except:
-            self.tokenizer = CLIPTokenizer.from_pretrained(
-                self.model_id, subfolder="tokenizer"
-            )
-        try:
-            self.tokenizer_2 = CLIPTokenizer.from_pretrained(
-                os.path.join(model_path, "tokenizer_2")
-            )
-        except:
-            self.tokenizer_2 = CLIPTokenizer.from_pretrained(
-                self.model_id, subfolder="tokenizer_2"
-            )
-        try:
-            self.text_encoder = CLIPTextModel.from_pretrained(
-                os.path.join(model_path, "text_encoder")
-            )
-        except:
-            self.text_encoder = CLIPTextModel.from_pretrained(
-                self.model_id, subfolder="text_encoder"
-            )
-        try:
-            self.text_encoder_2 = CLIPTextModelWithProjection.from_pretrained(
-                os.path.join(model_path, "text_encoder_2")
-            )
-        except:
-            self.text_encoder_2 = CLIPTextModelWithProjection.from_pretrained(
-                self.model_id, subfolder="text_encoder_2"
-            )
-        try:
-            scheduler_name = json.load(
-                open(
-                    os.path.join(model_path, "scheduler", "scheduler_config.json"), "r"
-                )
-            ).get("_class_name", None)
-            scheduler_cls = getattr(
-                importlib.import_module("diffusers.schedulers"), scheduler_name
-            )
-            self.scheduler = scheduler_cls.from_pretrained(
-                os.path.join(model_path, "scheduler")
-            )
-        except:
-            raise ValueError("scheduler not found")
+        ).get("_class_name", None)
+        scheduler_cls = getattr(
+            importlib.import_module("diffusers.schedulers"), scheduler_name
+        )
+        self.scheduler = scheduler_cls.from_pretrained(
+            os.path.join(model_path, "scheduler")
+        )
         t0 = time.perf_counter()
         self.t_npu = 0
         t0_unet = time.perf_counter()
@@ -102,7 +102,7 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
                 model_type="unet",
                 model_file="unet.onnx",
                 # CHANGE MODIFIED: Dynamic provider selection instead of hardcoded ["DmlExecutionProvider"]
-                providers=self._get_execution_providers(),
+                providers=self._get_execution_providers(),                
             )
         mem_change = common.measure_mem() - start_mem
         self.mem_dict["unet"] = mem_change
@@ -134,6 +134,40 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
         mem_change = common.measure_mem() - start_mem
         self.mem_dict["vae_decoder"] = mem_change
         Logger.debug(f"Model VAE loading time = {time.perf_counter() - t0_vae}s")
+
+        if control_image_path is not None:
+            start_mem = common.measure_mem()
+            t0_vae = time.perf_counter()
+            if not gpu and os.environ.get("DISABLE_VAE_DD", "0") == "0":
+                print("---Loading ONNX VAE Encoder for DD")
+                t0_npu_start = time.perf_counter()
+                self.vae_encoder = common.load_model_with_session(
+                    MODEL_PATH=model_path,
+                    model_type="vae_encoder",
+                    model_file="replaced.onnx",
+                    custom_op_path=custom_op_path,
+                    enable_dd_fusion_compile=enable_compile,
+                    providers=self._get_execution_providers(),
+                )
+                self.t_npu += time.perf_counter() - t0_npu_start
+            else:
+                print("---Loading Original ONNX VAE Encoder")
+                self.vae_encoder = common.load_model_with_session(
+                    MODEL_PATH=model_path,
+                    model_type="vae_encoder",
+                    model_file="vae_encoder.onnx",
+                    # CHANGE MODIFIED: Dynamic provider selection instead of hardcoded ["DmlExecutionProvider"]
+                    providers=self._get_execution_providers(),
+                )    
+            mem_change = common.measure_mem() - start_mem
+            self.mem_dict["vae_encoder"] = mem_change
+            Logger.debug(f"Model VAE encoder loading time = {time.perf_counter() - t0_vae}s")
+        else:
+            # The vae_encoder is not used and set to None
+            Logger.info("Running in text2image mode without vae_encoder")
+            self.vae_encoder = None
+            self.mem_dict["vae_encoder"] = 0
+            Logger.debug(f"VAE Encoder Mem: {mem_change}MB")
 
         for model, mem in self.mem_dict.items():
             Logger.debug(f"==> {model}: {mem:.2f}MB")
@@ -173,26 +207,39 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
         num_images_per_prompt=1,
         guidance_scale=7.5,
         seed=None,
+        control_image_path = None,
+        strength = 0.3,
     ):
         pipe = StableDiffusionXLPipelineAMD(
             scheduler=self.scheduler,
-            vae=self.vae_decoder,
+            vae_decoder=self.vae_decoder,
+            vae_encoder=self.vae_encoder,
             unet=self.unet,
             text_encoder=self.text_encoder,
             text_encoder_2=self.text_encoder_2,
             tokenizer=self.tokenizer,
             tokenizer_2=self.tokenizer_2,
         )
-
+        if control_image_path is not None:
+            control_image = load_image(control_image_path)
+            # strength controls how control image influences result by timesteps and num_inference_steps
+            init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
+            t_start = max(num_inference_steps - init_timestep, 0)
+            num_inference_steps_real = num_inference_steps - t_start
+        else :
+            control_image = None
+            num_inference_steps_real = num_inference_steps
         common.print_config(
             {
                 "height": height,
                 "width": width,
                 "prompt": prompt,
                 "n_prompt": n_prompt,
-                "num_inference_steps": num_inference_steps,
+                "num_inference_steps": num_inference_steps_real,
                 "num_images_per_prompt": num_images_per_prompt,
                 "guidance_scale": guidance_scale,
+                "control_image_path": control_image_path,
+                "strength": strength,
                 "seed": seed,
             }
         )
@@ -209,6 +256,8 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
                 num_inference_steps=num_inference_steps,
                 num_images_per_prompt=num_images_per_prompt,
                 guidance_scale=guidance_scale,
+                control_image=control_image,
+                strength = strength,
                 generator=(
                     torch.Generator().manual_seed(seed) if seed else torch.Generator()
                 ),
@@ -230,6 +279,8 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
                 num_inference_steps=num_inference_steps,
                 num_images_per_prompt=num_images_per_prompt,
                 guidance_scale=guidance_scale,
+                control_image=control_image,
+                strength = strength,
                 generator=(
                     torch.Generator().manual_seed(seed) if seed else torch.Generator()
                 ),
@@ -251,6 +302,8 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
                     num_inference_steps=num_inference_steps,
                     num_images_per_prompt=num_images_per_prompt,
                     guidance_scale=guidance_scale,
+                    control_image=control_image,
+                    strength = strength,
                     generator=(
                         torch.Generator().manual_seed(seed)
                         if seed

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
 #
 
 import time
@@ -44,9 +44,9 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
         controlnet_name=None,
         width=1024,
         t5_sequence_len=83,
+        revision: str = None,
     ):
         self.model_id = model_id
-        self.model_path = model_path
         self.enable_profile = enable_profile
         self.profiling_rounds = profiling_rounds
         self.mem_dict = {
@@ -56,6 +56,23 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
             "mmdit": 0,
             "vae_decoder": 0,
         }
+        
+        # Auto-download from Hugging Face if model_path not provided
+        if model_path is None:
+            Logger.debug("=" * 60)
+            Logger.debug(f"model_path not provided, will download model from Hugging Face")
+            Logger.debug(f"Model ID: {model_id}")
+            if revision:
+                Logger.debug(f"Revision/Branch: {revision}")
+            Logger.debug("=" * 60)
+            model_path = common.download_model_from_huggingface(model_id, revision=revision)
+            Logger.debug("=" * 60)
+            Logger.debug(f"Model ready: {model_path}")
+            Logger.debug("Starting to load model components...")
+            Logger.debug("=" * 60)
+        
+        self.model_path = model_path
+        
         self.image_preprocess_time = 0
         image_preprocess_start = time.perf_counter()
         self.control_name = controlnet_name.lower()
@@ -99,61 +116,57 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
         self.origin_width, self.origin_height = self.control_mask.size
         self.image_preprocess_time = time.perf_counter() - image_preprocess_start
         Logger.info(f"Image preprocess time: {self.image_preprocess_time:.2f}s")
-        abs_sub_model_path = os.path.join(model_path, sub_model_path)
-        abs_common_model_path = os.path.join(model_path, common_model_path)
+        abs_sub_model_path = os.path.join(model_path, sub_model_path) if sub_model_path else model_path
+        abs_common_model_path = os.path.join(model_path, common_model_path) if common_model_path else model_path
 
         t0_start = time.perf_counter()
-        try:
-            self.tokenizer = CLIPTokenizer.from_pretrained(
-                os.path.join(abs_common_model_path, "tokenizer")
-            )
-        except:
-            self.tokenizer = CLIPTokenizer.from_pretrained(
-                self.model_id, subfolder="tokenizer"
-            )
-        try:
-            self.tokenizer_2 = CLIPTokenizer.from_pretrained(
-                os.path.join(abs_common_model_path, "tokenizer_2")
-            )
-        except:
-            self.tokenizer_2 = CLIPTokenizer.from_pretrained(
-                self.model_id, subfolder="tokenizer_2"
-            )
-        try:
-            self.tokenizer_3 = T5TokenizerFast.from_pretrained(
-                os.path.join(abs_common_model_path, "tokenizer_3")
-            )
-        except:
-            self.tokenizer_3 = T5TokenizerFast.from_pretrained(
-                self.model_id, subfolder="tokenizer_3"
-            )
+        self.tokenizer = CLIPTokenizer.from_pretrained(
+            os.path.join(abs_common_model_path, "tokenizer")
+        )
+        self.tokenizer_2 = CLIPTokenizer.from_pretrained(
+            os.path.join(abs_common_model_path, "tokenizer_2")
+        )
+        self.tokenizer_3 = T5TokenizerFast.from_pretrained(
+            os.path.join(abs_common_model_path, "tokenizer_3")
+        )
         self.text_encoder = common.LoadModel(
             abs_common_model_path, "text_encoder", "text_encoder"
         )
         self.text_encoder_2 = common.LoadModel(
             abs_common_model_path, "text_encoder_2", "text_encoder_2"
         )
-        try:
-            scheduler_name = json.load(
-                open(
-                    os.path.join(
-                        abs_common_model_path, "scheduler", "scheduler_config.json"
-                    ),
-                    "r",
-                )
-            ).get("_class_name", None)
-            scheduler_cls = getattr(
-                importlib.import_module("diffusers.schedulers"), scheduler_name
+        scheduler_name = json.load(
+            open(
+                os.path.join(
+                    abs_common_model_path, "scheduler", "scheduler_config.json"
+                ),
+                "r",
             )
-            self.scheduler = scheduler_cls.from_pretrained(
-                os.path.join(abs_common_model_path, "scheduler")
-            )
-        except:
-            raise ValueError("scheuler not found")
+        ).get("_class_name", None)
+        scheduler_cls = getattr(
+            importlib.import_module("diffusers.schedulers"), scheduler_name
+        )
+        self.scheduler = scheduler_cls.from_pretrained(
+            os.path.join(abs_common_model_path, "scheduler")
+        )
 
         self.t_npu = 0
         if not gpu:
             t0_npu_start = time.perf_counter()
+            # Load vae decoder model
+            start_mem = common.measure_mem()
+            self.vae_decoder = common.load_model_with_session(
+                MODEL_PATH=abs_common_model_path,
+                model_type="vae_decoder",
+                model_file="replaced.onnx",
+                custom_op_path=custom_op_path,
+                enable_dd_fusion_compile=enable_compile,
+                providers=["DmlExecutionProvider"],
+                width=width,
+                t5_sequence_len=t5_sequence_len,
+            )
+            mem_change = common.measure_mem() - start_mem
+            self.mem_dict["vae_decoder"] = mem_change
             start_mem = common.measure_mem()
             self.text_encoder_3 = common.LoadT5NPUTorchModel(
                 root_path, abs_common_model_path, "text_encoder_3_gptq_v2"
@@ -206,20 +219,6 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
             mem_change = common.measure_mem() - start_mem
             self.mem_dict["mmdit"] = mem_change
             Logger.debug(f"mmdit Mem: {mem_change}MB")
-            # Load vae decoder model
-            start_mem = common.measure_mem()
-            self.vae_decoder = common.load_model_with_session(
-                MODEL_PATH=abs_common_model_path,
-                model_type="vae_decoder",
-                model_file="replaced.onnx",
-                custom_op_path=custom_op_path,
-                enable_dd_fusion_compile=enable_compile,
-                providers=["DmlExecutionProvider"],
-                width=width,
-                t5_sequence_len=t5_sequence_len,
-            )
-            mem_change = common.measure_mem() - start_mem
-            self.mem_dict["vae_decoder"] = mem_change
             t0_npu_end = time.perf_counter()
             self.t_npu = t0_npu_end - t0_npu_start
         else:
@@ -317,7 +316,19 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
         seed=None,
         controlnet_conditioning_scale=0.95,
         t5_sequence_len=83,
+        controlnet_use_pooled_projections=None,
     ):
+        # Resolve controlnet_use_pooled_projections from inpainting controlnet output count when not explicit
+        if controlnet_use_pooled_projections is None:
+            if "inpainting" in self.control_name.lower():
+                num_outputs = len(self.controlnet.model.get_outputs())
+                # https://huggingface.co/alimama-creative/SD3-Controlnet-Inpainting has 23 outputs
+                # and controlnet_use_pooled_projections is False by default
+                # Some customer inpainting controlnet has 8 outputs and need to set controlnet_use_pooled_projections to True
+                controlnet_use_pooled_projections = num_outputs != 23
+            else:
+                controlnet_use_pooled_projections = False
+
         pipe = StableDiffusion3ControlNetOutpaintingPipeline(
             vae_encoder=self.vae_encoder,
             scheduler=self.scheduler,
@@ -361,6 +372,7 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
                 control_image=self.control_image,
                 control_mask=self.control_mask,
                 controlnet_conditioning_scale=controlnet_conditioning_scale,
+                controlnet_use_pooled_projections=controlnet_use_pooled_projections,
                 generator=(
                     torch.Generator().manual_seed(seed) if seed else torch.Generator()
                 ),
@@ -385,6 +397,7 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
                 control_image=self.control_image,
                 control_mask=self.control_mask,
                 controlnet_conditioning_scale=controlnet_conditioning_scale,
+                controlnet_use_pooled_projections=controlnet_use_pooled_projections,
                 generator=(
                     torch.Generator().manual_seed(seed) if seed else torch.Generator()
                 ),
@@ -411,6 +424,7 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
                     control_image=self.control_image,
                     control_mask=self.control_mask,
                     controlnet_conditioning_scale=controlnet_conditioning_scale,
+                    controlnet_use_pooled_projections=controlnet_use_pooled_projections,
                     generator=(
                         torch.Generator().manual_seed(seed)
                         if seed

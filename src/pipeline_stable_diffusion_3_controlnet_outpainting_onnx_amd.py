@@ -1,4 +1,5 @@
-# Modifications Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+# Modifications Copyright (C) 2025 Advanced Micro Devices, 
+# Inc.  All rights reserved.
 #
 # Copyright 2025 Stability AI, The HuggingFace Team and The AlimamaCreative Team. All rights reserved.
 #
@@ -398,8 +399,10 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
                 device=device, dtype=torch.float16
             )
         else:
-            prompt_embeds = self.text_encoder_3(**text_inputs)["last_hidden_state"]
-            prompt_embeds = prompt_embeds.to(device=device, dtype=torch.float16)
+            prompt_embeds = self.text_encoder_3(
+                input_ids=text_inputs["input_ids"],
+            )["last_hidden_state"].to(device=device, dtype=torch.float16)
+            
             self.perf_time_dict["t5"].append(time.perf_counter() - t0)
 
         _, seq_len, _ = prompt_embeds.shape
@@ -980,6 +983,30 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
     def interrupt(self):
         return self._interrupt
 
+    def _build_block_controlnet_inputs(
+        self,
+        control_block_samples: List[np.ndarray],
+        num_blocks: int,
+    ) -> Dict[str, np.ndarray]:
+        """
+        Build the block_controlnet_hidden_states_* dict for the transformer from
+        ControlNet outputs. Maps num_outputs to num_blocks by assigning each
+        transformer block to an output index (evenly distributed).
+
+        Args:
+            control_block_samples: List of numpy arrays from controlnet forward (length = num_outputs).
+            num_blocks: Number of transformer blocks that expect controlnet inputs (e.g. 23 for inpainting, 12 for normal).
+
+        Returns:
+            Dict mapping "block_controlnet_hidden_states_0", ..., "block_controlnet_hidden_states_{num_blocks-1}" to arrays.
+        """
+        num_outputs = len(control_block_samples)
+        result = {}
+        for j in range(num_blocks):
+            output_idx = (j * num_outputs) // num_blocks
+            result[f"block_controlnet_hidden_states_{j}"] = control_block_samples[output_idx]
+        return result
+
     # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.encode_image
     def encode_image(
         self, image: PipelineImageInput, device: torch.device
@@ -1088,6 +1115,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
         control_mask: PipelineImageInput = None,
         controlnet_conditioning_scale: Union[float, List[float]] = 1.0,
         controlnet_pooled_projections: Optional[torch.FloatTensor] = None,
+        controlnet_use_pooled_projections: bool = False,
         negative_prompt: Optional[Union[str, List[str]]] = None,
         negative_prompt_2: Optional[Union[str, List[str]]] = None,
         negative_prompt_3: Optional[Union[str, List[str]]] = None,
@@ -1158,6 +1186,9 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
                 the corresponding scale as a list.
             controlnet_pooled_projections (`torch.FloatTensor` of shape `(batch_size, projection_dim)`):
                 Embeddings projected from the embeddings of controlnet input conditions.
+            controlnet_use_pooled_projections (`bool`, *optional*, defaults to `False`):
+                If `True`, pass `pooled_prompt_embeds` to the controlnet; if `False`, pass zeros.
+                Set by the trigger (e.g. based on control type / controlnet output count). Passing pooled can cause errors on some exports.
             negative_prompt (`str` or `List[str]`, *optional*):
                 The prompt or prompts not to guide the image generation. If not defined, one has to pass
                 `negative_prompt_embeds` instead. Ignored when not using guidance (i.e., ignored if `guidance_scale` is
@@ -1378,15 +1409,14 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             height = latent_height * self.vae_scale_factor
             width = latent_width * self.vae_scale_factor
         controlnet_cond = control_image.to(dtype=torch.float16).cpu().numpy()
-        if control_name == "inpainting":
+        if controlnet_pooled_projections is not None:
+            controlnet_pooled_projections = (
+                controlnet_pooled_projections or pooled_prompt_embeds
+            )
+        elif controlnet_use_pooled_projections:
             controlnet_pooled_projections = pooled_prompt_embeds
         else:
-            if controlnet_pooled_projections is None:
-                controlnet_pooled_projections = torch.zeros_like(pooled_prompt_embeds)
-            else:
-                controlnet_pooled_projections = (
-                    controlnet_pooled_projections or pooled_prompt_embeds
-                )
+            controlnet_pooled_projections = torch.zeros_like(pooled_prompt_embeds)
 
 
         # 4. Prepare timesteps
@@ -1479,55 +1509,20 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
                 ctrlnet_time = time.perf_counter() - ctrlnet_start_time
                 self.perf_time_dict["ctrlnet"].append(ctrlnet_time)
                 transformer_start_time = time.perf_counter()
-                if control_name == "inpainting":
-                    model_input = {
-                        "hidden_states": latent_model_input,
-                        "timestep": timestep,
-                        "encoder_hidden_states": prompt_embeds,
-                        "pooled_projections": pooled_prompt_embeds,
-                        "block_controlnet_hidden_states_0": control_block_samples[0],
-                        "block_controlnet_hidden_states_1": control_block_samples[0],
-                        "block_controlnet_hidden_states_2": control_block_samples[0],
-                        "block_controlnet_hidden_states_3": control_block_samples[1],
-                        "block_controlnet_hidden_states_4": control_block_samples[1],
-                        "block_controlnet_hidden_states_5": control_block_samples[1],
-                        "block_controlnet_hidden_states_6": control_block_samples[2],
-                        "block_controlnet_hidden_states_7": control_block_samples[2],
-                        "block_controlnet_hidden_states_8": control_block_samples[2],
-                        "block_controlnet_hidden_states_9": control_block_samples[3],
-                        "block_controlnet_hidden_states_10": control_block_samples[3],
-                        "block_controlnet_hidden_states_11": control_block_samples[3],
-                        "block_controlnet_hidden_states_12": control_block_samples[4],
-                        "block_controlnet_hidden_states_13": control_block_samples[4],
-                        "block_controlnet_hidden_states_14": control_block_samples[4],
-                        "block_controlnet_hidden_states_15": control_block_samples[5],
-                        "block_controlnet_hidden_states_16": control_block_samples[5],
-                        "block_controlnet_hidden_states_17": control_block_samples[5],
-                        "block_controlnet_hidden_states_18": control_block_samples[6],
-                        "block_controlnet_hidden_states_19": control_block_samples[6],
-                        "block_controlnet_hidden_states_20": control_block_samples[6],
-                        "block_controlnet_hidden_states_21": control_block_samples[7],
-                        "block_controlnet_hidden_states_22": control_block_samples[7],
-                    }
-                else:
-                    model_input = {
-                        "hidden_states": latent_model_input,
-                        "timestep": timestep,
-                        "encoder_hidden_states": prompt_embeds,
-                        "pooled_projections": pooled_prompt_embeds,
-                        "block_controlnet_hidden_states_0": control_block_samples[0],
-                        "block_controlnet_hidden_states_1": control_block_samples[0],
-                        "block_controlnet_hidden_states_2": control_block_samples[1],
-                        "block_controlnet_hidden_states_3": control_block_samples[1],
-                        "block_controlnet_hidden_states_4": control_block_samples[2],
-                        "block_controlnet_hidden_states_5": control_block_samples[2],
-                        "block_controlnet_hidden_states_6": control_block_samples[3],
-                        "block_controlnet_hidden_states_7": control_block_samples[3],
-                        "block_controlnet_hidden_states_8": control_block_samples[4],
-                        "block_controlnet_hidden_states_9": control_block_samples[4],
-                        "block_controlnet_hidden_states_10": control_block_samples[5],
-                        "block_controlnet_hidden_states_11": control_block_samples[5],
-                    }
+
+                # Transformer expects a fixed number of block_controlnet inputs (23 for inpainting, 12 for normal).
+                # ControlNet may output 23, 8, 6, etc.; we map outputs to blocks evenly via _build_block_controlnet_inputs.
+                num_blocks = 23 if control_name == "inpainting" else 12
+                block_controlnet_inputs = self._build_block_controlnet_inputs(
+                    list(control_block_samples), num_blocks
+                )
+                model_input = {
+                    "hidden_states": latent_model_input,
+                    "timestep": timestep,
+                    "encoder_hidden_states": prompt_embeds,
+                    "pooled_projections": pooled_prompt_embeds,
+                    **block_controlnet_inputs,
+                }
                 noise_pred = self.transformer.model.run(None, model_input)
                 transformer_time = time.perf_counter() - transformer_start_time
                 self.perf_time_dict["dit"].append(transformer_time)

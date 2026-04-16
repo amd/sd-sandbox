@@ -1,5 +1,3 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
-
 """
 Consolidated helper functions for pipeline execution and reporting.
 
@@ -56,88 +54,61 @@ def count_prompts_in_file(prompt_file_path: str) -> int:
         return 0
 
 
-def clean_generated_images(test_path: Path) -> int:
+def _clean_files(directory: Path, patterns: List[str], description: str) -> int:
     """
-    Remove all existing images and Excel files from the generated_images folder.
+    Remove files matching given patterns from a directory.
     
     Args:
-        test_path (Path): Path to the test directory containing generated_images folder
+        directory (Path): Path to the directory to clean
+        patterns (List[str]): List of glob patterns to match
+        description (str): Human-readable description for log messages
         
     Returns:
-        int: Number of files removed (images + Excel files)
+        int: Number of files removed
     """
-    generated_images_path = test_path / "generated_images"
-    
-    if not generated_images_path.exists():
-        print(f"  [Dir] Generated images directory doesn't exist: {generated_images_path}")
+    if not directory.exists():
+        print(f"  [Dir] {description} directory doesn't exist: {directory}")
         return 0
     
-    file_patterns = ['*.png', '*.jpg', '*.jpeg', '*.bmp', '*.tiff', '*.webp', '*.xlsx', '*.xls']
     removed_count = 0
+    print(f"  [Cleanup] Cleaning existing {description} from: {directory}")
     
-    print(f"  [Cleanup] Cleaning existing images and Excel files from: {generated_images_path}")
-    
-    for pattern in file_patterns:
-        files = list(generated_images_path.glob(pattern))
-        for file in files:
+    for pattern in patterns:
+        for file in directory.glob(pattern):
             try:
                 file.unlink()
                 removed_count += 1
             except PermissionError:
                 print(f"  [Warning] Permission denied removing {file.name}")
             except FileNotFoundError:
-                # File was removed between glob and unlink - not an error
                 pass
             except OSError as e:
                 print(f"  [Warning] Could not remove {file.name}: {e}")
     
     if removed_count > 0:
-        print(f"  [OK] Removed {removed_count} existing file(s) (images + Excel)")
+        print(f"  [OK] Removed {removed_count} existing file(s)")
     else:
         print(f"  [Info] No existing files found to remove")
     
     return removed_count
 
 
+def clean_generated_images(test_path: Path) -> int:
+    """Remove all existing images and Excel files from the generated_images folder."""
+    return _clean_files(
+        test_path / "generated_images",
+        ['*.png', '*.jpg', '*.jpeg', '*.bmp', '*.tiff', '*.webp', '*.xlsx', '*.xls'],
+        "images and Excel files"
+    )
+
+
 def clean_results(results_path: Path) -> int:
-    """
-    Remove all existing result files from the results folder.
-    
-    Args:
-        results_path (Path): Path to the results directory
-        
-    Returns:
-        int: Number of result files removed
-    """
-    if not results_path.exists():
-        print(f"  [Dir] Results directory doesn't exist: {results_path}")
-        return 0
-    
-    result_patterns = ['pipeline_results_*.txt', '*.log']
-    removed_count = 0
-    
-    print(f"  [Cleanup] Cleaning existing results from: {results_path}")
-    
-    for pattern in result_patterns:
-        result_files = list(results_path.glob(pattern))
-        for result_file in result_files:
-            try:
-                result_file.unlink()
-                removed_count += 1
-            except PermissionError:
-                print(f"  [Warning] Permission denied removing {result_file.name}")
-            except FileNotFoundError:
-                # File was removed between glob and unlink - not an error
-                pass
-            except OSError as e:
-                print(f"  [Warning] Could not remove {result_file.name}: {e}")
-    
-    if removed_count > 0:
-        print(f"  [OK] Removed {removed_count} existing result file(s)")
-    else:
-        print(f"  [Info] No result files found to remove")
-    
-    return removed_count
+    """Remove all existing result files from the results folder."""
+    return _clean_files(
+        results_path,
+        ['pipeline_results_*.txt', '*.log'],
+        "result files"
+    )
 
 
 def determine_prompt_source(config_item: Dict[str, Any], custom_prompt: Optional[str] = None,
@@ -187,6 +158,10 @@ def determine_prompt_source(config_item: Dict[str, Any], custom_prompt: Optional
         extra_args.extend(["--prompt_file_path", abs_global_prompt_path])
         prompt_count = count_prompts_in_file(global_prompt_file)
         description = f"Using global default prompt file: {global_prompt_file}\n  → Processing {prompt_count} prompts"
+    elif config_defaults and "prompt" in config_defaults:
+        extra_args.extend(["--prompt", config_defaults["prompt"]])
+        prompt_count = 1
+        description = f"Using global default prompt: {config_defaults['prompt'][:60]}..."
     
     return extra_args, description, prompt_count
 

@@ -1,5 +1,3 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
-
 """
 Pipeline execution utilities.
 
@@ -63,22 +61,11 @@ def build_command(script_path: Path, script_name: str, model_id: str,
         # Profiling mode: includes warmup and profiling rounds
         common_args = ["--enable_profile", "--verbose", "--no_excel"]  # MODIFIED: Removed --no_images to allow image generation by default
     
-    if script_name in ["run_sd15_controlnet.py"]:
-        # SD15 controlnet script doesn't support --output_image
-        # FIXED: Added missing --model_id and --profiling_rounds arguments
-        filtered_extra_args = filter_extra_args(extra_args, ["--output_image"])
-        cmd.extend(["--model_id", model_id] + common_args + 
-                  ["--profiling_rounds", str(profiling_rounds)] + filtered_extra_args)
-    elif script_name in ["run_sd30_controlnet.py"]:
-        # SD30 controlnet script doesn't support --output_image
-        filtered_extra_args = filter_extra_args(extra_args, ["--output_image"])
-        cmd.extend(common_args + ["--profiling_rounds", str(profiling_rounds)] + filtered_extra_args)
-    else:
-        # Most other scripts don't support --output_image
-        filtered_extra_args = filter_extra_args(extra_args, ["--output_image"])
-        
-        cmd.extend(["--model_id", model_id] + common_args + 
-                  ["--profiling_rounds", str(profiling_rounds)] + filtered_extra_args)
+    filtered_extra_args = filter_extra_args(extra_args, ["--output_image"])
+    # SD30 controlnet script doesn't use --model_id; all others do
+    if script_name != "run_sd30_controlnet.py":
+        cmd.extend(["--model_id", model_id])
+    cmd.extend(common_args + ["--profiling_rounds", str(profiling_rounds)] + filtered_extra_args)
     
     # Add custom_op_path if provided
     if custom_op_path:
@@ -201,8 +188,40 @@ def setup_pipeline_execution_provider(config_item: Dict[str, Any], args: argpars
 # Pipeline Execution Helper Functions
 # ============================================================================
 
+def resolve_relative_path_args(extra_args: List[str], arg_names: List[str], base_path: Path) -> List[str]:
+    """
+    Resolve relative path arguments to absolute paths.
+    
+    For any argument in arg_names whose value is a relative path,
+    resolves it relative to base_path. Absolute paths are left unchanged
+    (pathlib's / operator already handles this: base / absolute == absolute).
+    
+    Args:
+        extra_args: List of command line arguments
+        arg_names: Argument names whose values should be resolved
+        base_path: Base path for resolving relative paths
+        
+    Returns:
+        List of arguments with resolved paths
+    """
+    result = []
+    i = 0
+    while i < len(extra_args):
+        arg = extra_args[i]
+        if arg in arg_names and i + 1 < len(extra_args):
+            result.append(arg)
+            result.append(str((base_path / extra_args[i + 1]).resolve()))
+            i += 2
+        else:
+            result.append(arg)
+            i += 1
+    return result
+
+
 def setup_pipeline_args(config_item: Dict[str, Any], benchmark_mode: bool, 
-                       config_defaults: Optional[Dict[str, Any]]) -> Tuple[int, List[str], int, str]:
+                       config_defaults: Optional[Dict[str, Any]],
+                       control_images_path: Optional[Path] = None,
+                       config_files_path: Optional[Path] = None) -> Tuple[int, List[str], int, str]:
     """
     Setup and prepare arguments for pipeline execution.
     
@@ -210,6 +229,8 @@ def setup_pipeline_args(config_item: Dict[str, Any], benchmark_mode: bool,
         config_item: Pipeline configuration from YAML
         benchmark_mode: Whether to run in benchmark mode
         config_defaults: Default configuration values
+        control_images_path: Optional path to control images directory for resolving relative paths
+        config_files_path: Optional path to config files directory for resolving relative paths
         
     Returns:
         Tuple of (profiling_rounds, extra_args, num_inference_steps, model_path)
@@ -221,6 +242,12 @@ def setup_pipeline_args(config_item: Dict[str, Any], benchmark_mode: bool,
     if config_defaults and "default_args" in config_defaults:
         # Prepend default args so pipeline-specific args can override them
         extra_args = config_defaults["default_args"] + extra_args
+    
+    # Resolve relative paths to absolute paths
+    if control_images_path:
+        extra_args = resolve_relative_path_args(extra_args, ['--control_image_path', '--control_mask_path'], control_images_path)
+    if config_files_path:
+        extra_args = resolve_relative_path_args(extra_args, ['--dynamic_shape_file_path'], config_files_path)
     
     # Extract metadata for result tracking
     num_inference_steps = extract_arg_value(extra_args, ["--num_inference_steps", "-n"], 0, as_int=True)
@@ -351,6 +378,7 @@ def stream_process_output(process: subprocess.Popen, streaming_enabled: bool,
     """
     last_lines = deque(maxlen=9)
     error_lines = []  # Capture error/traceback/exception lines
+    in_traceback = False  # Track if we're inside a traceback block
     
     # Stream output based on configuration
     if streaming_enabled:
@@ -386,8 +414,17 @@ def stream_process_output(process: subprocess.Popen, streaming_enabled: bool,
         text_lower = text_clean.lower()
         
         # Capture error, traceback, and exception lines for error reporting
-        # Check both the original line and cleaned version to catch red terminal output
-        if any(keyword in text_lower for keyword in ['error', 'traceback', 'exception', 'failed', 'errno', 'assert']):
+        # Start capturing when we see traceback or error keywords
+        if 'traceback' in text_lower:
+            in_traceback = True
+            error_lines.append(text)
+        elif in_traceback:
+            # Continue capturing lines in traceback until we see an empty line or normal output
+            error_lines.append(text)
+            # End traceback on empty line or when we see normal pipeline output patterns
+            if not text_clean.strip() or text.startswith("__ROUND_COMPLETE__"):
+                in_traceback = False
+        elif any(keyword in text_lower for keyword in ['error', 'exception', 'failed', 'errno', 'assert']):
             error_lines.append(text)  # Keep original with color codes for full context
         
         # Add to log buffer if streaming is enabled and log buffer exists
@@ -510,7 +547,9 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
                 determine_prompt_source_func: Optional[Callable[[Dict[str, Any], Optional[str], Optional[str], Optional[Dict[str, Any]]], Tuple[List[str], str, int]]] = None,
                 image_only: bool = False,
                 traceback_enabled: bool = False,
-                custom_op_path: Optional[str] = None) -> Dict[str, Any]:
+                custom_op_path: Optional[str] = None,
+                control_images_path: Optional[Path] = None,
+                config_files_path: Optional[Path] = None) -> Dict[str, Any]:
     """
     Execute a single pipeline configuration with metrics collection.
     
@@ -530,6 +569,8 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
         image_only: If True, run in batch mode without profiling
         traceback_enabled: If True, include full traceback in error messages
         custom_op_path: Optional path to onnx_custom_ops.dll or libonnx_custom_ops.so
+        control_images_path: Optional base path for resolving relative control image paths
+        config_files_path: Optional base path for resolving relative config file paths
         
     Returns:
         Dictionary with execution results and metrics
@@ -552,7 +593,7 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
     
     # Setup arguments and extract metadata
     profiling_rounds, extra_args, num_inference_steps, model_path = setup_pipeline_args(
-        config_item, benchmark_mode, config_defaults
+        config_item, benchmark_mode, config_defaults, control_images_path, config_files_path
     )
     
     # Get resolution for result tracking
@@ -625,7 +666,7 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
             stderr_output = f"Process exited with code {return_code}"
             if error_lines:
                 # Include captured error lines in the error message
-                stderr_output += "\n\nError Output:\n" + "\n".join(error_lines[-20:])  # Last 20 error lines
+                stderr_output += "\n\nError Output:\n" + "\n".join(error_lines)
         else:
             stderr_output = ""
         

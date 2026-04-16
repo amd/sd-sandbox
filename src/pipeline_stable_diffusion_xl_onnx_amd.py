@@ -1,4 +1,5 @@
-# Modifications Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+# Modifications Copyright (C) 2025 Advanced Micro Devices, 
+# Inc.  All rights reserved.
 #
 # Copyright 2025 The HuggingFace Team. All rights reserved.
 #
@@ -266,7 +267,8 @@ class StableDiffusionXLPipelineAMD(
 
     def __init__(
         self,
-        vae: OnnxRuntimeModel,
+        vae_encoder: OnnxRuntimeModel,
+        vae_decoder: OnnxRuntimeModel,
         text_encoder: CLIPTextModel,
         text_encoder_2: CLIPTextModelWithProjection,
         tokenizer: CLIPTokenizer,
@@ -281,7 +283,8 @@ class StableDiffusionXLPipelineAMD(
         super().__init__()
 
         self.register_modules(
-            vae=vae,
+            vae_encoder=vae_encoder,
+            vae_decoder=vae_decoder,
             text_encoder=text_encoder,
             text_encoder_2=text_encoder_2,
             tokenizer=tokenizer,
@@ -294,7 +297,7 @@ class StableDiffusionXLPipelineAMD(
         self.register_to_config(
             force_zeros_for_empty_prompt=force_zeros_for_empty_prompt
         )
-        self.vae_scale_factor = 2 ** (len(vae.config["block_out_channels"]) - 1)
+        self.vae_scale_factor = 2 ** (len(vae_decoder.config["block_out_channels"]) - 1)
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
 
         self.default_sample_size = self.unet.config["sample_size"]
@@ -311,6 +314,7 @@ class StableDiffusionXLPipelineAMD(
             self.watermark = None
 
         self.perf_time_dict = {
+            "vae_encoder": [],
             "vae_decoder": [],
             "unet": [],
         }
@@ -430,6 +434,11 @@ class StableDiffusionXLPipelineAMD(
             if self.text_encoder is not None
             else [self.text_encoder_2]
         )
+
+        # Force text encoders to fp32 for computation
+        for enc in text_encoders:
+            if enc is not None:
+                enc.to(torch.float32)
 
         if prompt_embeds is None:
             prompt_2 = prompt_2 or prompt
@@ -750,6 +759,8 @@ class StableDiffusionXLPipelineAMD(
         prompt_2,
         height,
         width,
+        control_image,
+        strength,
         callback_steps,
         negative_prompt=None,
         negative_prompt_2=None,
@@ -761,6 +772,8 @@ class StableDiffusionXLPipelineAMD(
         ip_adapter_image_embeds=None,
         callback_on_step_end_tensor_inputs=None,
     ):
+        if control_image is not None and (strength < 0 or strength > 1):
+            raise ValueError(f"The value of strength should in [0.0, 1.0] but is {strength}")
         if height % 8 != 0 or width % 8 != 0:
             raise ValueError(
                 f"`height` and `width` have to be divisible by 8 but are {height} and {width}."
@@ -852,6 +865,97 @@ class StableDiffusionXLPipelineAMD(
                 raise ValueError(
                     f"`ip_adapter_image_embeds` has to be a list of 3D or 4D tensors but is {ip_adapter_image_embeds[0].ndim}D"
                 )
+    
+    # modified from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img.StableDiffusionXLImg2ImgPipeline.prepare_latents
+    def prepare_latents_i2i(
+        self, image, timestep, batch_size, num_images_per_prompt, dtype, device, generator=None, add_noise=True
+    ):
+        if not isinstance(image, (torch.Tensor)):
+            raise ValueError(
+                f"`image` has to be of type `torch.Tensor` but is {type(image)}"
+            )
+
+        latents_mean = latents_std = None
+        if hasattr(self.vae_encoder.config, "latents_mean") and self.vae_encoder.config.latents_mean is not None:
+            latents_mean = torch.tensor(self.vae_encoder.config.latents_mean).view(1, 4, 1, 1)
+        if hasattr(self.vae_encoder.config, "latents_std") and self.vae_encoder.config.latents_std is not None:
+            latents_std = torch.tensor(self.vae_encoder.config.latents_std).view(1, 4, 1, 1)
+
+        image = image.to(device=device, dtype=dtype)
+        batch_size = batch_size * num_images_per_prompt
+
+        start = time.time_ns()
+        init_latents = torch.from_numpy(self.vae_encoder(init_image=image.cpu().numpy())[0])
+        init_latents = init_latents.to(dtype)
+        if latents_mean is not None and latents_std is not None:
+            latents_mean = latents_mean.to(device=device, dtype=dtype)
+            latents_std = latents_std.to(device=device, dtype=dtype)
+            init_latents = (init_latents - latents_mean) * self.vae_encoder.config.scaling_factor / latents_std
+        else:
+            init_latents = self.vae_decoder.config["scaling_factor"] * init_latents
+        end = time.time_ns()
+        self.perf_time_dict["vae_encoder"].append((end - start) * 1e-9)
+
+        if batch_size > init_latents.shape[0] and batch_size % init_latents.shape[0] == 0:
+            # expand init_latents for batch_size
+            additional_image_per_prompt = batch_size // init_latents.shape[0]
+            init_latents = torch.cat([init_latents] * additional_image_per_prompt, dim=0)
+        elif batch_size > init_latents.shape[0] and batch_size % init_latents.shape[0] != 0:
+            raise ValueError(
+                f"Cannot duplicate `image` of batch size {init_latents.shape[0]} to {batch_size} text prompts."
+            )
+        else:
+            init_latents = torch.cat([init_latents], dim=0)
+
+        if add_noise:
+            shape = init_latents.shape
+            noise = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
+            # get latents
+            init_latents = self.scheduler.add_noise(init_latents, noise, timestep)
+
+        latents = init_latents
+
+        return latents
+
+    # Copied from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl_img2img.StableDiffusionXLImg2ImgPipeline.get_timesteps
+    def get_timesteps(self, num_inference_steps, strength, device, denoising_start=None):
+        # get the original timestep using init_timestep
+        if denoising_start is None:
+            init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
+            t_start = max(num_inference_steps - init_timestep, 0)
+
+            timesteps = self.scheduler.timesteps[t_start * self.scheduler.order :]
+            if hasattr(self.scheduler, "set_begin_index"):
+                self.scheduler.set_begin_index(t_start * self.scheduler.order)
+
+            return timesteps, num_inference_steps - t_start
+
+        else:
+            # Strength is irrelevant if we directly request a timestep to start at;
+            # that is, strength is determined by the denoising_start instead.
+            discrete_timestep_cutoff = int(
+                round(
+                    self.scheduler.config.num_train_timesteps
+                    - (denoising_start * self.scheduler.config.num_train_timesteps)
+                )
+            )
+
+            num_inference_steps = (self.scheduler.timesteps < discrete_timestep_cutoff).sum().item()
+            if self.scheduler.order == 2 and num_inference_steps % 2 == 0:
+                # if the scheduler is a 2nd order scheduler we might have to do +1
+                # because `num_inference_steps` might be even given that every timestep
+                # (except the highest one) is duplicated. If `num_inference_steps` is even it would
+                # mean that we cut the timesteps in the middle of the denoising step
+                # (between 1st and 2nd derivative) which leads to incorrect results. By adding 1
+                # we ensure that the denoising process always ends after the 2nd derivate step of the scheduler
+                num_inference_steps = num_inference_steps + 1
+
+            # because t_n+1 >= t_n, we slice the timesteps starting from the end
+            t_start = len(self.scheduler.timesteps) - num_inference_steps
+            timesteps = self.scheduler.timesteps[t_start:]
+            if hasattr(self.scheduler, "set_begin_index"):
+                self.scheduler.set_begin_index(t_start)
+            return timesteps, num_inference_steps
 
     # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
     def prepare_latents(
@@ -887,6 +991,37 @@ class StableDiffusionXLPipelineAMD(
         # scale the initial noise by the standard deviation required by the scheduler
         latents = latents * self.scheduler.init_noise_sigma
         return latents
+
+    def prepare_image(
+        self,
+        image,
+        width,
+        height,
+        batch_size,
+        num_images_per_prompt,
+        device,
+        dtype,
+        do_classifier_free_guidance=False,
+        guess_mode=False,
+    ):
+        if isinstance(image, torch.Tensor):
+            pass
+        else:
+            image = self.image_processor.preprocess(image, height=height, width=width)
+
+        image_batch_size = image.shape[0]
+
+        if image_batch_size == 1:
+            repeat_by = batch_size
+        else:
+            # image batch size is the same as prompt batch size
+            repeat_by = num_images_per_prompt
+
+        image = image.repeat_interleave(repeat_by, dim=0)
+
+        image = image.to(device=device, dtype=dtype)
+
+        return image
 
     def _get_add_time_ids(
         self,
@@ -1007,11 +1142,14 @@ class StableDiffusionXLPipelineAMD(
         self,
         prompt: Union[str, List[str]] = None,
         prompt_2: Optional[Union[str, List[str]]] = None,
+        control_image: PipelineImageInput = None,
         height: Optional[int] = None,
         width: Optional[int] = None,
         num_inference_steps: int = 50,
         timesteps: List[int] = None,
         sigmas: List[float] = None,
+        strength: float = 0.3,
+        denoising_start: Optional[float] = None,
         denoising_end: Optional[float] = None,
         guidance_scale: float = 5.0,
         negative_prompt: Optional[Union[str, List[str]]] = None,
@@ -1078,6 +1216,20 @@ class StableDiffusionXLPipelineAMD(
                 Custom sigmas to use for the denoising process with schedulers which support a `sigmas` argument in
                 their `set_timesteps` method. If not defined, the default behavior when `num_inference_steps` is passed
                 will be used.
+            strength (`float`, *optional*, defaults to 0.3):
+                Conceptually, indicates how much to transform the reference `image`. Must be between 0 and 1. `image`
+                will be used as a starting point, adding more noise to it the larger the `strength`. The number of
+                denoising steps depends on the amount of noise initially added. When `strength` is 1, added noise will
+                be maximum and the denoising process will run for the full number of iterations specified in
+                `num_inference_steps`. A value of 1, therefore, essentially ignores `image`. Note that in the case of
+                `denoising_start` being declared as an integer, the value of `strength` will be ignored.
+            denoising_start (`float`, *optional*):
+                When specified, indicates the fraction (between 0.0 and 1.0) of the total denoising process to be
+                bypassed before it is initiated. Consequently, the initial part of the denoising process is skipped and
+                it is assumed that the passed `image` is a partly denoised image. Note that when this is specified,
+                strength will be ignored. The `denoising_start` parameter is particularly beneficial when this pipeline
+                is integrated into a "Mixture of Denoisers" multi-pipeline setup, as detailed in [**Refine Image
+                Quality**](https://huggingface.co/docs/diffusers/using-diffusers/sdxl#refine-image-quality).
             denoising_end (`float`, *optional*):
                 When specified, determines the fraction (between 0.0 and 1.0) of the total denoising process to be
                 completed before it is intentionally prematurely terminated. As a result, the returned sample will
@@ -1224,6 +1376,8 @@ class StableDiffusionXLPipelineAMD(
             prompt_2,
             height,
             width,
+            control_image,
+            strength,
             callback_steps,
             negative_prompt,
             negative_prompt_2,
@@ -1287,17 +1441,51 @@ class StableDiffusionXLPipelineAMD(
         )
 
         # 5. Prepare latent variables
-        num_channels_latents = self.unet.config["in_channels"]
-        latents = self.prepare_latents(
-            batch_size * num_images_per_prompt,
-            num_channels_latents,
-            height,
-            width,
-            prompt_embeds.dtype,
-            device,
-            generator,
-            latents,
-        )
+        if control_image is None:
+            num_channels_latents = self.unet.config["in_channels"]
+            latents = self.prepare_latents(
+                batch_size * num_images_per_prompt,
+                num_channels_latents,
+                height,
+                width,
+                prompt_embeds.dtype,
+                device,
+                generator,
+                latents,
+            )
+        else:
+            def denoising_value_valid(dnv):
+                return isinstance(dnv, float) and 0 < dnv < 1
+            timesteps, num_inference_steps = self.get_timesteps(
+                num_inference_steps,
+                strength,
+                device,
+                denoising_start=denoising_start if denoising_value_valid(denoising_start) else None,
+            )
+            latent_timestep = timesteps[:1].repeat(batch_size * num_images_per_prompt)
+            add_noise = True if denoising_start is None else False
+
+            control_image = self.prepare_image(
+                image=control_image,
+                width=width,
+                height=height,
+                batch_size=batch_size * num_images_per_prompt,
+                num_images_per_prompt=num_images_per_prompt,
+                device=device,
+                dtype=torch.float16,
+                do_classifier_free_guidance=self.do_classifier_free_guidance,
+                guess_mode=False,
+            )
+            latents = self.prepare_latents_i2i(
+                control_image,
+                latent_timestep,
+                batch_size,
+                num_images_per_prompt,
+                prompt_embeds.dtype,
+                device,
+                generator,
+                add_noise,
+            )
 
         # 6. Prepare extra step kwargs. TODO: Logic should ideally just be moved out of the pipeline
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
@@ -1506,14 +1694,14 @@ class StableDiffusionXLPipelineAMD(
             vae_dtype = next(
                 (
                     input.type
-                    for input in self.vae.model.get_inputs()
+                    for input in self.vae_decoder.model.get_inputs()
                     if input.name == "latent_sample"
                 ),
                 "tensor(float)",
             )
             vae_dtype = ORT_TO_NP_TYPE[vae_dtype]
             needs_upcasting = (
-                vae_dtype == np.float16 and self.vae.config["force_upcast"]
+                vae_dtype == np.float16 and self.vae_decoder.config["force_upcast"]
             )
 
             # if needs_upcasting:
@@ -1528,43 +1716,43 @@ class StableDiffusionXLPipelineAMD(
             # unscale/denormalize the latents
             # denormalize with the mean and std if available and not None
             has_latents_mean = (
-                hasattr(self.vae.config, "latents_mean")
-                and self.vae.config["latents_mean"] is not None
+                hasattr(self.vae_decoder.config, "latents_mean")
+                and self.vae_decoder.config["latents_mean"] is not None
             )
             has_latents_std = (
-                hasattr(self.vae.config, "latents_std")
-                and self.vae.config["latents_std"] is not None
+                hasattr(self.vae_decoder.config, "latents_std")
+                and self.vae_decoder.config["latents_std"] is not None
             )
             if has_latents_mean and has_latents_std:
                 latents_mean = (
-                    torch.tensor(self.vae.config["latents_mean"])
+                    torch.tensor(self.vae_decoder.config["latents_mean"])
                     .view(1, 4, 1, 1)
                     .to(latents.device, latents.dtype)
                 )
                 latents_std = (
-                    torch.tensor(self.vae.config["latents_std"])
+                    torch.tensor(self.vae_decoder.config["latents_std"])
                     .view(1, 4, 1, 1)
                     .to(latents.device, latents.dtype)
                 )
                 latents = (
-                    latents * latents_std / self.vae.config["scaling_factor"]
+                    latents * latents_std / self.vae_decoder.config["scaling_factor"]
                     + latents_mean
                 )
             else:
-                latents = latents / self.vae.config["scaling_factor"]
+                latents = latents / self.vae_decoder.config["scaling_factor"]
 
             start = time.time_ns()
             if latents.shape[0] > 1:
                 image = np.concatenate(
                     [
-                        self.vae(
-                            **{self.vae.model.get_inputs()[0].name: latents[i : i + 1]}
+                        self.vae_decoder(
+                            **{self.vae_decoder.model.get_inputs()[0].name: latents[i : i + 1]}
                         )[0]
                         for i in range(latents.shape[0])
                     ]
                 )
             else:
-                image = self.vae(**{self.vae.model.get_inputs()[0].name: latents})[
+                image = self.vae_decoder(**{self.vae_decoder.model.get_inputs()[0].name: latents})[
                     0
                 ]  # latent_sample, latents
             image = torch.tensor(image)

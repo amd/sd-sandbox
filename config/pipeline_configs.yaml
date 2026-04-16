@@ -3,15 +3,19 @@
 
 # Project paths configuration
 paths:
-  # Path to the source code directory containing src/ and utils/
-  # If not specified, will use the parent directory of the scripts folder
-  source_path: null  # Example: "C:\\\\Users\\\\amd87\\\\Desktop\\\\GenAI-SD"
+  # Path to models directory (relative to workspace root if not absolute)
+  # models_path: "C:/Users/amd87/Desktop/GenAI-SD-v0224/models/"
   
-  # Path to models directory (relative to source_path if not absolute)
-  models_path: "C:/Users/amd87/GenAI-SD/models"
+  # Path to test scripts directory (relative to workspace root if not absolute)
+  test_path: "./test"
   
-  # Path to test scripts directory (relative to source_path if not absolute)
-  test_path: "C:/Users/amd87/Desktop/sd-sandbox/test"
+  # Path to control images directory (for ControlNet pipelines)
+  # Allows using relative paths in --control_image_path arguments
+  control_images_path: "./test/assets"
+  
+  # Path to configuration files directory (for dynamic shape configs, etc.)
+  # Allows using relative paths in --dynamic_shape_file_path arguments
+  config_files_path: "./config"
 
 # Default settings
 defaults:
@@ -24,95 +28,60 @@ defaults:
     force_cpu: false  # Set to true to force CPU-only execution (disables DML)
   # Custom operator library path (optional)
   # If not specified, runner_args.py will search in standard locations
-  # Example: "C:/Program Files/RyzenAI/1.7.0/deployment/onnx_custom_ops.dll"
-  custom_op_path: "C:/Program Files/RyzenAI/1.7.0/deployment/onnx_custom_ops.dll"
+  custom_op_path: "C:/Program Files/RyzenAI/1.7.1/deployment/onnx_custom_ops.dll"
+  prompt: "An astronaut riding a green horse"
+  # prompts:
+    # medieval: "Photo of a bustling medieval marketplace, vibrant colors, detailed costumes, lively crowd, cinematic lighting, 8k resolution, masterpiece, art by Pieter Bruegel and John Howe"
+    # anime: 'Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text "InstantX" on image'
+  # prompt_file: "./config/artistic_prompts.json"
 
-  prompts:
-    medieval: "Photo of a bustling medieval marketplace, vibrant colors, detailed costumes, lively crowd, cinematic lighting, 8k resolution, masterpiece, art by Pieter Bruegel and John Howe"
-    anime: 'Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text "InstantX" on image'
-  prompt_file: "C:/Users/amd87/Desktop/sd-sandbox/config/artistic_prompts.json"
 
 # Available pipeline configurations
 pipelines:
-
+# https://huggingface.co/amd/stable-diffusion-1.5-amdnpu
+# amd/stable-diffusion-1.5-amdnpu
 # Default prompt for 1.5 : Photo of a ultra realistic sailing ship, dramatic light, pale sunrise, cinematic lighting
   sd_15:
     name: "SD 1.5 Pipeline"
     script: "run_sd.py"
-    execution:
-      force_cpu: false
-    # prompt_file: "C:/Users/amd87/Desktop/sd-sandbox/config/anime_prompts.json"
     model_ids:
-      - "runwayml/stable-diffusion-v1-5"
+      - "amd/stable-diffusion-1.5-amdnpu"
     extra_args:
-      - "--model_path"
-      - "sd15_bfp"
       - "--num_inference_steps"
       - "20"
 
+# https://huggingface.co/amd/sd-turbo-amdnpu
+# amd/sd-turbo-amdnpu
 # Default prompt: "A cinematic shot of a baby racoon wearing an intricate italian priest robe."
   sd_turbo:
     name: "SD Turbo Pipeline"
     script: "run_sd.py"
-    streaming_output: true # Disable streaming for fast pipelines to reduce noise
     # Execution provider settings (overrides defaults)
     model_ids:
-      - "stabilityai/sd-turbo"
-    # prompt_file: "C:/Users/amd87/Desktop/sd-sandbox/config/alt_prompts.json"
+      - "amd/sd-turbo-amdnpu"
     extra_args:
-      - "--model_path"
-      - "sd_turbo_bfp"
       - "--num_inference_steps"
       - "1"
       - "--guidance_scale"
       - "0.0"
 
-  sd_turbo_bs1:
-    name: "SD Turbo BS1 Pipeline"
-    script: "run_sd.py"
-    streaming_output: false # Disable streaming for fast pipelines to reduce noise
-    model_ids:
-      - "stabilityai/sd-turbo"
-    extra_args:
-      - "--model_path"
-      - "sd_turbo_bs1_bfp"
-      - "--num_inference_steps"
-      - "1"
-      - "--guidance_scale"
-      - "0.0"
-      - "--num_images_per_prompt"
-      - "1"
-
+  
+# https://huggingface.co/amd/sdxl-base-amdnpu
+# amd/sdxl-base-amdnpu
 # Default prompt: "An astronaut riding a green horse"
   sdxl_base:
     name: "SDXL Base Pipeline"
     script: "run_sd_xl.py"
     width: 1024  # SDXL requires 1024x1024 for 128x128 latents
     height: 1024
-    streaming_output: true  # Enable to see error output
     model_ids:
-      - "stabilityai/stable-diffusion-xl-base-1.0"
+      - "amd/sdxl-base-amdnpu"
     extra_args:
-      - "--model_path"
-      - "sdxl-base-1.0_bfp"
       - "--num_inference_steps"
       - "50"
 
-# Default prompt: "An astronaut riding a green horse"
-  Segmind_Vega:
-    name: "Segmind-Vega Pipeline"
-    script: "run_sd_xl.py"
-    width: 1024  # SDXL requires 1024x1024 for 128x128 latents
-    height: 1024
-    streaming_output: true  # Enable to see error output
-    model_ids:
-      - "segmind/Segmind-Vega"
-    extra_args:
-      - "--model_path"
-      - "Segmind-Vega_bfp"
-      - "--num_inference_steps"
-      - "50"
-
+# https://huggingface.co/amd/sdxl-turbo-amdnpu
+# amd/sdxl-turbo-amdnpu
 # Default prompt: "A cinematic shot of a baby racoon wearing an intricate italian priest robe."
   sdxl_turbo:
     name: "SDXL Turbo Pipeline"
@@ -121,116 +90,263 @@ pipelines:
     height: 512
     prompt: "A cat sitting on a fluffy cloud, reading a book, whimsical and dreamy atmosphere"
     model_ids:
-      - "stabilityai/sdxl-turbo"
+      - "amd/sdxl-turbo-amdnpu"
     extra_args:
-      - "--model_path"
-      - "sdxl_turbo_bfp"
       - "--num_inference_steps"
       - "1"
       - "--guidance_scale"
       - "0.0"
 
-  sdxl_turbo_bs1:
-    name: "SDXL Turbo BS1 Pipeline"
-    script: "run_sd_xl.py"
-    width: 512  # BS1 model optimized for 512x512 resolution
-    height: 512
-    model_ids:
-      - "stabilityai/sdxl-turbo"
-    extra_args:
-      - "--model_path"
-      - "sdxl_turbo_bs1_bfp"
-      - "--num_inference_steps"
-      - "1"
-      - "--guidance_scale"
-      - "0.2"
-      - "--num_images_per_prompt"
-      - "1"
-
-# Default prompt: "a blue paradise bird in the jungle",
+# https://huggingface.co/amd/segmind-vega-amdnpu
+# "amd/segmind-vega-amdnpu"
+# Default prompt: "An astronaut riding a green horse"
   segmind_vega:
     name: "Segmind-Vega Pipeline"
     script: "run_sd_xl.py"
-    width: 1024
+    width: 1024  
     height: 1024
-    streaming_output: true # Disable streaming for progress bar
     model_ids:
-      - "segmind/Segmind-Vega"
+      - "amd/segmind-vega-amdnpu"
     extra_args:
-      - "--model_path"
-      - "Segmind-Vega_bfp"
-      - "--num_inference_steps"
-      - "20"
-
-## SD 2
-# Default prompt: "A photo of an astronaut riding a horse on mars."
-  sd21_base:
-    name: "SD21 Base Pipeline"
-    script: "run_sd.py"
-    width: 512
-    height: 512
-    model_ids:
-      - "stabilityai/stable-diffusion-2-1-base"
-    extra_args:
-      - "--model_path"
-      - "sd21_base_bfp"
-      - "--num_inference_steps"
-      - "50"
-  
-  sd21_v:
-    name: "SD21 V-Param Pipeline"
-    script: "run_sd.py"
-    width: 768
-    height: 768
-    model_ids:
-      - "stabilityai/stable-diffusion-2-1"
-    extra_args:
-      - "--model_path"
-      - "sd-2.1-v_bfp"
       - "--num_inference_steps"
       - "50"
 
+
+# https://huggingface.co/amd/stable-diffusion-3-medium-amdnpu
+# "amd/stable-diffusion-3-medium-amdnpu"
+### SD3
+  sd3_base:
+    name: "SD3 Pipeline"
+    script: "run_sd3.py"
+    model_ids:
+      - "amd/stable-diffusion-3-medium-amdnpu"
+    extra_args:
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "768"
+      - "--controlnet"
+      - "None"
+      - "--guidance_scale"
+      - "4.5"
+      - "--dynamic_shape"
+
+  sd3_controlnet_canny:
+    name: "SD3 ControlNet Canny Pipeline"
+    script: "run_sd3.py"
+    model_ids:
+      - "amd/stable-diffusion-3-medium-amdnpu"
+    extra_args:
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "512"
+      - "--height"
+      - "512"
+      - "--controlnet"
+      - "Canny"
+      - "--control_image_path"
+      - "canny.jpg"
+      - "--controlnet_conditioning_scale"
+      - "0.2"
+      - "--guidance_scale"
+      - "4.5"
+
+  sd3_controlnet_pose:
+    name: "SD3 ControlNet Pose Pipeline"
+    script: "run_sd3.py"
+    model_ids:
+      - "amd/stable-diffusion-3-medium-amdnpu"
+    extra_args:
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "Pose"
+      - "--control_image_path"
+      - "pose.jpg"
+      - "--controlnet_conditioning_scale"
+      - "0.2"
+      - "--guidance_scale"
+      - "4.5"
+
+
+  sd3_controlnet_tile:
+    name: "SD3 ControlNet Tile Pipeline"
+    script: "run_sd3.py"
+    model_ids:
+      - "amd/stable-diffusion-3-medium-amdnpu"
+    extra_args:
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "512"
+      - "--height"
+      - "512"
+      - "--controlnet"
+      - "Tile"
+      - "--control_image_path"
+      - "tile.jpg"
+      - "--guidance_scale"
+      - "4.5"
+ 
+  sd3_base_dyn:
+      name: "SD3 Dynamic Pipeline"
+      script: "run_sd3.py"
+      model_ids:
+        - "amd/stable-diffusion-3-medium-amdnpu"
+      extra_args:
+        - "--num_inference_steps"
+        - "8"
+        - "--controlnet"
+        - "None"
+        - "--guidance_scale"
+        - "4.5"
+        - "--dynamic_shape"
+        - "--dynamic_shape_file_path"
+        - "sd3_dynamic_shape.json"
+
+  sd3_controlnet_pose_dyn:
+      name: "SD3 ControlNet Pose Dynamic Pipeline"
+      script: "run_sd3.py"
+      model_ids:
+        - "amd/stable-diffusion-3-medium-amdnpu"
+      extra_args:
+        - "--num_inference_steps"
+        - "8"
+        - "--controlnet"
+        - "Pose"
+        - "--control_image_path"
+        - "pose.jpg"
+        - "--controlnet_conditioning_scale"
+        - "0.2"
+        - "--guidance_scale"
+        - "4.5"
+        - "--dynamic_shape"
+        - "--dynamic_shape_file_path"
+        - "sd3_dynamic_shape.json"
+
+  sd3_controlnet_tile_dyn:
+      name: "SD3 ControlNet Tile Dynamic Pipeline"
+      script: "run_sd3.py"
+      model_ids:
+        - "amd/stable-diffusion-3-medium-amdnpu"
+      extra_args:
+        - "--num_inference_steps"
+        - "8"
+        - "--controlnet"
+        - "Tile"
+        - "--control_image_path"
+        - "tile.jpg"
+        - "--controlnet_conditioning_scale"
+        - "0.2"
+        - "--guidance_scale"
+        - "4.5"
+        - "--dynamic_shape"
+        - "--dynamic_shape_file_path"
+        - "sd3_dynamic_shape.json"
+
+# https://huggingface.co/amd/stable-diffusion-3.5-medium-amdnpu
+#  amd/stable-diffusion-3.5-medium-amdnpu
+### SD 3.5
+  sd35_base:
+    name: "SD3.5 Pipeline"
+    script: "run_sd3.py"
+    model_ids:
+      - "amd/stable-diffusion-3.5-medium-amdnpu"
+    extra_args:
+      - "--num_inference_steps"
+      - "8"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "None"
+      - "--guidance_scale"
+      - "4.5"
+
+  sd35_base_dyn:    
+      name: "SD3.5 Dynamic Pipeline"
+      script: "run_sd3.py"
+      model_ids:
+        - "amd/stable-diffusion-3.5-medium-amdnpu"
+      extra_args:
+        - "--num_inference_steps"
+        - "8"
+        - "--controlnet"
+        - "None"
+        - "--dynamic_shape"
+        - "--dynamic_shape_file_path"
+        - "sd3_dynamic_shape.json"
 
 
 
 # Default pipelines to run (if no --pipelines specified)
 # You can specify which pipelines to run by their keys from the pipelines section above
 default_run:
-  - sd_15
-  - sd_turbo
+  - sd3_base
+  - sd3_controlnet_canny
+  - sd3_controlnet_pose
+  - sd3_controlnet_tile
 
 # Available pipeline groups for convenience
 pipeline_groups:
+  all_sd3_base:
+    - sd3_base
+    - sd35_base
+
+  sd3_dynamic:
+    - sd3_base_dyn
+    - sd3_controlnet_canny_dyn
+    - sd3_controlnet_pose_dyn
+    - sd3_controlnet_tile_dyn
+
+  all_sd15:
+    - sd_15
   
   all_sdxl:
     - sdxl_base
     - sdxl_turbo
-    - sdxl_turbo_bs1
-  
-  quick_test:
+
+  sd_15:
+    - sd_15
+
+  txt2img:
+    - sd_15
     - sd_turbo
-    - sd_turbo_bs1
+    - sdxl_base
     - sdxl_turbo
-    - sdxl_turbo_bs1
+    - sd3_base
+    - sd35_base
   
-  
-  sd_21:
-    - sd21_base
-    - sd21_v
-  
+  controlnet:
+    - sd3_controlnet_canny
+    - sd3_controlnet_pose
+    - sd3_controlnet_tile
+
+
   turbo_models:
     - sd_turbo
-    - sd_turbo_bs1
     - sdxl_turbo
-    - sdxl_turbo_bs1
-
+    
   all:
     - sd_15
     - sd_turbo
-    - sd_turbo_bs1
     - sdxl_base
     - sdxl_turbo
-    - sdxl_turbo_bs1
-    - sd21_base
-    - sd21_v
     - segmind_vega
+    - sd3_base
+    - sd3_controlnet_canny
+    - sd3_controlnet_pose
+    - sd3_controlnet_tile
+    - sd35_base
+    - sd3_controlnet_pose_dyn
+    - sd3_controlnet_tile_dyn
+    - sd35_base_dyn
+    - sd35_base 

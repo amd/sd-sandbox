@@ -1,4 +1,6 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+#
+# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
+#
 
 import time
 import json
@@ -24,9 +26,9 @@ class StableDiffusionONNXPipelineAMDTrigger:
         gpu=False,
         enable_profile=False,
         profiling_rounds=4,
+        revision: str = None,
     ):
         self.model_id = model_id
-        self.model_path = model_path
         self.enable_profile = enable_profile
         self.profiling_rounds = profiling_rounds
         self.pipeline_metrics = {}
@@ -34,36 +36,39 @@ class StableDiffusionONNXPipelineAMDTrigger:
             "unet": 0,
             "vae_decoder": 0,
         }
-        try:
-            self.tokenizer = CLIPTokenizer.from_pretrained(
-                os.path.join(model_path, "tokenizer")
+        
+        if model_path is None:
+            Logger.debug("=" * 60)
+            Logger.debug(f"model_path not provided, will download model from Hugging Face")
+            Logger.debug(f"Model ID: {model_id}")
+            if revision:
+                Logger.debug(f"Revision/Branch: {revision}")
+            Logger.debug("=" * 60)
+            model_path = common.download_model_from_huggingface(model_id, revision=revision)
+            Logger.debug("=" * 60)
+            Logger.debug(f"Model ready: {model_path}")
+            Logger.debug("Starting to load model components...")
+            Logger.debug("=" * 60)
+        
+        self.model_path = model_path
+        
+        self.tokenizer = CLIPTokenizer.from_pretrained(
+            os.path.join(model_path, "tokenizer")
+        )
+        self.text_encoder = CLIPTextModel.from_pretrained(
+            os.path.join(model_path, "text_encoder")
+        )
+        scheduler_name = json.load(
+            open(
+                os.path.join(model_path, "scheduler", "scheduler_config.json"), "r"
             )
-        except:
-            self.tokenizer = CLIPTokenizer.from_pretrained(
-                self.model_id, subfolder="tokenizer"
-            )
-        try:
-            self.text_encoder = CLIPTextModel.from_pretrained(
-                os.path.join(model_path, "text_encoder")
-            )
-        except:
-            self.text_encoder = CLIPTextModel.from_pretrained(
-                self.model_id, subfolder="text_encoder"
-            )
-        try:
-            scheduler_name = json.load(
-                open(
-                    os.path.join(model_path, "scheduler", "scheduler_config.json"), "r"
-                )
-            ).get("_class_name", None)
-            scheduler_cls = getattr(
-                importlib.import_module("diffusers.schedulers"), scheduler_name
-            )
-            self.scheduler = scheduler_cls.from_pretrained(
-                os.path.join(model_path, "scheduler")
-            )
-        except:
-            raise ValueError("scheduler not found")
+        ).get("_class_name", None)
+        scheduler_cls = getattr(
+            importlib.import_module("diffusers.schedulers"), scheduler_name
+        )
+        self.scheduler = scheduler_cls.from_pretrained(
+            os.path.join(model_path, "scheduler")
+        )
         t0 = time.perf_counter()
         self.t_npu = 0
         t0_unet = time.perf_counter()

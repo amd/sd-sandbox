@@ -1,4 +1,5 @@
-# Modifications Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+# Modifications Copyright (C) 2025 Advanced Micro Devices, 
+# Inc.  All rights reserved.
 #
 # Copyright 2025 The HuggingFace Team. All rights reserved.
 #

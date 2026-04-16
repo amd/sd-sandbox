@@ -1,4 +1,6 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+#
+# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
+#
 
 from pathlib import Path
 import logging as Logger
@@ -30,18 +32,19 @@ if __name__ == "__main__":
         width=args.width,
         t5_sequence_len=args.t5_sequence_len,
         is_dynamic=args.dynamic_shape,
+        revision=args.revision,
     )
-        if args.prompt_file_path:
-            with open(args.prompt_file_path, "r") as prompt_file:
-                prompt_list = json.load(prompt_file)
-        else:
-            prompt_list = [args.prompt]
+    if args.prompt_file_path:
+        with open(args.prompt_file_path, "r") as prompt_file:
+            prompt_list = json.load(prompt_file)
+    else:
+        prompt_list = [args.prompt]
 
     # MODIFIED: Dynamic shape handling now supports two distinct use cases:
     # Case 1: User provides --dynamic_shape with explicit --width/--height args
-    #         ? Use the single provided resolution with dynamic shape models
+    #         → Use the single provided resolution with dynamic shape models
     # Case 2: User provides --dynamic_shape with --dynamic_shape_file_path JSON
-    #         ? Load and iterate through all resolutions defined in the JSON file
+    #         → Load and iterate through all resolutions defined in the JSON file
     # 
     # This change allows dynamic models to be tested at a single resolution without
     # requiring a separate JSON file, while still supporting multi-resolution testing
@@ -62,7 +65,7 @@ if __name__ == "__main__":
         support_shapes = [{"height": args.height, "width": args.width, "t5_sequence_len": args.t5_sequence_len}]
         Logger.info(f"Using resolution from args: {args.width}x{args.height}, t5_seq_len={args.t5_sequence_len}")
 
-        run_mode = "profiling" if args.enable_profile else "batch"
+    run_mode = "profiling" if args.enable_profile else "batch"
     output_dir = Path(args.output_path)
 
     for prompt_idx, prompt in enumerate(prompt_list):
@@ -88,13 +91,14 @@ if __name__ == "__main__":
                     image = images[image_idx]
                     img_filename = common.generate_filename(
                         args.model_id, width, height, args.num_inference_steps, prompt_idx, image_idx, args.controlnet, run_mode, suffix=".png"
-                        )
+                    )
                     img_path = f"{output_dir}/{img_filename}"
                     image.save(img_path)
                     Logger.info(f"[Image saved] {img_path}")
             if args.enable_profile and not args.no_excel:
                 excel_filename = common.generate_filename(
                     args.model_id, width, height, args.num_inference_steps, prompt_idx, controlnet=args.controlnet, run_mode=run_mode, suffix=".xlsx"
-                        )
+                )
                 save_path = f"{output_dir}/{excel_filename}"
-                    common.save_pipeline_metrics_to_excel(save_path, pipe_trigger.pipeline_metrics)
+                common.save_pipeline_metrics_to_excel(save_path, pipe_trigger.pipeline_metrics)
+                Logger.info(f"[Excel saved] {save_path}")

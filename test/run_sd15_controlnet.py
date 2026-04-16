@@ -1,4 +1,6 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+#
+# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
+#
 
 from pathlib import Path
 from diffusers.utils import load_image
@@ -48,13 +50,14 @@ if __name__ == "__main__":
         enable_compile=args.enable_compile,
         profiling_rounds=args.profiling_rounds,
         gpu=args.gpu,
+        revision=args.revision,
     ) as pipe_trigger:
         
         if args.prompt_file_path:
             with open(args.prompt_file_path, "r") as prompt_file:
                 prompt_list = json.load(prompt_file)
         else:
-        prompt_list = [args.prompt]
+            prompt_list = [args.prompt]
 
         run_mode = "profiling" if args.enable_profile else "batch"
         for prompt_idx, prompt in enumerate(prompt_list):
@@ -86,8 +89,8 @@ if __name__ == "__main__":
             if args.enable_profile and not args.no_excel:
                 excel_filename = common.generate_filename(
                     args.model_id, args.width, args.height, args.num_inference_steps, prompt_idx, controlnet=args.controlnet, run_mode=run_mode, suffix=".xlsx"
-                    )
+                )
                 save_path = f"{output_dir}/{excel_filename}"
-                    common.save_pipeline_metrics_to_excel(save_path, pipe_trigger.pipeline_metrics)
+                common.save_pipeline_metrics_to_excel(save_path, pipe_trigger.pipeline_metrics)
                 Logger.info(f"[Excel saved] {save_path}")
             

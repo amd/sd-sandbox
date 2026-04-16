@@ -1,33 +1,61 @@
 #
-# Copyright (C) 2023-2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+
+# Copyright (C) 2023 - 2025 Advanced Micro Devices, Inc. All rights reserved.
+
 #
 
+import base64
 import gc
+import json
+import os
+import pickle
 from collections import defaultdict
 
-import atom
 import torch
 from torch import Tensor
+import atom
 
 
 class AIEGEMM:
     single_aiegemm = None
     gemm_torch = 0
+    op_version = "v1"
+    preemption = False
+    pickle = False
 
     @classmethod
     def select_op_handle(cls):
         if AIEGEMM.single_aiegemm is None:
             AIEGEMM.gemm_torch = 1
-            AIEGEMM.single_aiegemm = atom.atom_npu_gemm("bfloat16", "uint4", "bfloat16")
+            AIEGEMM.single_aiegemm = atom.atom_npu_gemm(
+                "bfloat16",
+                "uint4",
+                "bfloat16",
+                cls.op_version,
+                cls.preemption,
+                cls.pickle,
+            )
         else:
             pass  # single object
-        print(f"{AIEGEMM.single_aiegemm=}")
 
     @classmethod
     def delete(cls):
         del AIEGEMM.single_aiegemm
         AIEGEMM.single_aiegemm = None
-        print(f"{AIEGEMM.single_aiegemm=}")
+
+    @classmethod
+    def load_npu(cls, model, metadata):
+        """Restore NPU state from safetensors metadata and wire all QLinearPerGrp layers."""
+        if "__npu_state__" not in metadata:
+            raise RuntimeError(
+                "Checkpoint missing NPU state — re-run transform_gptq.py with --pickle"
+            )
+        aiegemm = pickle.loads(base64.b64decode(metadata["__npu_state__"]))
+        wts_map = json.loads(metadata["__wts_map__"])
+        cls.single_aiegemm = aiegemm
+        for name, mod in model.named_modules():
+            if isinstance(mod, QLinearPerGrp):
+                mod.attach_npu(aiegemm, wts_map[name])
 
 
 class QLinearPerGrp(torch.nn.Module):
@@ -35,7 +63,6 @@ class QLinearPerGrp(torch.nn.Module):
     in_features: int
     out_features: int
     wts_cnt = 0
-    single_aiegemm = atom.atom_npu_gemm("bfloat16", "uint4", "bfloat16")
 
     def __init__(
         self,
@@ -47,27 +74,37 @@ class QLinearPerGrp(torch.nn.Module):
         group_size: int = 128,
         profiler: bool = False,
         model_name="",
-        pickle: bool = False,
     ) -> None:
-        factory_kwargs = {"device": "cpu", "dtype": None}
         super().__init__()
         self.device = device
         self.in_features = in_features
         self.out_features = out_features
         self.w_bit = w_bit
         self.group_size = group_size
-        self.weight = None
-        self.qweight = None
-        self.qzeros = None
-        self.scales = None
+        self.register_buffer("weight", None)
+        self.register_buffer("qweight", None)
+        self.register_buffer("qzeros", None)
+        self.register_buffer("scales", None)
+        self.register_buffer("bias", None)
         self.profiler = profiler
         self.wts_index = QLinearPerGrp.wts_cnt
         self.model_name = model_name
         self.biasexists = None
         self.weights_quantized = False
-        self.pickle = pickle
-        if pickle:
-            self.aiegemm = QLinearPerGrp.single_aiegemm
+
+    @staticmethod
+    def prepare_model(model, metadata):
+        """Replace Linear layers with QLinearPerGrp based on safetensors metadata."""
+        for mod_path, spec in json.loads(metadata["__qlinear__"]).items():
+            parent_path, attr = mod_path.rsplit(".", 1)
+            node = QLinearPerGrp(
+                in_features=spec["in"],
+                out_features=spec["out"],
+                w_bit=spec["w_bit"],
+                group_size=spec["gs"],
+            )
+            node.weights_quantized = True
+            setattr(model.get_submodule(parent_path), attr, node)
 
     def __repr__(self):
         if self.biasexists is None:
@@ -143,14 +180,15 @@ class QLinearPerGrp(torch.nn.Module):
                 and self.qweight.size(1) == self.group_size
             )
 
-            self.qweight = self.qweight.reshape(self.w_shape_orig).to(torch.int8)
+            self.qweight = self.qweight.reshape(self.w_shape_orig)
             self.qzeros = self.qzeros.reshape(
                 (self.w_shape_orig[0], int(self.w_shape_orig[1] / self.group_size))
             ).to(torch.int8)
             self.scales = self.scales.reshape(
                 (self.w_shape_orig[0], int(self.w_shape_orig[1] / self.group_size))
             )
-            del self.weight, max_val, min_val, w
+            self.weight = None
+            del max_val, min_val, w
             self.wshape = self.qweight.shape
             self.qweight = self.pack(self.qweight)
             self.qzeros.requires_grad_(False)
@@ -158,7 +196,36 @@ class QLinearPerGrp(torch.nn.Module):
             self.scales.requires_grad_(False)
             gc.collect()
         else:
-            print("Skipping - weights already quantized for this layer.")
+            print(f"Skipping - weights already quantized for this layer.")
+
+    def _wire_npu(self):
+        self.c_token = torch.zeros(1, self.out_features, dtype=torch.bfloat16)
+        self.forward_dict_aie_mladf = defaultdict(
+            self._default_forward_aie,
+            {1: self.forward_aie_token_mladf},
+        )
+        self.forward_dict_aie = self.forward_dict_aie_mladf
+        self.forward_func = self.forward_aie
+        self.qweight = None
+        self.qzeros = None
+        self.scales = None
+        self.bias = None
+
+    def attach_npu(self, aiegemm, wts_index):
+        self.device = "aie"
+        self.aiegemm = aiegemm
+        self.wts_index = wts_index
+        self.biasexists = "True" if getattr(self, "bias", None) is not None else "False"
+        if self.biasexists == "False":
+            self.bias = torch.zeros(self.out_features, dtype=torch.float32)
+        self._wire_npu()
+
+    def _default_forward_aie(self):
+        return (
+            self.forward_aie_prefill_mladf_bo_manager
+            if AIEGEMM.pickle
+            else self.forward_aie_prefill_mladf
+        )
 
     def initialize_parameters(self):
         if self.bias is not None:
@@ -168,7 +235,7 @@ class QLinearPerGrp(torch.nn.Module):
             self.bias = torch.zeros((self.out_features), dtype=torch.float32)
             self.biasexists = "False"
 
-        if self.weights_quantized is True:
+        if self.weights_quantized == True:
             self.qweight = self.unpack(
                 self.qweight, self.qzeros.shape[1] * self.group_size
             )
@@ -177,44 +244,23 @@ class QLinearPerGrp(torch.nn.Module):
                 self.qweight = self.qweight.transpose(0, 1)
                 self.qzeros = self.qzeros.transpose(0, 1)
                 self.scales = self.scales.to(torch.float).transpose(0, 1)
+                AIEGEMM.select_op_handle()
+                self.aiegemm = AIEGEMM.single_aiegemm
                 self.wts_index = QLinearPerGrp.wts_cnt
-                if self.pickle:
-                    nodes = self.aiegemm.initialize_params(
-                        self.qweight,
-                        self.qzeros,
-                        self.scales,
-                        self.bias,
-                        self.group_size,
-                        dict(),
-                        self.wts_index,
-                    )
-                else:
-                    nodes = QLinearPerGrp.single_aiegemm.initialize_params(
-                        self.qweight,
-                        self.qzeros,
-                        self.scales,
-                        self.bias,
-                        self.group_size,
-                        dict(),
-                        self.wts_index,
-                    )
+                nodes = self.aiegemm.initialize_params(
+                    self.qweight,
+                    self.qzeros,
+                    self.scales,
+                    self.bias,
+                    self.group_size,
+                    dict(),
+                    self.wts_index,
+                )
                 QLinearPerGrp.wts_cnt += nodes
 
-                self.c_token = torch.zeros(1, self.out_features, dtype=torch.bfloat16)
-
-                if self.pickle:
-                    self.forward_dict_aie_mladf = defaultdict(
-                        self._get_forward_aie_prefill_mladf2,
-                        {1: self.forward_aie_token_mladf2},
-                    )
-                else:
-                    self.forward_dict_aie_mladf = defaultdict(
-                        lambda: self.forward_aie_prefill_mladf,
-                        {1: self.forward_aie_token_mladf},
-                    )
-                self.forward_dict_aie = self.forward_dict_aie_mladf
-                self.forward_func = self.forward_aie
-                del self.qweight, self.qzeros, self.scales, self.bias
+                if not os.path.exists("./logs"):
+                    os.makedirs("./logs")
+                self._wire_npu()
 
             else:  # cpu
                 self.weight = self.qweight - torch.repeat_interleave(
@@ -224,10 +270,13 @@ class QLinearPerGrp(torch.nn.Module):
                     self.scales, self.group_size, dim=1
                 )
                 self.weight = self.weight.transpose(0, 1).to(torch.bfloat16)
+                self.qzeros.to(torch.int8)
                 if self.bias is not None:
                     self.bias.data = self.bias.data.to(torch.bfloat16)
                 self.forward_func = self.forward_cpu
-                del self.qweight, self.qzeros, self.scales
+                self.qweight = None
+                self.qzeros = None
+                self.scales = None
         else:  # always on CPU
             self.weight.data = self.weight.data.transpose(0, 1).to(torch.bfloat16)
             if self.bias is not None:
@@ -243,29 +292,25 @@ class QLinearPerGrp(torch.nn.Module):
         return x
 
     def forward_aie_token_mladf(self, x: Tensor) -> Tensor:
-        QLinearPerGrp.single_aiegemm.execute_aie(x, self.c_token, self.wts_index)
+        self.aiegemm.execute_aie(x, self.c_token, self.wts_index)
         return self.c_token
 
     def forward_aie_prefill_mladf(self, x: Tensor) -> Tensor:
         c = torch.zeros((x.shape[0], self.out_features), dtype=torch.bfloat16)
-        QLinearPerGrp.single_aiegemm.execute_aie(x, c, self.wts_index)
+        self.aiegemm.execute_aie(x, c, self.wts_index)
         return c
 
-    def forward_aie_token_mladf2(self, x: Tensor) -> Tensor:
-        x = x.to(torch.bfloat16)
-        return self.aiegemm.execute_2_aie_bo(x, self.wts_index)
-
-    def forward_aie_prefill_mladf2(self, x: Tensor) -> Tensor:
-        x = x.to(torch.bfloat16)
-        return self.aiegemm.execute_2_aie_bo(x, self.wts_index)
-
-    def _get_forward_aie_prefill_mladf2(self):
-        return self.forward_aie_prefill_mladf2
+    def forward_aie_prefill_mladf_bo_manager(self, x: Tensor) -> Tensor:
+        out = self.aiegemm.execute_aie_bo_manager(x, self.wts_index)
+        return out
 
     def forward_aie(self, x: Tensor) -> Tensor:
         return self.forward_dict_aie[x.shape[0]](x)
 
     def forward(self, x: Tensor) -> Tensor:
+        if x.dtype != torch.bfloat16:
+            x = x.to(torch.bfloat16)
+
         if len(x.shape) == 3:
             has_batch = True
         else:

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
 #
 
 import torch
@@ -10,13 +10,32 @@ import sys
 import time
 import logging as Logger
 import re
+import warnings
 import psutil
 import ctypes
 from pathlib import Path
 import pandas as pd
+from huggingface_hub import snapshot_download
 
 process = psutil.Process()
 from diffusers import OnnxRuntimeModel
+
+
+
+def _configure_external_loggers():
+    """Reduce noisy third-party download/network logs."""
+    warning_loggers = (
+        "httpx",
+        "httpcore",
+        "huggingface_hub",
+        "huggingface_hub.file_download",
+        "transformers.modeling_utils",
+    )
+    for logger_name in warning_loggers:
+        Logger.getLogger(logger_name).setLevel(Logger.WARNING)
+
+
+_configure_external_loggers()
 
 # Fix diffusers ONNX detection issue
 try:
@@ -44,11 +63,88 @@ def _get_provider_label():
         return "CPU"
     else:
         return "NPU"
-        
+
 def get_absolute_path(sub_path: str) -> str:
     project_root = Path(__file__).resolve().parents[2]
     absolute_path = project_root / sub_path
+    if not os.path.exists(absolute_path):
+        raise FileNotFoundError(f"File not found: {absolute_path}")
     return str(absolute_path.resolve())
+
+
+def download_model_from_huggingface(model_id: str, force_download: bool = False, revision: str = None) -> str:
+    """
+    Download model from Hugging Face to local cache directory
+    
+    Args:
+        model_id: Hugging Face model ID (e.g., "amd/stable-diffusion-1.5_amdnpu")
+        force_download: Whether to force re-download (even if local cache exists)
+        revision: Git branch, tag, or commit hash (e.g., "1.7.0", "main", "v1.0.0"). Default is None (use default branch)
+    
+    Returns:
+        str: Local path of the downloaded model
+    """
+    try:
+        # Set cache directory (under models/ in project root)
+        cache_dir = Path(get_absolute_path("models"))
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Target path where the model will be downloaded
+        model_name = model_id.replace("/", "_")
+        local_model_path = cache_dir / model_name
+        
+        # If model exists locally and not forcing download, use cached version
+        if local_model_path.exists() and not force_download:
+            Logger.debug(f"Using locally cached model: {local_model_path}")
+            return str(local_model_path)
+        
+        Logger.info(f"Starting download from Hugging Face: {model_id}")
+        if revision:
+            Logger.debug(f"Using revision/branch: {revision}")
+        Logger.debug(f"Target path: {local_model_path}")
+        Logger.debug("This may take a few minutes depending on network speed...")
+        Logger.debug("Using snapshot_download (with built-in progress bar)...")
+        Logger.debug("")
+        
+        # Use snapshot_download to download entire repository
+        # local_dir: directly download to the specified directory
+        # snapshot_download has built-in progress bar via tqdm
+        # revision: specify branch, tag, or commit hash
+        try:
+            download_kwargs = {
+                "repo_id": model_id,
+                "local_dir": str(local_model_path),
+                "force_download": force_download,
+            }
+            if revision:
+                download_kwargs["revision"] = revision
+            
+            downloaded_path = snapshot_download(**download_kwargs)
+            
+            Logger.debug("")
+            Logger.debug(f"Model download completed: {local_model_path}")
+            
+        except Exception as download_error:
+            Logger.error(f"snapshot_download failed: {str(download_error)}")
+            Logger.error("This might be due to:")
+            Logger.error("  1. Network connection issues")
+            Logger.error("  2. Model repository access permissions")
+            Logger.error("  3. Hugging Face API rate limiting")
+            Logger.error("  4. Insufficient disk space")
+            raise
+        
+        return str(local_model_path)
+        
+    except Exception as e:
+        Logger.error(f"Failed to download model from Hugging Face: {str(e)}")
+        Logger.error(f"Please check:")
+        Logger.error(f"  1. Model ID is correct: {model_id}")
+        Logger.error(f"  2. Network connection is working")
+        Logger.error(f"  3. Hugging Face Hub is accessible (check huggingface.co)")
+        Logger.error(f"  4. You have access permission to the model")
+        Logger.error(f"  5. Sufficient disk space available")
+        Logger.error(f"  6. Or manually specify --model_path argument")
+        raise
 
 
 def generate_filename(
@@ -132,30 +228,52 @@ def generate_filename(
     return "_".join(parts) + suffix
 
 
-def setup_npu_runntime(root_path, bin_path):
-    sys.path.append(get_absolute_path("src/t5"))
+def setup_npu_runtime(root_path, bin_path):
+    t5_path = get_absolute_path("src/t5")
+    if t5_path not in sys.path:
+        sys.path.insert(0, t5_path)
     os.environ["mha_npu"] = "1"
-    os.environ["bo_path"] = bin_path
+    os.environ["NPU_WTS_CACHE"] = bin_path
+
+    from qlinear import AIEGEMM  # pyright: ignore[reportMissingImports]
+    AIEGEMM.op_version = "v2"
+    AIEGEMM.preemption = False
+    AIEGEMM.pickle = True
+    AIEGEMM.select_op_handle()
 
 
 def LoadT5NPUTorchModel(
     root_path,
     model_path,
     folder,
-    model_name="serialized_quantized_t5-v1_1-xxl_w4_g128_gptq.pth",
+    model_name="serialized_quantized_t5-v1_1-xxl_w4_g128_gptq.safetensors",
     bin_name="serialized_quantized_t5-v1_1-xxl_w4_g128_gptq.bin",
 ):
     Logger.debug("------------------------------")
-    Logger.info(f"Load NPU model {model_path}\\{folder}")
+    Logger.info(f"Load NPU model {os.path.join(model_path, folder)}")
 
-    # setup NPU envs
-    serialized_ckpt = os.path.join(model_path, folder, model_name)
+    safetensors_path = os.path.join(model_path, folder, model_name)
     bin_path = os.path.join(model_path, folder, bin_name)
-    setup_npu_runntime(root_path, bin_path)
+    setup_npu_runtime(root_path, bin_path)
+    
+    from modeling_t5 import T5Config, T5EncoderModel  # pyright: ignore[reportMissingImports]
+    from qlinear import AIEGEMM, QLinearPerGrp  # pyright: ignore[reportMissingImports]
+    from safetensors import safe_open
+    from safetensors.torch import load_file
 
-    # load model
     t0 = time.perf_counter()
-    model = torch.load(serialized_ckpt, weights_only=False)
+
+    with safe_open(safetensors_path, framework="pt") as f:
+        meta = f.metadata()
+    with torch.device("meta"):
+        model = T5EncoderModel(T5Config.from_dict(json.loads(meta["__config__"])))
+    QLinearPerGrp.prepare_model(model, meta)
+    model.load_state_dict(
+        load_file(safetensors_path, device="cpu"), strict=False, assign=True
+    )
+    model.model_name = "t5"
+    AIEGEMM.load_npu(model, meta)
+
     Logger.debug(f"Model {folder} loading time = {time.perf_counter() - t0}s")
 
     return model
@@ -193,6 +311,7 @@ def LoadModel(
         m.config = config
     except:
         Logger.warning("Don't find the config file for " + folder)
+        m.config = {}
 
     return m
 
@@ -208,7 +327,7 @@ def config_session_options(
         onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     )
     if custom_op_path and os.path.exists(custom_op_path):
-        session_options.add_session_config_entry("dd_cache", (Path(dd_model_path).parent / ".cache").as_posix())
+        session_options.add_session_config_entry("dd_cache", (Path(dd_model_path).parent / "cache").as_posix())
         # model loading optimization
         session_options.add_session_config_entry(
             "onnx_custom_ops_const_key", dd_model_path
@@ -223,16 +342,14 @@ def config_session_options(
 def get_sd_dd_model_dir(MODEL_PATH, model_type, width=None):
     if width:
         model_dir = f"{model_type}/{str(width)}/dd"
-        if os.path.exists(os.path.join(MODEL_PATH, model_dir)):
-            return model_dir
-        elif os.path.exists(os.path.join(MODEL_PATH, f"{model_type}/dynamic/dd")):
-            return f"{model_type}/dynamic/dd"
-        # Fallback to non-width-specific dd directory
-        elif os.path.exists(os.path.join(MODEL_PATH, f"{model_type}/dd")):
-            return f"{model_type}/dd"
-        else:
-            raise ValueError(f"Model directory {os.path.join(MODEL_PATH, model_dir)} not found")
-    return f"{model_type}/dd"
+    else:
+        model_dir = f"{model_type}/dd"
+    if os.path.exists(os.path.join(MODEL_PATH, model_dir)):
+        return model_dir
+    elif os.path.exists(os.path.join(MODEL_PATH, f"{model_type}/dynamic/dd")):
+        return f"{model_type}/dynamic/dd"
+    else:
+        raise ValueError(f"Model directory {os.path.join(MODEL_PATH, model_dir)} not found")
 
 def get_sd_dd_dynamic_model_dir(model_type):
     return f"{model_type}/dynamic/dd"
@@ -258,6 +375,107 @@ def get_sd3_dd_model_dir(MODEL_PATH, model_type, width, t5_sequence_len=None):
         else:
             raise ValueError(f"Model directory {os.path.join(MODEL_PATH, model_dir)} not found")
 
+def get_op_namespace(
+    model_type: str,
+    width: int | None = None,
+    t5_sequence_len: int | None = None,
+    is_dynamic: bool = False,
+) -> str:
+    if is_dynamic:
+        return "dynamic"
+    elif model_type.startswith("transformer"):
+        return "sd3"
+    elif model_type.startswith("controlnet") and t5_sequence_len is not None:
+        return "sd3"
+    else:
+        return "sd15"
+
+
+def gpu_flat_onnx_exists(model_root: str, component: str) -> bool:
+    """True if ``model_root/component`` exists and contains ``model.onnx`` or ``replaced.onnx``."""
+    base = os.path.join(model_root, component)
+    if not os.path.isdir(base):
+        return False
+    for fn in ("model.onnx", "replaced.onnx"):
+        if os.path.isfile(os.path.join(base, fn)):
+            return True
+    return False
+
+
+def dd_onnx_exists_at_model_root(
+    model_root: str,
+    model_type: str,
+    model_file: str,
+    width: int,
+    t5_sequence_len: int,
+    is_dynamic: bool = False,
+) -> bool:
+    """True if the DD-fusion ONNX bundle for ``model_type`` exists under ``model_root``."""
+    try:
+        op_namespace = get_op_namespace(
+            model_type, width, t5_sequence_len, is_dynamic
+        )
+        if op_namespace == "dynamic":
+            dd_model_dir = get_sd_dd_dynamic_model_dir(model_type)
+        elif op_namespace == "sd3":
+            dd_model_dir = get_sd3_dd_model_dir(
+                model_root, model_type, width, t5_sequence_len
+            )
+        else:
+            dd_model_dir = get_sd_dd_model_dir(model_root, model_type, width)
+        return os.path.isfile(os.path.join(model_root, dd_model_dir, model_file))
+    except ValueError:
+        return False
+
+
+def pick_aux_model_root(
+    abs_sub_model_path: str,
+    model_path: str,
+    model_type: str,
+    *,
+    width: int,
+    t5_sequence_len: int,
+    gpu: bool,
+) -> str:
+    """
+    Prefer ``transformer`` / ``tea_caching`` under the inpainting sub-model root; if the
+    bundle is missing, try sibling ``normal`` then ``<model_path>/normal``.
+    """
+    candidates = []
+    seen = set()
+    for p in (
+        abs_sub_model_path,
+        os.path.join(os.path.dirname(abs_sub_model_path.rstrip(os.sep)), "normal"),
+        os.path.join(model_path, "normal"),
+    ):
+        p = os.path.normpath(p)
+        if not p or p in seen:
+            continue
+        seen.add(p)
+        candidates.append(p)
+
+    for root in candidates:
+        if not os.path.isdir(root):
+            continue
+        if gpu:
+            ok = gpu_flat_onnx_exists(root, model_type)
+        else:
+            ok = dd_onnx_exists_at_model_root(
+                root, model_type, "replaced.onnx", width, t5_sequence_len, False
+            )
+        if ok:
+            if root != abs_sub_model_path:
+                Logger.info(
+                    f"{model_type}: using fallback MODEL_PATH {root!r} "
+                    f"(not found under inpainting root {abs_sub_model_path!r})"
+                )
+            return root
+
+    raise FileNotFoundError(
+        f"No {model_type} ONNX found under inpainting root or 'normal' fallbacks. "
+        f"Tried: {candidates}"
+    )
+
 
 def load_model_with_session(
     MODEL_PATH,
@@ -273,12 +491,15 @@ def load_model_with_session(
     session = None
     dd_model_dir = model_type
     if custom_op_path:
-        if is_dynamic:
+        op_namespace = get_op_namespace(model_type, width, t5_sequence_len, is_dynamic)
+        if op_namespace == "dynamic":
             dd_model_dir = get_sd_dd_dynamic_model_dir(model_type)
-        elif model_type.startswith("controlnet-") or model_type.startswith("transformer"):
+        elif op_namespace == "sd3":
             dd_model_dir = get_sd3_dd_model_dir(MODEL_PATH, model_type, width, t5_sequence_len)
-        else:
+        elif op_namespace == "sd15":
             dd_model_dir = get_sd_dd_model_dir(MODEL_PATH, model_type, width)
+        else:
+            raise ValueError(f"Unsupported model type: {model_type}")
         session = config_session_options(
             custom_op_path,
             os.path.join(MODEL_PATH, dd_model_dir, model_file),
@@ -455,6 +676,8 @@ def get_normal_controlnet_model_name(target: str):
         model_name = "controlnet-tile"
     elif target.lower() == "Pose".lower():
         model_name = "controlnet-pose"
+    elif target.lower() == "Depth".lower():
+        model_name = "controlnet-depth"
     elif target.lower() == "union".lower():
         model_name = "controlnet-union"
     elif target.lower() in ["outpainting", "removal", "inpainting"]:

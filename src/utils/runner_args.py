@@ -1,4 +1,6 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+#
+# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
+#
 
 import argparse
 import os
@@ -37,10 +39,16 @@ parser.add_argument(
     help="Path to SD models",
 )
 parser.add_argument(
+    "--revision",
+    type=str,
+    default=None,
+    help="Git branch, tag, or commit hash for Hugging Face model (e.g., '1.7.0', 'main', 'v1.0.0'). Default: None (use default branch)",
+)
+parser.add_argument(
     "-C",
     "--controlnet",
     type=str,
-    help="Canny, Tile, Pose, OutPainting, Removal, InPainting, or None",
+    help="Canny, Tile, Pose, Depth, OutPainting, Removal, InPainting, or None",
 )
 
 # runner  related args
@@ -170,6 +178,13 @@ parser.add_argument(
     help="Path to the dynamic shape configuration file.",
 )
 
+parser.add_argument(
+    "--strength",
+    type=float,
+    default=0.3,
+    help="indicates how much to transform the reference image in segmind-vega image to image pipeline. \
+        A value of 1.0 essentially ignores image",
+)
 
 # ----------------------------------------------------------------------------------------------------------------------
 def check_sd3_normal_args(args):
@@ -178,6 +193,7 @@ def check_sd3_normal_args(args):
         "canny",
         "tile",
         "pose",
+        "depth",
         "union",
         "none",
         "outpainting",
@@ -225,7 +241,7 @@ def config_sd3_controlnet_args(args):
         args.width = args.width or 1024
         if not args.height == 1024 and not args.width == 1024:
             raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "outpainting_removal/"
+        args.sub_model_path = "normal/"
         args.prompt = args.prompt or "background, nothing, blank"
         args.n_prompt = args.n_prompt or ""
         args.seed = args.seed if args.seed is not None else 0
@@ -238,7 +254,7 @@ def config_sd3_controlnet_args(args):
             args.guidance_scale if args.guidance_scale is not None else 5.0
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/outpainting.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
@@ -249,7 +265,7 @@ def config_sd3_controlnet_args(args):
         args.width = args.width or 1024
         if not args.height == 1024 and not args.width == 1024:
             raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "outpainting_removal/"
+        args.sub_model_path = "normal/"
         args.prompt = args.prompt or "background, nothing, blank"
         args.n_prompt = args.n_prompt or ""
         args.seed = args.seed if args.seed is not None else 0
@@ -263,11 +279,11 @@ def config_sd3_controlnet_args(args):
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/removal/origin.jpg")
         args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/removal/mask.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
-        if not os.path.exists(args.control_mask_path):
+        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
             raise EnvironmentError(
                 f"can't find control image mask path  {args.control_mask_path}"
             )
@@ -287,16 +303,17 @@ def config_sd3_controlnet_args(args):
             if args.controlnet_conditioning_scale is not None
             else 0.7
         )
+        # 7.0 matches official SD3 ControlNet Inpainting example; higher scale helps prompt (e.g. cat) appear in mask
         args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 2.5
+            args.guidance_scale if args.guidance_scale is not None else 7.0
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/inpainting/origin.jpg")
         args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/inpainting/mask.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
-        if not os.path.exists(args.control_mask_path):
+        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
             raise EnvironmentError(
                 f"can't find control image mask path  {args.control_mask_path}"
             )
@@ -323,7 +340,7 @@ def config_sd3_controlnet_args(args):
             args.guidance_scale if args.guidance_scale is not None else 7.0
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/canny.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
@@ -350,7 +367,7 @@ def config_sd3_controlnet_args(args):
             args.guidance_scale if args.guidance_scale is not None else 7.0
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/tile.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
@@ -377,7 +394,29 @@ def config_sd3_controlnet_args(args):
             args.guidance_scale if args.guidance_scale is not None else 7.0
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/pose.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
+            raise EnvironmentError(
+                f"can't find control image path  {args.control_image_path}"
+            )
+
+    # depth
+    elif args.controlnet.lower() == "depth":
+        args.height = args.height or 512
+        args.width = args.width or 512
+        args.sub_model_path = "normal/"
+        args.prompt = args.prompt or "a panda cub, captured in a close-up, in forest, is perched on a tree trunk. good composition, Photography, the cub's ears, a fluffy black, are tucked behind its head, adding a touch of whimsy to its appearance. a lush tapestry of green leaves in the background. depth of field, National Geographic"
+        args.n_prompt = args.n_prompt or "bad hands, blurry, NSFW, nude, naked, porn, ugly, bad quality, worst quality"
+        args.seed = args.seed if args.seed is not None else 42
+        args.controlnet_conditioning_scale = (
+            args.controlnet_conditioning_scale
+            if args.controlnet_conditioning_scale is not None
+            else 0.5
+        )
+        args.guidance_scale = (
+            args.guidance_scale if args.guidance_scale is not None else 7.0
+        )
+        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/depth.jpeg")
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
@@ -398,7 +437,7 @@ def config_sd3_controlnet_args(args):
             args.guidance_scale if args.guidance_scale is not None else 3.5
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/union.jfif")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
@@ -431,7 +470,7 @@ def config_sd35_controlnet_args(args):
         args.width = args.width or 1024
         if not args.height == 1024 and not args.width == 1024:
             raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "outpainting_removal/"
+        args.sub_model_path = "normal/"
         args.prompt = args.prompt or "background, nothing, blank"
         args.n_prompt = args.n_prompt or ""
         args.seed = args.seed or 0
@@ -444,7 +483,7 @@ def config_sd35_controlnet_args(args):
             args.guidance_scale if args.guidance_scale is not None else 5.0
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/outpainting.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
@@ -455,7 +494,7 @@ def config_sd35_controlnet_args(args):
         args.width = args.width or 1024
         if not args.height == 1024 and not args.width == 1024:
             raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "outpainting_removal/"
+        args.sub_model_path = "normal/"
         args.prompt = args.prompt or "background, nothing, blank"
         args.n_prompt = args.n_prompt or ""
         args.seed = args.seed if args.seed is not None else 0
@@ -469,11 +508,11 @@ def config_sd35_controlnet_args(args):
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/removal/origin.jpg")
         args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/removal/mask.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
-        if not os.path.exists(args.control_mask_path):
+        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
             raise EnvironmentError(
                 f"can't find control image mask path  {args.control_mask_path}"
             )
@@ -498,11 +537,11 @@ def config_sd35_controlnet_args(args):
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/inpainting/origin.jpg")
         args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/inpainting/mask.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
-        if not os.path.exists(args.control_mask_path):
+        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
             raise EnvironmentError(
                 f"can't find control image mask path  {args.control_mask_path}"
             )
@@ -528,7 +567,7 @@ def config_sd35_controlnet_args(args):
             args.guidance_scale if args.guidance_scale is not None else 5.0
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/canny.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
@@ -555,7 +594,7 @@ def config_sd35_controlnet_args(args):
             args.guidance_scale if args.guidance_scale is not None else 5.0
         )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/tile.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
@@ -592,7 +631,7 @@ def config_sd35_controlnet_args(args):
                 args.guidance_scale if args.guidance_scale is not None else 5.0
             )
         args.control_image_path = args.control_image_path or get_absolute_path("test/ref/pose.jpg")
-        if not os.path.exists(args.control_image_path):
+        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
@@ -648,7 +687,7 @@ def check_args(args):
                         unreal engine 5, cinematic, masterpiece, art by studio ghibli, intricate artwork by john william turner."
         )
         args.n_prompt = args.n_prompt or ""
-    elif "stable-diffusion-v1-5" in args.model_id:
+    elif "stable-diffusion-v1-5" in args.model_id or "stable-diffusion-1.5" in args.model_id or "sd15-controlnet" in args.model_id:
         args.height = args.height or 512
         args.width = args.width or 512
         args.num_inference_steps = args.num_inference_steps or 20
@@ -659,9 +698,6 @@ def check_args(args):
         args.n_prompt = args.n_prompt or ""
         args.controlnet = args.controlnet or "none"
         if args.controlnet.lower() == "canny":
-            args.model_path = (
-                args.model_path or args.root_path + "/models/sd15_controlnet/"
-            )
             args.controlnet_conditioning_scale = (
                 args.controlnet_conditioning_scale
                 if args.controlnet_conditioning_scale is not None
@@ -684,7 +720,7 @@ def check_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 0.0
         )
-        args.num_images_per_prompt = args.num_images_per_prompt or 2
+        args.num_images_per_prompt = args.num_images_per_prompt or 1
         args.prompt = (
             args.prompt
             or "A cinematic shot of a baby racoon wearing an intricate italian priest robe."
@@ -711,7 +747,7 @@ def check_args(args):
         args.num_images_per_prompt = args.num_images_per_prompt or 1
         args.prompt = args.prompt or "A photo of an astronaut riding a horse on mars."
 
-    elif "stable-diffusion-3-medium-diffusers" in args.model_id:
+    elif "stable-diffusion-3-medium" in args.model_id:
         args.num_inference_steps = args.num_inference_steps or 8
         args.num_images_per_prompt = args.num_images_per_prompt or 1
         args.common_model_path = "common/"
@@ -731,7 +767,6 @@ def check_args(args):
     ):
         args.num_inference_steps = args.num_inference_steps or 8
         args.num_images_per_prompt = args.num_images_per_prompt or 1
-        args.model_path = args.model_path or args.root_path + "/models/sd3.5/"
         args.sub_model_path = "normal/"
         args.common_model_path = "common/"
         args.controlnet = args.controlnet or "Canny"
@@ -749,15 +784,14 @@ def check_args(args):
         args.guidance_scale = (
             args.guidance_scale if args.guidance_scale is not None else 0.0
         )
-        args.num_images_per_prompt = args.num_images_per_prompt or 2
+        args.num_images_per_prompt = args.num_images_per_prompt or 1
         args.prompt = (
             args.prompt
             or "A cinematic shot of a baby racoon wearing an intricate italian priest robe."
         )
         args.n_prompt = args.n_prompt or ""
-        args.model_path = args.model_path or args.root_path + "/models/sdxl_turbo/"
 
-    elif "stable-diffusion-xl-base-1.0" in args.model_id:
+    elif "stable-diffusion-xl-base-1.0" in args.model_id or "sdxl-base" in args.model_id:
         args.height = args.height or 1024
         args.width = args.width or 1024
         args.num_inference_steps = args.num_inference_steps or 50
@@ -767,9 +801,21 @@ def check_args(args):
         args.num_images_per_prompt = args.num_images_per_prompt or 1
         args.prompt = args.prompt or "An astronaut riding a green horse"
         args.n_prompt = args.n_prompt or ""
-        args.model_path = args.model_path or args.root_path + "/models/sdxl-base-1.0/"
 
-    elif "Segmind-Vega" in args.model_id:
+    elif "Nitro-E".lower() in args.model_id.lower():
+        
+        args.height = args.height or 512
+        args.width = args.width or 512
+        args.num_inference_steps = args.num_inference_steps or 20
+        args.guidance_scale = (
+            args.guidance_scale if args.guidance_scale is not None else 4.5
+        )
+        args.num_images_per_prompt = args.num_images_per_prompt or 1
+        args.prompt = args.prompt or "A hot air balloon in the shape of a heart grand canyon."
+        args.n_prompt = args.n_prompt or ""
+        args.seed = args.seed if args.seed is not None else 0
+        
+    elif "Segmind-Vega".lower() in args.model_id.lower():
         args.height = args.height or 1024
         args.width = args.width or 1024
         args.num_inference_steps = args.num_inference_steps or 50
@@ -777,12 +823,30 @@ def check_args(args):
             args.guidance_scale if args.guidance_scale is not None else 7.5
         )
         args.num_images_per_prompt = args.num_images_per_prompt or 1
+        if args.control_image_path is not None:
+            if args.strength is None or args.strength < 0.0 or args.strength > 1.0:
+                Logger.warning(
+                    f"Invalid value for --strength: '{args.strength}'. "
+                    f"Allowed values should be in [0.0, 1.0]. "
+                    f"Set --strength to its default value 0.3 . "
+                )
+                args.strength = 0.3 
+            actual_iters =  args.strength * args.num_inference_steps
+            if actual_iters < 1.0:
+                args.strength = round(1.01 / args.num_inference_steps, 3)
+                Logger.warning(
+                    f"There should be at least 1 denoising iteration. "
+                    f"Actual value ({actual_iters}) assigned is not applicable. "
+                    f"Set --strength to {args.strength} according to "
+                    f"--num_inference_steps(which is {args.num_inference_steps}). "
+                )
         args.prompt = args.prompt or "An astronaut riding a green horse"
         args.n_prompt = args.n_prompt or ""
-        args.model_path = args.model_path or args.root_path + "/models/Segmind-Vega_bfp/"
 
     if not args.model_path:
-        args.model_path = args.root_path + "/models/sd3/"
+        Logger.debug(f"Will auto-download model from Hugging Face: {args.model_id}")
+        args.model_path = None
+    else:
         if not os.path.exists(args.model_path):
             raise FileNotFoundError(f"model_path {args.model_path} not exist")
 
@@ -792,22 +856,57 @@ def check_args(args):
         share_obj_name = "onnx_custom_ops.dll"
     elif system == "Linux":
         share_obj_name = "libonnx_custom_ops.so"
-    if not args.custom_op_path:
-        onnx_utils_root = os.environ.get("ONNX_UTILS_ROOT", "")
-        if onnx_utils_root:
-            args.custom_op_path = os.path.join(
-                onnx_utils_root, "build", "install", "bin", share_obj_name
-            )
-        else:
-            # Use absolute path to the lib directory in the current project
-            args.custom_op_path = get_absolute_path("lib/" + share_obj_name)
-    if not os.path.exists(args.custom_op_path):
-        raise EnvironmentError(f"can't find onnx custom op plugin : {share_obj_name} in {args.custom_op_path}")
 
-    if args.dynamic_shape:
-        if "DD_PLUGINS_ROOT" not in os.environ:
+    if not args.custom_op_path:
+        onnx_utils_root = os.environ.get("ONNX_UTILS_ROOT")
+        ryzen_root = os.environ.get("RYZEN_AI_INSTALLATION_PATH")
+        candidates = []
+
+        # 1. ONNX_UTILS_ROOT/build/install/bin
+        if onnx_utils_root:
+            candidates.append(
+                os.path.join(onnx_utils_root, "build", "install", "bin", share_obj_name)
+            )
+
+        # 2. RYZEN_AI_INSTALLATION_PATH/deployment
+        if ryzen_root:
+            candidates.append(
+                os.path.join(ryzen_root, "deployment", share_obj_name)
+            )
+
+        # 3. project local lib fallback
+        candidates.append(
+            get_absolute_path(os.path.join("lib", share_obj_name))
+        )
+
+        # pick first existing
+        args.custom_op_path = next(
+            (p for p in candidates if os.path.exists(p)),
+            None
+        )
+
+    if not args.custom_op_path or not os.path.exists(args.custom_op_path):
+        raise EnvironmentError(
+            f"Can't find onnx custom op plugin: {share_obj_name}\n"
+            f"Searched paths:\n  " + "\n  ".join(candidates)
+        )
+
+    # Set DD_PLUGINS_ROOT for all SD3 related models
+    is_sd3_model = (
+        "stable-diffusion-3" in args.model_id.lower()
+        or "stable-diffusion-3.5" in args.model_id.lower()
+        or "stable-diffusion-3-5" in args.model_id.lower()
+    )
+    
+    if is_sd3_model:
+        # Set DD_PLUGINS_ROOT if not set or empty
+        if not os.environ.get("DD_PLUGINS_ROOT"):
             os.environ["DD_PLUGINS_ROOT"] = get_absolute_path("lib/transaction/stx")
-        if not os.path.exists(os.environ["DD_PLUGINS_ROOT"]):
+        
+        dd_plugins_path = os.environ["DD_PLUGINS_ROOT"]
+        Logger.debug(f"DD_PLUGINS_ROOT set to: {dd_plugins_path}")
+        
+        if not os.path.exists(dd_plugins_path):
             raise EnvironmentError(
                 f"invalid DD_PLUGINS_ROOT {os.environ['DD_PLUGINS_ROOT']}"
             )

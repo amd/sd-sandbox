@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
 #
 
 import time
@@ -39,9 +39,9 @@ class StableDiffusion3PipelineTrigger:
         width=1024,
         t5_sequence_len=83,
         is_dynamic=False,
+        revision: str = None,
     ):
         self.model_id = model_id
-        self.model_path = model_path
         self.enable_profile = enable_profile
         self.profiling_rounds = profiling_rounds
         self.is_dynamic = is_dynamic
@@ -53,34 +53,35 @@ class StableDiffusion3PipelineTrigger:
             "vae_decoder": 0,
         }
 
-        abs_sub_model_path = os.path.join(model_path, sub_model_path)
-        abs_common_model_path = os.path.join(model_path, common_model_path)
+        # Auto-download from Hugging Face if model_path not provided
+        if model_path is None:
+            Logger.debug("=" * 60)
+            Logger.debug(f"model_path not provided, will download model from Hugging Face")
+            Logger.debug(f"Model ID: {model_id}")
+            if revision:
+                Logger.debug(f"Revision/Branch: {revision}")
+            Logger.debug("=" * 60)
+            model_path = common.download_model_from_huggingface(model_id, revision=revision)
+            Logger.debug("=" * 60)
+            Logger.debug(f"Model ready: {model_path}")
+            Logger.debug("Starting to load model components...")
+            Logger.debug("=" * 60)
+        
+        self.model_path = model_path
+
+        abs_sub_model_path = os.path.join(model_path, sub_model_path) if sub_model_path else model_path
+        abs_common_model_path = os.path.join(model_path, common_model_path) if common_model_path else model_path
         self.t5_sequence_len = t5_sequence_len
         self.t0_start = time.perf_counter()
-        try:
-            self.tokenizer = CLIPTokenizer.from_pretrained(
-                os.path.join(abs_common_model_path, "tokenizer")
-            )
-        except:
-            self.tokenizer = CLIPTokenizer.from_pretrained(
-                self.model_id, subfolder="tokenizer"
-            )
-        try:
-            self.tokenizer_2 = CLIPTokenizer.from_pretrained(
-                os.path.join(abs_common_model_path, "tokenizer_2")
-            )
-        except:
-            self.tokenizer_2 = CLIPTokenizer.from_pretrained(
-                self.model_id, subfolder="tokenizer_2"
-            )
-        try:
-            self.tokenizer_3 = T5TokenizerFast.from_pretrained(
-                os.path.join(abs_common_model_path, "tokenizer_3")
-            )
-        except:
-            self.tokenizer_3 = T5TokenizerFast.from_pretrained(
-                self.model_id, subfolder="tokenizer_3"
-            )
+        self.tokenizer = CLIPTokenizer.from_pretrained(
+            os.path.join(abs_common_model_path, "tokenizer")
+        )
+        self.tokenizer_2 = CLIPTokenizer.from_pretrained(
+            os.path.join(abs_common_model_path, "tokenizer_2")
+        )
+        self.tokenizer_3 = T5TokenizerFast.from_pretrained(
+            os.path.join(abs_common_model_path, "tokenizer_3")
+        )
 
         self.text_encoder = common.LoadModel(
             abs_common_model_path,
@@ -110,6 +111,23 @@ class StableDiffusion3PipelineTrigger:
         self.mem_dict["t5"] = mem_change
         Logger.debug(f"T5 Mem: {mem_change}MB")
         self.control_image = None
+        # Load vae decoder model
+        start_mem = common.measure_mem()
+        self.vae_decoder = common.load_model_with_session(
+            MODEL_PATH=abs_common_model_path,
+            model_type="vae_decoder",
+            model_file="replaced.onnx",
+            custom_op_path=custom_op_path,
+            enable_dd_fusion_compile=enable_compile,
+            providers=["CPUExecutionProvider"],
+            width=width,
+            t5_sequence_len=t5_sequence_len,
+            is_dynamic=is_dynamic,
+        )
+
+        mem_change = common.measure_mem() - start_mem
+        self.mem_dict["vae_decoder"] = mem_change
+        Logger.debug(f"VAE Decoder Mem: {mem_change}MB")
 
         model_type_mmdit = common.get_normal_transformer_model_name(abs_sub_model_path, controlnet_str)
         if controlnet_str.lower() != "none":
@@ -150,7 +168,6 @@ class StableDiffusion3PipelineTrigger:
             self.mem_dict["controlnet"] = mem_change
             Logger.debug(f"controlnet Mem: {mem_change}MB")
             model_type_mmdit = "transformer"
-            model_type_decoder = "vae_decoder"
         else:
             # The vae_encoder and controlnet are not used and set to None
             Logger.info("Running in text2image mode without controlnet")
@@ -164,23 +181,6 @@ class StableDiffusion3PipelineTrigger:
             control_image = None
             # Keep the seed consistent with the previous pipeline without controlnet
             model_type_mmdit = "transformer"
-            model_type_decoder = "vae_decoder"
-        # Load vae decoder model
-        start_mem = common.measure_mem()
-        self.vae_decoder = common.load_model_with_session(
-            MODEL_PATH=abs_common_model_path,
-            model_type="vae_decoder",
-            model_file="replaced.onnx",
-            custom_op_path=custom_op_path,
-            enable_dd_fusion_compile=enable_compile,
-            providers=["CPUExecutionProvider"],
-            width=width,
-            t5_sequence_len=t5_sequence_len,
-            is_dynamic=is_dynamic,
-        )
-
-        mem_change = common.measure_mem() - start_mem
-        self.mem_dict["vae_decoder"] = mem_change
 
         # Load mmdit model
         start_mem = common.measure_mem()
@@ -200,7 +200,7 @@ class StableDiffusion3PipelineTrigger:
         self.mem_dict["mmdit"] = mem_change
         Logger.debug(f"MMDiT Mem: {mem_change}MB")
 
-        Logger.debug(f"VAE Decoder Mem: {mem_change}MB")
+
         self.t0_end = time.perf_counter()
         self.t0_npu = self.t0_end - self.t0_npu_start
         self.t0_all = self.t0_end - self.t0_start

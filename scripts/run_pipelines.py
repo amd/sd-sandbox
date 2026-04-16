@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
+#!/usr/bin/env python3
 """
 Comprehensive pipeline runner script with support for:
 - Quick testing (1 round) and benchmarking (10 rounds)
@@ -15,14 +15,14 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
 # Import from helper modules
-from pipeline_config import load_config, get_pipeline_configs, determine_prompt_source
+from pipeline_config import load_config, get_pipeline_configs
 from pipeline_execution import (
     setup_execution_provider, setup_pipeline_execution_provider,
     run_pipeline, has_streaming_output
 )
 from pipeline_helpers import (
     clean_generated_images, clean_results, save_log_file, save_results,
-    print_results_summary, list_pipelines
+    print_results_summary, list_pipelines, determine_prompt_source
 )
 
 # Configuration
@@ -82,7 +82,8 @@ def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, P
                                 args.benchmark, args.timeout, args.prompt, 
                                 args.prompt_file, getattr(args, 'sd3_controlnet_mode', 'text2img'), 
                                 config.get('defaults', {}), log_buffer, determine_prompt_source,
-                                args.image_only, args.traceback, custom_op_path)
+                                args.image_only, args.traceback, custom_op_path, 
+                                paths.get('control_images_path'), paths.get('config_files_path'))
             
             # Print immediate feedback
             if result['success']:
@@ -90,7 +91,7 @@ def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, P
                 print(f"[OK] SUCCESS in {result['duration']:.1f}s")
                 print(f"   [Dir] Images saved to: {output_dir}")
             else:
-                print(f"[FAILED] FAILED in {result['duration']:.1f}s - {result['error'][:100]}...")
+                print(f"[FAILED] FAILED in {result['duration']:.1f}s - {result['error']}")
             
             all_results.append(result)
     

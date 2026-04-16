@@ -1,5 +1,3 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved. Portions of this file consist of AI-generated content.
-
 """
 Pipeline configuration and prompt handling utilities.
 
@@ -9,13 +7,9 @@ and prompt management from files, command line, and configuration.
 
 import sys
 import yaml
-import json
 import argparse
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
-
-# Import shared utilities
-from pipeline_helpers import count_prompts_in_file, determine_prompt_source
 
 
 def load_config(config_file: Optional[str] = None, config_dir: Optional[Path] = None, workspace_root: Optional[Path] = None) -> Tuple[Dict[str, Any], Dict[str, Path]]:
@@ -51,8 +45,7 @@ def load_config(config_file: Optional[str] = None, config_dir: Optional[Path] = 
     
     # Get project paths
     paths_config = config.get('paths', {})
-    source_path_config = paths_config.get('source_path')
-    source_path = Path(source_path_config) if source_path_config else workspace_root
+    source_path = workspace_root
     
     # Determine config directory path
     if config_dir:
@@ -66,7 +59,9 @@ def load_config(config_file: Optional[str] = None, config_dir: Optional[Path] = 
         'source_path': source_path,
         'models_path': source_path / paths_config.get('models_path', 'models'),
         'test_path': source_path / paths_config.get('test_path', 'test'),
-        'config_path': resolved_config_path
+        'config_path': resolved_config_path,
+        'control_images_path': Path(paths_config['control_images_path']) if 'control_images_path' in paths_config else None,
+        'config_files_path': Path(paths_config['config_files_path']) if 'config_files_path' in paths_config else None
     }
     
     return config, paths
@@ -105,56 +100,6 @@ def resolve_prompt_shorthand(arg: str, prompts_dict: Dict[str, str]) -> str:
     return prompts_dict.get(arg, arg)
 
 
-def create_arg_transformers(defaults: Dict[str, Any], models_path: Path) -> Dict[str, Dict[str, Any]]:
-    """
-    Create argument transformer configuration.
-    
-    Args:
-        defaults: Default values from config
-        models_path: Base models directory path
-        
-    Returns:
-        Dictionary mapping argument names to their transformation rules
-    """
-    return {
-        "--model_path": {
-            "takes_value": True,
-            "transform": lambda arg: resolve_model_path(arg, models_path)
-        },
-        "--prompt": {
-            "takes_value": True,
-            "transform": lambda arg: resolve_prompt_shorthand(arg, defaults.get('prompts', {}))
-        }
-    }
-
-
-def process_single_argument(arg: str, next_value: Optional[str], transformer: Dict[str, Any]) -> Tuple[List[str], int]:
-    """
-    Process a single argument with its transformer.
-    
-    Args:
-        arg: The argument flag (e.g., "--model_path")
-        next_value: The next value in args list (may be None)
-        transformer: Transformer configuration for this argument
-        
-    Returns:
-        Tuple of (processed args list, number of items consumed from input)
-    """
-    if not transformer["takes_value"]:
-        # Flag without value - just pass it through
-        return [arg], 1
-    
-    # Argument takes a value
-    if next_value is None:
-        # Flag without value - this is an error in the config
-        print(f"Warning: Argument {arg} expects a value but none provided", file=sys.stderr)
-        return [arg], 1
-    
-    # Transform the value and return both arg and transformed value
-    transformed_value = transformer["transform"](next_value)
-    return [arg, transformed_value], 2
-
-
 def process_extra_args(extra_args: List[str], config: Dict[str, Any], paths: Dict[str, Path]) -> List[str]:
     """
     Process command-line arguments to resolve references to config defaults.
@@ -172,23 +117,22 @@ def process_extra_args(extra_args: List[str], config: Dict[str, Any], paths: Dic
     """
     processed_args = []
     defaults = config.get('defaults', {})
-    arg_transformers = create_arg_transformers(defaults, paths['models_path'])
+    
+    # Map argument names to their value transformers
+    arg_transformers = {
+        "--model_path": lambda val: resolve_model_path(val, paths['models_path']),
+        "--prompt": lambda val: resolve_prompt_shorthand(val, defaults.get('prompts', {}))
+    }
     
     i = 0
     while i < len(extra_args):
         arg = extra_args[i]
         
-        # Check if this is a known argument that needs transformation
-        if arg in arg_transformers:
-            # Get next value if it exists
-            next_value = extra_args[i + 1] if i + 1 < len(extra_args) else None
-            
-            # Process this argument and get back the results
-            result_args, consumed = process_single_argument(arg, next_value, arg_transformers[arg])
-            processed_args.extend(result_args)
-            i += consumed
+        if arg in arg_transformers and i + 1 < len(extra_args):
+            processed_args.append(arg)
+            processed_args.append(arg_transformers[arg](extra_args[i + 1]))
+            i += 2
         else:
-            # Unknown argument - pass through as-is
             processed_args.append(arg)
             i += 1
     
