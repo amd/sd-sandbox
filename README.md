@@ -45,22 +45,35 @@
 
 ## 📜 Supported Models
 
-The RAI 1.7.0 release of the sd-sandbox supports a limited set of models focused on text-to-image generation.
+The RAI 1.7.1 release of the sd-sandbox adds support for **auto-downloading models from Hugging Face** when a `model_id` is specified.
 
-Here is a list of currently supported SD models. Note that these models have had nodes replaced with custom ops specifically designed for AMD NPUs. The models can be downloaded from the Ryzen AI docs site here: 
-**[Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps)**.
+Here is a list of currently supported SD models. These models have had nodes replaced with custom ops specifically designed for AMD NPUs.
 
-| Model | Folder Name | Output Resolution | Text-To-Image | Image-To-Image | Inpainting | Removal | Outpainting |
-|-------|-------|---------------|----------------|------------|-------------|-------------| -------------|
-| SD 1.5 | sd_15 | 512x512 | ✅ | | | | |
-| SD Turbo | sd_turbo | 512x512 | ✅ | | | | |
-| SD Turbo Batch Size 1 | sd_turbo_bs1 | 512x512 | ✅ | | | | |
-| SD XL Base | sdxl-base-1.0 | 1024x1024 |  ✅ | | | | |
-| SD XL Turbo | sdxl_turbo | 512x512 | ✅ | | | | |
-| SD XL Turbo Batch Size 1  | sdxl_turbo_bs1 | 512x512 |  ✅ | | | | |
-| SD 2.1 | sd21_base | 512x512 | ✅ | | | | |
-| SD 2.1-V | sd-2.1-v | 768x768 | ✅ | | | | |
-| Segmind-Vega | segmind_vega | 1024x1024 | ✅ | | | | |
+| Model | HF Model ID | Output Resolution | Text-To-Image | Image-To-Image | ControlNet |
+|-------|-------------|-------------------|:---:|:---:|:---:|
+| SD 1.5 | `amd/stable-diffusion-1.5-amdnpu` | 512x512 | ✅ | | | | | |
+| SD Turbo | `amd/sd-turbo-amdnpu` | 512x512 | ✅ | | | | | |
+| SD XL Base | `amd/sdxl-base-amdnpu` | 1024x1024 | ✅ | ✅ | | | | |
+| SD XL Turbo | `amd/sdxl-turbo-amdnpu` | 512x512 | ✅ | | | | | |
+| Segmind-Vega | `amd/segmind-vega-amdnpu` | 1024x1024 | ✅ | ✅ | | | | |
+| **SD3 Medium** | `amd/stable-diffusion-3-medium-amdnpu` | 512–1024 | ✅ | | ✅ | 
+| **SD3.5 Medium** | `amd/stable-diffusion-3.5-medium-amdnpu` | 512–1024 | ✅ | | ✅ |
+
+### ControlNet Modes (SD3 / SD3.5)
+
+The following ControlNet modes are supported for SD3 and SD3.5 models:
+
+| Mode | Description | Control Image Required |
+|------|-------------|:---:|
+| Canny | Edge detection guided generation | ✅ |
+| Tile | Tile-based image upscaling/enhancement | ✅ |
+| Pose | Pose-guided human generation | ✅ |
+| Depth | Depth map guided generation | ✅ |
+| None | Text-to-image without ControlNet | |
+
+### Dynamic Shape Support (SD3 / SD3.5)
+
+SD3 and SD3.5 models support **dynamic shape inference**, allowing a single model to generate images at multiple resolutions without reloading. Supported resolutions are defined in [config/sd3_dynamic_shape.json](config/sd3_dynamic_shape.json) and include: 512×512, 512×768, 768×512, 576×1024, 1024×576, 768×1024, 1024×768, and 1024×1024.
 
 [Back to Table of Contents](#-contents)
 
@@ -68,8 +81,6 @@ Here is a list of currently supported SD models. Note that these models have had
 ---
 
 ## 🏞️ Image Generation Methods 
-
-> Note: *No modification has been made to the image generation methods sections from RAI 1.6.0 release docs. The models and examples described below will by supported in RAI 1.7.1*
 
 Here are some explanations of each of the SD methods. Note that pre- and post-processing padding and depadding are applied to the images where the resolutions do not match the model's inference resolution.
 
@@ -92,46 +103,10 @@ Here are some explanations of each of the SD methods. Note that pre- and post-pr
 
 <p align="center">• • •</p>
 
-**🖌️ Inpainting** — Edit or modify specific regions within an existing image. You provide an image, mark the area you want to change with a mask, and describe what should appear in that region. The model intelligently fills in the masked area while blending seamlessly with the surrounding content.
-*Example Use Cases: Object removal/replacement, photo retouching, fixing defects, adding elements to scenes*
-
-*Example: Edit specific regions of an image while preserving the rest:*
-
-**Prompt:** *"A girl taking a pig for a walk on the street"*
 
 
-| Original Image | Mask (Region to Edit) | Result |
-|:--------------:|:---------------------:|:------:|
-| <img src="test/assets/inpainting_input_1024x1024.png" width="300"> | <img src="test/assets/inpainting_mask_1024x1024.png" width="300"> | <img src="test/assets/inpainting_output_1024x1024.png" width="300"> |
-> Image Source: Created by author.
 
-<p align="center">• • •</p>
 
-**🧹 Removal** — Intelligently remove unwanted objects, people, or elements from images. Similar to inpainting, but specifically optimized for removing content and filling the space naturally with appropriate background or context-aware content.
-*Example Use Cases: Removing photobombers, cleaning up backgrounds, deleting unwanted objects, decluttering scenes*
-
-*Example: Clean object removal with intelligent background fill*
-
-| Original Image | Mask (Object to Remove) | Result |
-|:--------------:|:-----------------------:|:------:|
-| <img src="test/assets/removal_input_1024x1024.jpg" width="300"> | <img src="test/assets/removal_input_mask_1024x1024.jpg" width="300"> | <img src="test/assets/removal_output_1024x1024.png" width="300"> |
-> Image Source: Created by author.
-
-<p align="center">• • •</p>
-
-**🖼️ Outpainting** — Extend an image beyond its original boundaries while maintaining visual coherence. Provide an image and the model generates new content around the edges, effectively expanding your canvas while keeping the style and context consistent with the original.
-*Example use cases: expanding cropped photos, creating wider panoramas, extending backgrounds, enlarging canvas for composition*
-
-*Example: Expand canvas while maintaining style and context coherence*
-
-**Prompt:** *"Extend top and right by 512 pixels"*
-
-| Original Image | Extended Result |
-|:------------------------:|:---------------------------:|
-| ![Outpainting Input](test/assets/outpainting_input_512x512.png) | ![Outpainting Output](test/assets/outpainting_output_1024x1024.png) |
-> Image Source: Created by author.
-
-[Back to Table of Contents](#-contents)
 
 ---
 
@@ -162,70 +137,55 @@ Follow the instructions here to download necessary NPU drivers and Ryzen AI SW: 
 git clone https://github.com/amd/sd-sandbox.git
 cd sd-sandbox
 ```
+#### Step 2: Copy `lib` directory
+
+Copy the `lib` directory in `C:\Program Files\RyzenAI\1.7.1\GenAI-SD\lib` to the `sd-sandbox/` directory. This will allow the pipelines to find the necessary custom operator library for AMD NPU acceleration.
+
 
 #### Step 3: Set Up Conda Environment
 
-From step 1, the conda environment should already be installed. No modifications are needed to the conda environment for this release
-. Activate it with 
+From step 1, the conda environment should already be installed. No modifications are needed to the conda environment for this release. Activate it with:
 ```powershell
-conda activate ryzen-ai-1.7.0
-
+conda activate ryzen-ai-1.7.1
 ```
 
-#### Step 4: Install Python Dependencies
 
-Install the required Python packages using pip:
+####  Step 4: Download Models
 
-```powershell
-pip install -r requirements.txt
-```
+Models are **auto-downloaded from Hugging Face** when you run a pipeline with a `model_id` specified in the YAML config. The models are expected to be cached locally in the directory named `models/` .
 
-#### Step 5: Download Models
+This directory needs to be created before running the pipelines
 
-1. Visit the [Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps) and download the ZIP files with the models (SD 1.5, SDXL, etc.).
+To use auto-download, ensure you have authenticated with Hugging Face (see Step 7). Models will be downloaded on first run and reused from cache on subsequent runs.
 
-2. Create the models directory, extract the zipped files, and place the folders per the structure outlined below.
 
 ```powershell
 # Create models directory
 New-Item -ItemType Directory -Path "models" -Force
+```
 
-```
-Folder structure:
-```text
-models/
-├── sd_15/
-├── sd_turbo/
-└── ...
-```
+You can specify a `--revision` flag to select a specific branch, tag, or commit hash when downloading from Hugging Face (e.g., `--revision 1.7.1`).
 
 #### Step 6: Configure Paths
 
-Now that you have the models, you need to configure paths by editing [config/pipeline_configs.yaml](config/pipeline_configs.yaml). The bare minimum that you need to change in order to run a pipeline is:
+Edit [config/pipeline_configs.yaml](config/pipeline_configs.yaml) to configure paths. The minimum required settings are:
 
-1. The global paths `models_path`, the image output path `test_path`, and the `prompt_file` path:
-```yaml
-paths:
-  models_path: "C:/Users/amd87/sd_sandbox/models"
-  test_path: "C:/Users/amd87/sd_sandbox/test"
-  prompt_file: "C:/Users/amd87/sd_sandbox/config/artistic_prompts.json"
-```
-
-2. The `onnx_custom_ops.dll` file:
+1. The `onnx_custom_ops.dll` path:
 ```yaml
 defaults:
-  custom_op_path: "C:/Program Files/RyzenAI/1.7.0/deployment/onnx_custom_ops.dll"
+  custom_op_path: "C:/Program Files/RyzenAI/1.7.1/deployment/onnx_custom_ops.dll"
 ```
 
-3. The `--model_path` for each individual pipeline. For example, for the `sd_15` pipeline:
+2. Each pipeline needs a `model_id` for auto-download from Hugging Face, or a `--model_path` for locally stored models:
 
 ```yaml
 pipelines:
   sd_15:
-    extra_args:
-      - "--model_path"
-      - "C:/Users/amd87/sd_sandbox/models/sd_15"
+    model_ids:
+      - "amd/stable-diffusion-1.5-amdnpu"
 ```
+
+The `custom_op_path` can also be passed at the command line with `--custom-op-path`, or set per-pipeline in the YAML config.
 
 More details on configurations can be found in the [Pipelines and Pipeline Groups Configuration](#-pipelines-and-pipeline-groups-configuration) section.
 
@@ -265,7 +225,6 @@ Available Pipelines
 ==================================================
   sd_15                     - SD 1.5 Pipeline
   sd_turbo                  - SD Turbo Pipeline
-  sd_turbo_bs1              - SD Turbo BS1 Pipeline
   sdxl_base                 - SDXL Base Pipeline
   sdxl_turbo                - SDXL Turbo Pipeline
 ...
@@ -360,24 +319,27 @@ Some global parameters must be set to run any pipeline: the `models_path` where 
 
 Pipelines are defined in the YAML configuration file under the `pipelines` section. Each pipeline has its own set of parameters that can override the global defaults. Here are the pipeline definition parameters that must be present:
 
-1. A unique name (e.g., `sd_15`, `sdxl_turbo`).
-2. The base script associated with the pipeline (e.g., `run_sd.py`, `run_sd_xl.py`). 
-3. The `--model_path` to the model folder
-4. The Hugging Face `model_id` if not using a local path.
+1. A unique name (e.g., `sd_15`, `sdxl_turbo`, `sd3_base`).
+2. The base script associated with the pipeline (e.g., `run_sd.py`, `run_sd_xl.py`, `run_sd3.py`). 
+3. Either a `model_id` for auto-download from Hugging Face, or a `--model_path` for locally stored models.
 
 If nothing else is specified, default values will be used. However, almost all hyperparameters can be overridden on a per-pipeline basis.
 
-In order to see all of the available parameters, the user can run `--help` on the python file specified in the  `script` pipeline defintion. All of these files are located in the `/tests/` directory. For example, to see all of the available parameters for the SDXL pipeline, you can run:
+In order to see all of the available parameters, the user can run `--help` on the python file specified in the `script` pipeline definition. All of these files are located in the `test/` directory. For example, to see all of the available parameters for the SDXL pipeline, you can run:
 
 ```powershell
-python tests/run_sd_xl.py --help
+python test/run_sd_xl.py --help
 ```
 
-The following pipeline scripts ( in `tests/run*.py`), are used under the hood to run the corresponding models listed in the table below:
+The following pipeline scripts (in `test/run*.py`) are used under the hood to run the corresponding models listed in the table below:
 | Script | Model(s) |
 |--------|----------|
-| run_sd.py | SD 1.5, SD Turbo, SD 2.1, SD 2.1-V |
-| run_sd_xl.py | SDXL Base, SDXL Turbo, Segmind-Vega   |
+| run_sd.py | SD 1.5, SD Turbo |
+| run_sd_xl.py | SDXL Base, SDXL Turbo, Segmind-Vega |
+| run_sd3.py | SD3 Medium, SD3.5 Medium (text-to-image and ControlNet) |
+| run_sd3_dynamic.py | SD3 / SD3.5 with dynamic shape support |
+| run_sd15_controlnet.py | SD 1.5 ControlNet (Canny) |
+| run_sd3_controlnet_outpainting.py | SD3 / SD3.5 Outpainting, Removal, Inpainting |
 
 Most pipeline-specific option are passed via the `extra_args` list in the yaml file. Not all options are supported yet, but most are.
 
