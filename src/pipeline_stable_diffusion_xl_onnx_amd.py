@@ -1716,24 +1716,16 @@ class StableDiffusionXLPipelineAMD(
             # unscale/denormalize the latents
             # denormalize with the mean and std if available and not None
             has_latents_mean = (
-                hasattr(self.vae_decoder.config, "latents_mean")
+                "latents_mean" in self.vae_decoder.config
                 and self.vae_decoder.config["latents_mean"] is not None
             )
             has_latents_std = (
-                hasattr(self.vae_decoder.config, "latents_std")
+                "latents_std" in self.vae_decoder.config
                 and self.vae_decoder.config["latents_std"] is not None
             )
             if has_latents_mean and has_latents_std:
-                latents_mean = (
-                    torch.tensor(self.vae_decoder.config["latents_mean"])
-                    .view(1, 4, 1, 1)
-                    .to(latents.device, latents.dtype)
-                )
-                latents_std = (
-                    torch.tensor(self.vae_decoder.config["latents_std"])
-                    .view(1, 4, 1, 1)
-                    .to(latents.device, latents.dtype)
-                )
+                latents_mean = np.array(self.vae_decoder.config["latents_mean"]).reshape(1, 4, 1, 1).astype(vae_dtype)
+                latents_std = np.array(self.vae_decoder.config["latents_std"]).reshape(1, 4, 1, 1).astype(vae_dtype)
                 latents = (
                     latents * latents_std / self.vae_decoder.config["scaling_factor"]
                     + latents_mean

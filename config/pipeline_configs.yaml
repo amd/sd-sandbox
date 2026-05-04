@@ -29,11 +29,10 @@ defaults:
   # Custom operator library path (optional)
   # If not specified, runner_args.py will search in standard locations
   custom_op_path: "C:/Program Files/RyzenAI/1.7.1/deployment/onnx_custom_ops.dll"
-  prompt: "An astronaut riding a green horse"
-  # prompts:
-    # medieval: "Photo of a bustling medieval marketplace, vibrant colors, detailed costumes, lively crowd, cinematic lighting, 8k resolution, masterpiece, art by Pieter Bruegel and John Howe"
-    # anime: 'Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text "InstantX" on image'
-  # prompt_file: "./config/artistic_prompts.json"
+  prompts:
+    medieval: "Photo of a bustling medieval marketplace, vibrant colors, detailed costumes, lively crowd, cinematic lighting, 8k resolution, masterpiece, art by Pieter Bruegel and John Howe"
+    anime: 'Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text "InstantX" on image'
+  prompt_file: "./config/artistic_prompts.json"
 
 
 # Available pipeline configurations
@@ -209,7 +208,7 @@ pipelines:
         - "4.5"
         - "--dynamic_shape"
         - "--dynamic_shape_file_path"
-        - "sd3_dynamic_shape.json"
+        - "dynamic_shape_8x.json"
 
   sd3_controlnet_pose_dyn:
       name: "SD3 ControlNet Pose Dynamic Pipeline"
@@ -218,9 +217,8 @@ pipelines:
         - "amd/stable-diffusion-3-medium-amdnpu"
       extra_args:
         - "--num_inference_steps"
-        - "8"
         - "--controlnet"
-        - "Pose"
+        - "Union"
         - "--control_image_path"
         - "pose.jpg"
         - "--controlnet_conditioning_scale"
@@ -229,7 +227,7 @@ pipelines:
         - "4.5"
         - "--dynamic_shape"
         - "--dynamic_shape_file_path"
-        - "sd3_dynamic_shape.json"
+        - "dynamic_shape_8x.json"
 
   sd3_controlnet_tile_dyn:
       name: "SD3 ControlNet Tile Dynamic Pipeline"
@@ -240,7 +238,7 @@ pipelines:
         - "--num_inference_steps"
         - "8"
         - "--controlnet"
-        - "Tile"
+        - "Union"
         - "--control_image_path"
         - "tile.jpg"
         - "--controlnet_conditioning_scale"
@@ -249,9 +247,84 @@ pipelines:
         - "4.5"
         - "--dynamic_shape"
         - "--dynamic_shape_file_path"
-        - "sd3_dynamic_shape.json"
+        - "dynamic_shape_8x.json"
 
-# https://huggingface.co/amd/stable-diffusion-3.5-medium-amdnpu
+# https://huggingface.co/black-forest-labs/FLUX.1-schnell
+# black-forest-labs/FLUX.1-schnell
+### Flux
+  flux_schnell:
+    name: "Flux.1 Schnell Pipeline"
+    script: "run_flux.py"
+    width: 512
+    height: 512
+    model_ids:
+      - "black-forest-labs/FLUX.1-schnell"
+    extra_args:
+      - "--num_inference_steps"
+      - "4"
+      - "--guidance_scale"
+      - "0.0"
+
+  flux_schnell_dyn:
+    name: "Flux.1 Schnell Dynamic Pipeline"
+    script: "run_flux.py"
+    model_ids:
+      - "black-forest-labs/FLUX.1-schnell"
+    extra_args:
+      - "--num_inference_steps"
+      - "4"
+      - "--guidance_scale"
+      - "0.0"
+      - "--dynamic_shape"
+      - "--dynamic_shape_file_path"
+      - "flux_dynamic_shape.json"
+
+# https://huggingface.co/Kwai-Kolors/Kolors
+# Kwai-Kolors/Kolors
+### Kolors
+  kolors_base:
+    name: "Kolors Pipeline"
+    script: "run_kolors.py"
+    width: 1024
+    height: 1024
+    model_ids:
+      - "Kwai-Kolors/Kolors"
+    extra_args:
+      - "--num_inference_steps"
+      - "50"
+      - "--guidance_scale"
+      - "5.0"
+
+  kolors_controlnet_canny:
+    name: "Kolors ControlNet Canny Pipeline"
+    script: "run_kolors.py"
+    width: 1024
+    height: 1024
+    model_ids:
+      - "Kwai-Kolors/Kolors"
+    extra_args:
+      - "--num_inference_steps"
+      - "50"
+      - "--controlnet"
+      - "Canny"
+      - "--controlnet_conditioning_scale"
+      - "0.7"
+      - "--guidance_scale"
+      - "6.0"
+
+# Nitro-E
+  nitro_e_base:
+    name: "Nitro-E Pipeline"
+    script: "run_Nitro_E.py"
+    width: 512
+    height: 512
+    model_ids:
+      - "amd/Nitro-E"
+    extra_args:
+      - "--num_inference_steps"
+      - "20"
+      - "--guidance_scale"
+      - "4.5"
 #  amd/stable-diffusion-3.5-medium-amdnpu
 ### SD 3.5
   sd35_base:
@@ -279,11 +352,9 @@ pipelines:
       extra_args:
         - "--num_inference_steps"
         - "8"
-        - "--controlnet"
-        - "None"
         - "--dynamic_shape"
         - "--dynamic_shape_file_path"
-        - "sd3_dynamic_shape.json"
+        - "dynamic_shape_8x.json"
 
 
 
@@ -300,6 +371,17 @@ pipeline_groups:
   all_sd3_base:
     - sd3_base
     - sd35_base
+
+  all_flux:
+    - flux_schnell
+    - flux_schnell_dyn
+
+  all_kolors:
+    - kolors_base
+    - kolors_controlnet_canny
+
+  all_nitro_e:
+    - nitro_e_base
 
   sd3_dynamic:
     - sd3_base_dyn
@@ -324,6 +406,9 @@ pipeline_groups:
     - sdxl_turbo
     - sd3_base
     - sd35_base
+    - flux_schnell
+    - kolors_base
+    - nitro_e_base
   
   controlnet:
     - sd3_controlnet_canny
@@ -349,4 +434,8 @@ pipeline_groups:
     - sd3_controlnet_pose_dyn
     - sd3_controlnet_tile_dyn
     - sd35_base_dyn
-    - sd35_base 
+    - flux_schnell
+    - flux_schnell_dyn
+    - kolors_base
+    - kolors_controlnet_canny
+    - nitro_e_base

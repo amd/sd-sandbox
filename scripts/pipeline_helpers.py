@@ -158,10 +158,6 @@ def determine_prompt_source(config_item: Dict[str, Any], custom_prompt: Optional
         extra_args.extend(["--prompt_file_path", abs_global_prompt_path])
         prompt_count = count_prompts_in_file(global_prompt_file)
         description = f"Using global default prompt file: {global_prompt_file}\n  → Processing {prompt_count} prompts"
-    elif config_defaults and "prompt" in config_defaults:
-        extra_args.extend(["--prompt", config_defaults["prompt"]])
-        prompt_count = 1
-        description = f"Using global default prompt: {config_defaults['prompt'][:60]}..."
     
     return extra_args, description, prompt_count
 

@@ -26,6 +26,7 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
         enable_profile=False,
         profiling_rounds=4,
         control_image_path: str = None,
+        is_dynamic=False,
         revision: str = None,
     ):
         self.model_id = model_id
@@ -33,6 +34,7 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
         self.profiling_rounds = profiling_rounds
         self.control_image_path = control_image_path
         self.pipeline_metrics = {}
+        self.is_dynamic = is_dynamic
         self.mem_dict = {
             "unet": 0,
             "vae_decoder": 0,
@@ -102,7 +104,7 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
                 model_type="unet",
                 model_file="unet.onnx",
                 # CHANGE MODIFIED: Dynamic provider selection instead of hardcoded ["DmlExecutionProvider"]
-                providers=self._get_execution_providers(),                
+                providers=self._get_execution_providers(),
             )
         mem_change = common.measure_mem() - start_mem
         self.mem_dict["unet"] = mem_change
@@ -120,6 +122,7 @@ class StableDiffusionXLONNXPipelineAMDTrigger:
                 enable_dd_fusion_compile=enable_compile,
                 # CHANGE MODIFIED: Dynamic provider selection instead of hardcoded ["DmlExecutionProvider"]
                 providers=self._get_execution_providers(),
+                is_dynamic=is_dynamic,
             )
             self.t_npu += time.perf_counter() - t0_npu_start
         else:

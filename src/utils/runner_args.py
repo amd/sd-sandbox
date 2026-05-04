@@ -22,6 +22,12 @@ parser.add_argument(
 parser.add_argument(
     "-c", "--enable_compile", action="store_true", help="Enable compile fusion runtime."
 )
+parser.add_argument(
+    "-O1",
+    "--optimize_o1",
+    action="store_true",
+    help="Enable O1 preset optimizations.",
+)
 # model related args
 parser.add_argument(
     "--model_id",
@@ -31,7 +37,12 @@ parser.add_argument(
         e.g., 'runwayml/stable-diffusion-v1-5', 'stabilityai/stable-diffusion-2-1-base', \
             'stabilityai/sd-turbo', 'stabilityai/stable-diffusion-2-1', 'stabilityai/sdxl-turbo', \
             'stabilityai/stable-diffusion-xl-base-1.0', 'stabilityai/stable-diffusion-3-medium-diffuser', \
-            stabilityai/stable-diffusion-3.5-medium",
+            'stabilityai/stable-diffusion-3.5-medium', 'black-forest-labs/FLUX.1-schnell', \
+            'black-forest-labs/FLUX.1-dev', \
+            'stabilityai/stable-diffusion-3.5-medium', \
+            'playgroundai/playground-v2.5-1024px-aesthetic', \
+            '/Lykon/dreamshaper-xl-lightning', 'segmind/SSD-1B',\
+            'Kwai-Kolors/Kolors'",
 )
 parser.add_argument(
     "--model_path",
@@ -145,6 +156,11 @@ parser.add_argument(
     help="T5 sequence length (77 or 83)",
 )
 parser.add_argument(
+    "--prompt_2",
+    type=str,
+    help="Second prompt for dual text encoder models (e.g., Flux T5 encoder)",
+)
+parser.add_argument(
     "-pr",
     "--profiling_rounds",
     type=int,
@@ -166,7 +182,7 @@ parser.add_argument(
 # IMPORTANT: Default is None (not a JSON file path) to support two distinct use cases:
 # 1. --dynamic_shape with --width/--height: Use specified resolution with dynamic shape models
 # 2. --dynamic_shape with --dynamic_shape_file_path: Iterate through all resolutions in JSON file
-# Previously defaulted to "config/sd3_dynamic_shape.json" which always iterated through all shapes,
+# Previously defaulted to "config/dynamic_shape_8x.json" which always iterated through all shapes,
 # preventing single-resolution testing with dynamic models. Setting default=None allows the
 # run_sd3.py script to differentiate between these two modes based on whether the file path is provided.
 parser.add_argument(
@@ -181,9 +197,28 @@ parser.add_argument(
 parser.add_argument(
     "--strength",
     type=float,
-    default=0.3,
+    default=None,
     help="indicates how much to transform the reference image in segmind-vega image to image pipeline. \
         A value of 1.0 essentially ignores image",
+)
+
+parser.add_argument(
+    "--tea_caching",
+    action="store_true",
+    help=argparse.SUPPRESS,
+)
+parser.add_argument(
+    "--tea_caching_delta",
+    type=float,
+    default=None,
+    help=argparse.SUPPRESS,
+)
+parser.add_argument(
+    "--tea_caching_coef",
+    type=float,
+    nargs="+",
+    default=None,
+    help=argparse.SUPPRESS,
 )
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -791,6 +826,42 @@ def check_args(args):
         )
         args.n_prompt = args.n_prompt or ""
 
+    elif (
+        "playground-v2.5" in args.model_id.lower()
+        or "playground2.5" in args.model_id.lower()
+    ):
+        args.height = args.height or 1024
+        args.width = args.width or 1024
+        args.num_inference_steps = args.num_inference_steps or 50
+        args.guidance_scale = (
+            args.guidance_scale if args.guidance_scale is not None else 3.0
+        )
+        args.num_images_per_prompt = args.num_images_per_prompt or 1
+        args.prompt = args.prompt or "A highly detailed cinematic scene, rich colors, high contrast."
+        args.n_prompt = args.n_prompt or ""
+    
+    elif "dreamshaper-xl-lightning" in args.model_id.lower():
+        args.height = args.height or 1024
+        args.width = args.width or 1024
+        args.num_inference_steps = args.num_inference_steps or 50
+        args.guidance_scale = (
+            args.guidance_scale if args.guidance_scale is not None else 7.5
+        )
+        args.num_images_per_prompt = args.num_images_per_prompt or 1
+        args.prompt = args.prompt or "portrait photo of muscular bearded guy in a worn mech suit, light bokeh, intricate, steel metal, elegant, sharp focus, soft lighting, vibrant colors"
+        args.n_prompt = args.n_prompt or ""
+
+    elif "SSD-1B".lower() in args.model_id.lower():
+        args.height = args.height or 1024
+        args.width = args.width or 1024
+        args.num_inference_steps = args.num_inference_steps or 50
+        args.guidance_scale = (
+            args.guidance_scale if args.guidance_scale is not None else 7.5
+        )
+        args.num_images_per_prompt = args.num_images_per_prompt or 1
+        args.prompt = args.prompt or "An astronaut riding a green horse"
+        args.n_prompt = args.n_prompt or "ugly, blurry, poor quality"
+
     elif "stable-diffusion-xl-base-1.0" in args.model_id or "sdxl-base" in args.model_id:
         args.height = args.height or 1024
         args.width = args.width or 1024
@@ -802,8 +873,53 @@ def check_args(args):
         args.prompt = args.prompt or "An astronaut riding a green horse"
         args.n_prompt = args.n_prompt or ""
 
+    elif "kolors" in args.model_id.lower():
+        args.height = args.height or 1024
+        args.width = args.width or 1024
+        args.num_images_per_prompt = args.num_images_per_prompt or 1
+       
+        if args.controlnet is not None and args.controlnet.lower() != "none":
+            if args.controlnet.lower() == "canny":
+                args.num_inference_steps = args.num_inference_steps or 50
+                # Set prompt file path if neither prompt nor prompt file is specified
+                # if not args.prompt and not args.prompt_file_path:
+                #     args.prompt_file_path = get_absolute_path("config/prompts_config.json")
+                # Only set default prompt if no prompt and no prompt file
+                if not args.prompt and not args.prompt_file_path:
+                    args.prompt = "全景，一只可爱的白色小狗坐在杯子里，看向镜头，动漫风格，3d渲染，辛烷值渲染。"
+                args.n_prompt = args.n_prompt or "nsfw，脸部阴影，低分辨率，jpeg伪影、模糊、糟糕，黑脸，霓虹灯"
+                args.controlnet_conditioning_scale = (
+                    args.controlnet_conditioning_scale
+                    if args.controlnet_conditioning_scale is not None
+                    else 0.7
+                )
+                args.guidance_scale = (
+                    args.guidance_scale if args.guidance_scale is not None else 6.0
+                )
+                args.control_image_path = args.control_image_path or get_absolute_path("test/ref/Canny_dog_condition.jpg")
+                args.seed = args.seed if args.seed is not None else 66
+                args.strength = args.strength or 1.0
+            elif args.controlnet.lower() == "inpainting":
+                args.prompt = args.prompt or "穿着钢铁侠的衣服，高科技盔甲，主要颜色为红色和金色，并且有一些银色装饰。胸前有一个亮起的圆形反应堆装置，充满了未来科技感。超清晰，高质量，超逼真，高分辨率，最好的质量，超级细节，景深"
+                args.n_prompt = args.n_prompt or "残缺的手指，畸形的手指，畸形的手，残肢，模糊，低质量"
+                args.guidance_scale = (
+                    args.guidance_scale if args.guidance_scale is not None else 6.0
+                )
+                args.num_inference_steps = args.num_inference_steps or 25
+                args.strength = args.strength or 0.999
+                args.seed = args.seed if args.seed is not None else 603
+                args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/inpainting/kolors_mask.png")
+                args.control_image_path = args.control_image_path or get_absolute_path("test/ref/inpainting/kolors_origin.png")
+        else:
+            args.num_inference_steps = args.num_inference_steps or 50
+            args.guidance_scale = (
+                args.guidance_scale if args.guidance_scale is not None else 5.0
+            )
+            # args.seed = args.seed if args.seed is not None else 66
+            # args.prompt = args.prompt or "A close-up cinematic photo of a ladybug, macro shot, zoomed, high-quality, holding a sign that says '可图'"
+            args.prompt = args.prompt or "一张瓢虫的照片，微距，变焦，高质量，电影，拿着一个牌子，写着“可图”"
+
     elif "Nitro-E".lower() in args.model_id.lower():
-        
         args.height = args.height or 512
         args.width = args.width or 512
         args.num_inference_steps = args.num_inference_steps or 20
@@ -843,6 +959,85 @@ def check_args(args):
         args.prompt = args.prompt or "An astronaut riding a green horse"
         args.n_prompt = args.n_prompt or ""
 
+    elif "flux.1-schnell" in args.model_id.lower():
+        if args.dynamic_shape_file_path is None and args.height is None and args.width is None:
+            args.height = 512
+            args.width = 512
+        args.num_inference_steps = args.num_inference_steps or 4
+        args.guidance_scale = (
+            args.guidance_scale if args.guidance_scale is not None else 0.0
+        )
+        args.seed = args.seed or 0
+        args.num_images_per_prompt = args.num_images_per_prompt or 1
+        args.prompt = args.prompt or "A beautiful anime girl with long silver hair and blue eyes, wearing a flowing white dress.Standing in a field of flowers under golden sunset.Soft warm lighting, gentle breeze, petals floating in the air.Highly detailed, delicate face, clean line art, vibrant colors, dreamy atmosphere."
+        args.n_prompt = args.n_prompt or ""
+        args.t5_sequence_len = args.t5_sequence_len or 256
+        args.sub_model_path = args.sub_model_path or ""
+        args.common_model_path = args.common_model_path or ""
+    # O1 preset for SD3/SD3.5 tea caching.
+    tea_caching_coef_explicit = args.tea_caching_coef is not None
+    if args.optimize_o1:
+        model_id_lower = args.model_id.lower() if args.model_id else ""
+        is_sd35_model = (
+            "stable-diffusion-3.5" in model_id_lower
+            or "stable-diffusion-3-5" in model_id_lower
+        )
+        is_sd3_model = (
+            "stable-diffusion-3" in model_id_lower
+            and not is_sd35_model
+        )
+        is_controlnet_none = args.controlnet and args.controlnet.lower() == "none"
+        is_controlnet_inpainting = args.controlnet and args.controlnet.lower() == "inpainting"
+
+        if is_sd3_model or is_sd35_model:
+            args.tea_caching = True
+
+            poly10_coef = [1.0, 0.0]
+            flux_coef = [498.651651, -283.781631, 55.8554382, -3.82021401, 0.264230861]
+
+            if is_sd35_model:
+                if is_controlnet_none:
+                    args.tea_caching_delta = args.tea_caching_delta or 0.25
+                    if not tea_caching_coef_explicit:
+                        args.tea_caching_coef = flux_coef
+                elif is_controlnet_inpainting:
+                    args.tea_caching_delta = args.tea_caching_delta or 0.25
+                    if not tea_caching_coef_explicit:
+                        args.tea_caching_coef = flux_coef
+                else:
+                    args.tea_caching_delta = args.tea_caching_delta or 0.15
+                    if not tea_caching_coef_explicit:
+                        args.tea_caching_coef = poly10_coef
+            else:
+                if is_controlnet_none:
+                    args.tea_caching_delta = args.tea_caching_delta or 0.1
+                    if not tea_caching_coef_explicit:
+                        args.tea_caching_coef = poly10_coef
+                elif is_controlnet_inpainting:
+                    args.tea_caching_delta = args.tea_caching_delta or 0.15
+                    if not tea_caching_coef_explicit:
+                        args.tea_caching_coef = poly10_coef
+                else:
+                    args.tea_caching_delta = args.tea_caching_delta or 0.15
+                    if not tea_caching_coef_explicit:
+                        args.tea_caching_coef = poly10_coef
+
+            if is_controlnet_none and args.num_inference_steps <= 4:
+                Logger.info(
+                    "Disable tea caching for O1 when ControlNet=None and num_inference_steps<=4."
+                )
+                args.tea_caching = False
+
+            # Logger.info(
+            #     "O1 preset applied: tea_caching=%s, tea_caching_delta=%s, tea_caching_coef=%s",
+            #     args.tea_caching,
+            #     args.tea_caching_delta,
+            #     args.tea_caching_coef,
+            # )
+
+    if args.tea_caching_coef is None:
+        args.tea_caching_coef = [1.0, 0.0]
+
     if not args.model_path:
         Logger.debug(f"Will auto-download model from Hugging Face: {args.model_id}")
         args.model_path = None
@@ -853,9 +1048,9 @@ def check_args(args):
     system = platform.system()
     share_obj_name = ""
     if system == "Windows":
-        share_obj_name = "onnx_custom_ops.dll"
+        share_obj_name = "onnxruntime_providers_ryzenai.dll"
     elif system == "Linux":
-        share_obj_name = "libonnx_custom_ops.so"
+        share_obj_name = "libonnxruntime_providers_ryzenai.so"
 
     if not args.custom_op_path:
         onnx_utils_root = os.environ.get("ONNX_UTILS_ROOT")

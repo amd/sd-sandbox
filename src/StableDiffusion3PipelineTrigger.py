@@ -9,6 +9,7 @@ import torch
 import importlib
 import logging as Logger
 import copy
+from typing import List
 from transformers import CLIPTokenizer, CLIPTextModel
 from diffusers.utils import load_image
 from diffusers import FlowMatchEulerDiscreteScheduler
@@ -40,6 +41,9 @@ class StableDiffusion3PipelineTrigger:
         t5_sequence_len=83,
         is_dynamic=False,
         revision: str = None,
+        tea_caching: bool = False,
+        tea_caching_delta: float = 0.1,
+        tea_caching_coef: List[float] = [1.0, 0.0],
     ):
         self.model_id = model_id
         self.enable_profile = enable_profile
@@ -51,6 +55,7 @@ class StableDiffusion3PipelineTrigger:
             "controlnet": 0,
             "mmdit": 0,
             "vae_decoder": 0,
+            "tea_caching": 0,
         }
 
         # Auto-download from Hugging Face if model_path not provided
@@ -195,6 +200,29 @@ class StableDiffusion3PipelineTrigger:
             t5_sequence_len=t5_sequence_len,
             is_dynamic=is_dynamic,
         )
+        
+        if tea_caching:
+            self.tea_caching_model = common.load_model_with_session(
+                MODEL_PATH=abs_sub_model_path,
+                model_type="tea_caching",
+                model_file="replaced.onnx",
+                providers=["CPUExecutionProvider"],
+                custom_op_path=custom_op_path,
+                enable_dd_fusion_compile=enable_compile,
+                width=width,
+                t5_sequence_len=t5_sequence_len,
+                is_dynamic=is_dynamic,
+            )
+            self.mem_dict["tea_caching"] = 0
+            Logger.debug(f"Tea Caching Mem: {0}MB")
+            self.enable_tea_caching = True
+            self.tea_caching_delta = tea_caching_delta
+            self.tea_caching_coef = tea_caching_coef
+        else:
+            self.tea_caching_model = None
+            self.enable_tea_caching = False
+            self.tea_caching_delta = 0.0
+            self.tea_caching_coef = [1.0, 0.0]
 
         mem_change = common.measure_mem() - start_mem
         self.mem_dict["mmdit"] = mem_change
@@ -260,6 +288,7 @@ class StableDiffusion3PipelineTrigger:
             transformer=self.transformer,
             vae_decoder=self.vae_decoder,
             controlnet=self.controlnet,
+            tea_caching=self.tea_caching_model,
         )
         config_dict = {}
         config_dict["height"] = height
@@ -270,6 +299,10 @@ class StableDiffusion3PipelineTrigger:
         config_dict["num_images_per_prompt"] = num_images_per_prompt
         config_dict["guidance_scale"] = guidance_scale
         config_dict["seed"] = seed
+        if self.enable_tea_caching:
+            config_dict["O1"] = True
+            config_dict["O1 delta"] = self.tea_caching_delta
+            config_dict["O1 coef"] = self.tea_caching_coef
         if self.controlnet:
             config_dict["controlnet_conditioning_scale"] = controlnet_conditioning_scale
             config_dict["control_img_url"] = control_image_path
@@ -300,6 +333,9 @@ class StableDiffusion3PipelineTrigger:
                 ),
                 max_sequence_length=self.t5_sequence_len,
                 guidance_scale=guidance_scale,
+                enable_tea_caching=self.enable_tea_caching,
+                tea_caching_delta=self.tea_caching_delta,
+                tea_caching_coef=self.tea_caching_coef,
             )
             Logger.debug(f"Current Mem while warm up: {common.measure_mem()}MB")
             execution_time = time.perf_counter() - t_start
@@ -328,6 +364,9 @@ class StableDiffusion3PipelineTrigger:
                     ),
                     max_sequence_length=self.t5_sequence_len,
                     guidance_scale=guidance_scale,
+                    enable_tea_caching=self.enable_tea_caching,
+                    tea_caching_delta=self.tea_caching_delta,
+                    tea_caching_coef=self.tea_caching_coef,
                 )
                 Logger.debug(f"Current Mem: {common.measure_mem()}MB")
                 # CHANGED: Added progress marker for orchestrator real-time tracking (sd_ref_design integration)
@@ -376,6 +415,10 @@ class StableDiffusion3PipelineTrigger:
                 ),
                 max_sequence_length=self.t5_sequence_len,
                 guidance_scale=guidance_scale,
+                enable_tea_caching=self.enable_tea_caching,
+                tea_caching_delta=self.tea_caching_delta,
+                tea_caching_coef=self.tea_caching_coef,
+                
             )
             execution_time = time.perf_counter() - start
             Logger.info(f"Pipeline execution time = {execution_time:.6f}s")

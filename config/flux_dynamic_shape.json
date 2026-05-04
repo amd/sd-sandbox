@@ -1,0 +1,22 @@
+[
+    {"height": 512, "width": 512, "txt_seq_len": 256},
+    {"height": 640, "width": 640, "txt_seq_len": 256},
+    {"height": 768, "width": 768, "txt_seq_len": 256},
+    {"height": 1024, "width": 1024, "txt_seq_len": 256},
+    {"height": 384, "width": 512, "txt_seq_len": 256},
+    {"height": 480, "width": 640, "txt_seq_len": 256},
+    {"height": 576, "width": 768, "txt_seq_len": 256},
+    {"height": 768, "width": 1024, "txt_seq_len": 256},
+    {"height": 512, "width": 384, "txt_seq_len": 256},
+    {"height": 640, "width": 480, "txt_seq_len": 256},
+    {"height": 768, "width": 576, "txt_seq_len": 256},
+    {"height": 1024, "width": 768, "txt_seq_len": 256},
+    {"height": 288, "width": 512, "txt_seq_len": 256},
+    {"height": 384, "width": 640, "txt_seq_len": 256},
+    {"height": 448, "width": 768, "txt_seq_len": 256},
+    {"height": 576, "width": 1024, "txt_seq_len": 256},
+    {"height": 512, "width": 288, "txt_seq_len": 256},
+    {"height": 640, "width": 384, "txt_seq_len": 256},
+    {"height": 768, "width": 448, "txt_seq_len": 256},
+    {"height": 1024, "width": 576, "txt_seq_len": 256}
+]

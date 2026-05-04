@@ -1,0 +1,10 @@
+[
+    {"height": 512, "width": 512, "t5_sequence_len": 83},
+    {"height": 512, "width": 768, "t5_sequence_len": 83},
+    {"height": 768, "width": 512, "t5_sequence_len": 83},
+    {"height": 576, "width": 1024, "t5_sequence_len": 83},
+    {"height": 1024, "width": 576, "t5_sequence_len": 83},
+    {"height": 768, "width": 1024, "t5_sequence_len": 83},
+    {"height": 1024, "width": 768, "t5_sequence_len": 83},
+    {"height": 1024, "width": 1024, "t5_sequence_len": 83}
+]

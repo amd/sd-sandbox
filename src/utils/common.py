@@ -9,17 +9,25 @@ import json
 import sys
 import time
 import logging as Logger
+from dataclasses import dataclass
 import re
 import warnings
 import psutil
 import ctypes
 from pathlib import Path
+try:
+    import winreg
+    _WINREG_AVAILABLE = True
+except ImportError:
+    _WINREG_AVAILABLE = False
 import pandas as pd
 from huggingface_hub import snapshot_download
 
 process = psutil.Process()
 from diffusers import OnnxRuntimeModel
 
+_EP_REGISTERED = False
+EP_NAME = "RyzenAILightExecutionProvider"
 
 
 def _configure_external_loggers():
@@ -293,9 +301,10 @@ def LoadModel(
 
     # load model
     t0 = time.perf_counter()
-    m = onnxruntime.InferenceSession(
-        model_abs_path, sess_options=session_options, providers=providers
-    )
+    if session_options is not None:
+        providers = None
+    
+    m = onnxruntime.InferenceSession(model_abs_path, sess_options=session_options, providers=providers)
     Logger.debug(f"Model {folder} loading time = {time.perf_counter() - t0}s")
 
     # Print the active providers
@@ -315,8 +324,91 @@ def LoadModel(
 
     return m
 
+def register_ep(ep_dll: Path) -> None:
+    """Register the RyzenAI EP once per process."""
+    global _EP_REGISTERED
+    if _EP_REGISTERED:
+        return
+    prev_cwd = os.getcwd()
+    try:
+        os.chdir(ep_dll.parent)
+        onnxruntime.register_execution_provider_library(EP_NAME, str(ep_dll))
+    finally:
+        os.chdir(prev_cwd)
+    _EP_REGISTERED = True
+
+    
+def get_total_physical_memory_gb() -> float:
+    """Get the total physical memory of the system (GiB) using the Windows GlobalMemoryStatusEx API."""
+    kernel32 = ctypes.windll.kernel32
+    class MEMORYSTATUSEX(ctypes.Structure):
+        _fields_ = [
+            ("dwLength", ctypes.c_ulong),
+            ("dwMemoryLoad", ctypes.c_ulong),
+            ("ullTotalPhys", ctypes.c_ulonglong),
+            ("ullAvailPhys", ctypes.c_ulonglong),
+            ("ullTotalPageFile", ctypes.c_ulonglong),
+            ("ullAvailPageFile", ctypes.c_ulonglong),
+            ("ullTotalVirtual", ctypes.c_ulonglong),
+            ("ullAvailVirtual", ctypes.c_ulonglong),
+            ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+        ]
+
+    stat = MEMORYSTATUSEX()
+    stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+    kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))
+    return stat.ullTotalPhys / (1024 ** 3)
+
+
+def get_shared_memory_limit_gb() -> float:
+    total_mem = get_total_physical_memory_gb()
+    if not _WINREG_AVAILABLE:
+        return total_mem
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Control\GraphicsDrivers\MemoryManager",
+        )
+        value, _ = winreg.QueryValueEx(key, "SystemPartitionCommitLimitPercentage")
+        winreg.CloseKey(key)
+    except FileNotFoundError:
+        value = 50
+    return total_mem * value / 100
+
+
+def apply_low_memory_optimization(
+    session_options: onnxruntime.SessionOptions,
+    threshold_gb: float,
+) -> bool:
+    if threshold_gb < 0.0:
+        return False
+    shared_gb = get_shared_memory_limit_gb()
+    Logger.info(
+        f"Shared memory limit: {shared_gb:.2f} GiB, threshold: {threshold_gb:.2f} GiB"
+    )
+    if shared_gb < threshold_gb:
+        Logger.info(
+            f"enable_shared_const_buffers "
+            f"(shared {shared_gb:.2f} GiB < threshold {threshold_gb:.2f} GiB)."
+        )
+        total_gb = get_total_physical_memory_gb()
+        minimum_shared_threshold = threshold_gb / total_gb
+        if total_gb < threshold_gb:
+            pass
+        else:
+            Logger.warning(f"If the shared memory is less than the minimum shared threshold, the performance will be degraded.")
+            Logger.warning(f"You can set the shared memory percentage by setting the value of "
+                           f"SYSTEM\CurrentControlSet\Control\GraphicsDrivers\MemoryManager\SystemPartitionCommitLimitPercentage "
+                           f"at least {minimum_shared_threshold * 100.0:.2f}% to achieve better performance.")
+        return True
+    return False
+
+
 def config_session_options(
-    custom_op_path, dd_model_path, enable_dd_fusion_compile
+    custom_op_path,
+    dd_model_path,
+    enable_dd_fusion_compile,
+    low_memory_threshold_gb: float = -1.0,
 ):
     print(f'custom op   path: {custom_op_path}')
     # CHANGED: Check if custom_op_path exists before loading to prevent errors when path is None/invalid
@@ -326,15 +418,23 @@ def config_session_options(
     session_options.graph_optimization_level = (
         onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     )
+    low_memory_optimized = apply_low_memory_optimization(session_options, threshold_gb=low_memory_threshold_gb)
     if custom_op_path and os.path.exists(custom_op_path):
-        session_options.add_session_config_entry("dd_cache", (Path(dd_model_path).parent / "cache").as_posix())
-        # model loading optimization
-        session_options.add_session_config_entry(
-            "onnx_custom_ops_const_key", dd_model_path
-        )
-        # can be commented out to reduce compiling time if you have compiled before
+        register_ep(Path(custom_op_path))
+        const_key = dd_model_path if low_memory_optimized else ""
+        ep_options = {
+            "dd_cache": (Path(dd_model_path).parent / "cache").as_posix(),
+            "onnx_custom_ops_const_key": const_key,
+        }
+        if low_memory_optimized:
+            ep_options["enable_shared_const_buffers"] = "1"
         if enable_dd_fusion_compile:
-            session_options.add_session_config_entry("compile_fusion_rt", "1")
+            ep_options["compile_fusion_rt"] = "1"
+        # RyzenAI EP handles DynamicDispatch ops; CPU handles MemcpyFromHost and other fallbacks.
+        session_options.add_provider_for_devices(
+            [d for d in onnxruntime.get_ep_devices() if d.ep_name == EP_NAME], ep_options
+        )
+        session_options.add_provider("CPUExecutionProvider", {})
         session_options.register_custom_ops_library(custom_op_path)
     return session_options
 
@@ -487,6 +587,7 @@ def load_model_with_session(
     width=None,
     t5_sequence_len=None,
     is_dynamic=False,
+    low_memory_threshold_gb: float = -1.0,
 ):
     session = None
     dd_model_dir = model_type
@@ -504,6 +605,7 @@ def load_model_with_session(
             custom_op_path,
             os.path.join(MODEL_PATH, dd_model_dir, model_file),
             enable_dd_fusion_compile,
+            low_memory_threshold_gb=low_memory_threshold_gb,
         )
     return LoadModel(
         MODEL_PATH,

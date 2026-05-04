@@ -10,6 +10,7 @@ import numpy as np
 import importlib
 import logging as Logger
 import copy
+from typing import List
 
 from diffusers.utils import load_image
 from transformers import (
@@ -45,7 +46,12 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
         width=1024,
         t5_sequence_len=83,
         revision: str = None,
+        tea_caching: bool = False,
+        tea_caching_delta: float = 0.1,
+        tea_caching_coef: List[float] = None,
     ):
+        if tea_caching_coef is None:
+            tea_caching_coef = [1.0, 0.0]
         self.model_id = model_id
         self.enable_profile = enable_profile
         self.profiling_rounds = profiling_rounds
@@ -55,8 +61,9 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
             "controlnet": 0,
             "mmdit": 0,
             "vae_decoder": 0,
+            "tea_caching": 0,
         }
-        
+
         # Auto-download from Hugging Face if model_path not provided
         if model_path is None:
             Logger.debug("=" * 60)
@@ -118,6 +125,25 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
         Logger.info(f"Image preprocess time: {self.image_preprocess_time:.2f}s")
         abs_sub_model_path = os.path.join(model_path, sub_model_path) if sub_model_path else model_path
         abs_common_model_path = os.path.join(model_path, common_model_path) if common_model_path else model_path
+
+        transformer_model_path = common.pick_aux_model_root(
+            abs_sub_model_path,
+            model_path,
+            "transformer",
+            width=width,
+            t5_sequence_len=t5_sequence_len,
+            gpu=gpu,
+        )
+        tea_model_path = None
+        if tea_caching:
+            tea_model_path = common.pick_aux_model_root(
+                abs_sub_model_path,
+                model_path,
+                "tea_caching",
+                width=width,
+                t5_sequence_len=t5_sequence_len,
+                gpu=gpu,
+            )
 
         t0_start = time.perf_counter()
         self.tokenizer = CLIPTokenizer.from_pretrained(
@@ -190,6 +216,7 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
             mem_change = common.measure_mem() - start_mem
             self.mem_dict["vae_encoder"] = mem_change
             Logger.debug(f"VAE Encoder Mem: {mem_change}MB")
+
             # Load controlnet model
             start_mem = common.measure_mem()
             self.controlnet = common.load_model_with_session(
@@ -205,9 +232,11 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
             mem_change = common.measure_mem() - start_mem
             self.mem_dict["controlnet"] = mem_change
             Logger.debug(f"controlnet Mem: {mem_change}MB")
+
+            # Load mmdit model (may live under sibling ``normal`` if absent from inpainting root)
             start_mem = common.measure_mem()
             self.transformer = common.load_model_with_session(
-                MODEL_PATH=abs_sub_model_path,
+                MODEL_PATH=transformer_model_path,
                 model_type="transformer",
                 model_file="replaced.onnx",
                 custom_op_path=custom_op_path,
@@ -219,6 +248,31 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
             mem_change = common.measure_mem() - start_mem
             self.mem_dict["mmdit"] = mem_change
             Logger.debug(f"mmdit Mem: {mem_change}MB")
+
+            if tea_caching:
+                start_mem = common.measure_mem()
+                self.tea_caching_model = common.load_model_with_session(
+                    MODEL_PATH=tea_model_path,
+                    model_type="tea_caching",
+                    model_file="replaced.onnx",
+                    custom_op_path=custom_op_path,
+                    enable_dd_fusion_compile=enable_compile,
+                    providers=["DmlExecutionProvider"],
+                    width=width,
+                    t5_sequence_len=t5_sequence_len,
+                )
+                mem_change = common.measure_mem() - start_mem
+                self.mem_dict["tea_caching"] = mem_change
+                Logger.debug(f"Tea Caching Mem: {mem_change}MB")
+                self.enable_tea_caching = True
+                self.tea_caching_delta = tea_caching_delta
+                self.tea_caching_coef = tea_caching_coef
+            else:
+                self.tea_caching_model = None
+                self.enable_tea_caching = False
+                self.tea_caching_delta = 0.0
+                self.tea_caching_coef = [1.0, 0.0]
+
             t0_npu_end = time.perf_counter()
             self.t_npu = t0_npu_end - t0_npu_start
         else:
@@ -244,13 +298,28 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
             )
             mem_change = common.measure_mem() - start_mem
             self.mem_dict["controlnet"] = mem_change
-            # Load mmdit model
+            # Load mmdit model (may live under sibling ``normal`` if absent from inpainting root)
             start_mem = common.measure_mem()
             self.transformer = common.LoadModel(
-                abs_sub_model_path, "transformer", "transformer"
+                transformer_model_path, "transformer", "transformer"
             )
             mem_change = common.measure_mem() - start_mem
             self.mem_dict["mmdit"] = mem_change
+            if tea_caching:
+                start_mem = common.measure_mem()
+                self.tea_caching_model = common.LoadModel(
+                    tea_model_path, "tea_caching", "tea_caching"
+                )
+                mem_change = common.measure_mem() - start_mem
+                self.mem_dict["tea_caching"] = mem_change
+                self.enable_tea_caching = True
+                self.tea_caching_delta = tea_caching_delta
+                self.tea_caching_coef = tea_caching_coef
+            else:
+                self.tea_caching_model = None
+                self.enable_tea_caching = False
+                self.tea_caching_delta = 0.0
+                self.tea_caching_coef = [1.0, 0.0]
             # Load vae decoder model
             start_mem = common.measure_mem()
             self.vae_decoder = common.LoadModel(
@@ -341,23 +410,27 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
             controlnet=self.controlnet,
             transformer=self.transformer,
             vae_decoder=self.vae_decoder,
+            tea_caching=self.tea_caching_model,
         )
 
-        common.print_config(
-            {
-                "height": height,
-                "width": width,
-                "prompt": prompt,
-                "n_prompt": n_prompt,
-                "num_inference_steps": num_inference_steps,
-                "num_images_per_prompt": num_images_per_prompt,
-                "guidance_scale": guidance_scale,
-                "controlnet_conditioning_scale": controlnet_conditioning_scale,
-                "control_image_path": control_image_path,
-                "control_mask_path": control_mask_path,
-                "seed": seed,
-            }
-        )
+        config_dict = {
+            "height": height,
+            "width": width,
+            "prompt": prompt,
+            "n_prompt": n_prompt,
+            "num_inference_steps": num_inference_steps,
+            "num_images_per_prompt": num_images_per_prompt,
+            "guidance_scale": guidance_scale,
+            "controlnet_conditioning_scale": controlnet_conditioning_scale,
+            "control_image_path": control_image_path,
+            "control_mask_path": control_mask_path,
+            "seed": seed,
+        }
+        if self.enable_tea_caching:
+            config_dict["O1"] = True
+            config_dict["O1 delta"] = self.tea_caching_delta
+            config_dict["O1 coef"] = self.tea_caching_coef
+        common.print_config(config_dict)
 
         time_record = []
         if not self.enable_profile:
@@ -378,6 +451,9 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
                 ),
                 max_sequence_length=t5_sequence_len,
                 guidance_scale=guidance_scale,
+                enable_tea_caching=self.enable_tea_caching,
+                tea_caching_delta=self.tea_caching_delta,
+                tea_caching_coef=self.tea_caching_coef,
             ).images
             end = time.perf_counter()
             execution_time = end - start
@@ -403,6 +479,9 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
                 ),
                 max_sequence_length=t5_sequence_len,
                 guidance_scale=guidance_scale,
+                enable_tea_caching=self.enable_tea_caching,
+                tea_caching_delta=self.tea_caching_delta,
+                tea_caching_coef=self.tea_caching_coef,
             ).images
             Logger.debug(f"Current Mem while warm up: {common.measure_mem()}MB")
             execution_time = time.perf_counter() - t_start
@@ -432,6 +511,9 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger:
                     ),
                     max_sequence_length=t5_sequence_len,
                     guidance_scale=guidance_scale,
+                    enable_tea_caching=self.enable_tea_caching,
+                    tea_caching_delta=self.tea_caching_delta,
+                    tea_caching_coef=self.tea_caching_coef,
                 ).images
 
                 Logger.debug(f"Current Mem: {common.measure_mem()}MB")

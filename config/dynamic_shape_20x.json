@@ -1,0 +1,22 @@
+[
+    {"height": 512, "width": 512, "t5_sequence_len": 83},
+    {"height": 640, "width": 640, "t5_sequence_len": 83},
+    {"height": 768, "width": 768, "t5_sequence_len": 83},
+    {"height": 1024, "width": 1024, "t5_sequence_len": 83},
+    {"height": 512, "width": 384, "t5_sequence_len": 83},
+    {"height": 640, "width": 480, "t5_sequence_len": 83},
+    {"height": 768, "width": 576, "t5_sequence_len": 83},
+    {"height": 1024, "width": 768, "t5_sequence_len": 83},
+    {"height": 384, "width": 512, "t5_sequence_len": 83},
+    {"height": 480, "width": 640, "t5_sequence_len": 83},
+    {"height": 576, "width": 768, "t5_sequence_len": 83},
+    {"height": 768, "width": 1024, "t5_sequence_len": 83},
+    {"height": 512, "width": 288, "t5_sequence_len": 83},
+    {"height": 640, "width": 384, "t5_sequence_len": 83},
+    {"height": 768, "width": 448, "t5_sequence_len": 83},
+    {"height": 1024, "width": 576, "t5_sequence_len": 83},
+    {"height": 288, "width": 512, "t5_sequence_len": 83},
+    {"height": 384, "width": 640, "t5_sequence_len": 83},
+    {"height": 448, "width": 768, "t5_sequence_len": 83},
+    {"height": 576, "width": 1024, "t5_sequence_len": 83}
+]
