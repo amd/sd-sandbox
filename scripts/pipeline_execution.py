@@ -43,7 +43,7 @@ def build_command(script_path: Path, script_name: str, model_id: str,
         profiling_rounds (int): Number of profiling rounds to run
         extra_args (List[str]): Additional arguments from configuration
         image_only (bool): If True, run in batch mode without profiling (default: False)
-        custom_op_path (str, optional): Path to onnx_custom_ops.dll or libonnx_custom_ops.so
+        custom_op_path (str, optional): Path to onnxruntime_providers_ryzenai.dll (RyzenAI provider library)
         
     Returns:
         List[str]: Complete command list ready for subprocess execution
@@ -62,9 +62,7 @@ def build_command(script_path: Path, script_name: str, model_id: str,
         common_args = ["--enable_profile", "--verbose", "--no_excel"]  # MODIFIED: Removed --no_images to allow image generation by default
     
     filtered_extra_args = filter_extra_args(extra_args, ["--output_image"])
-    # SD30 controlnet script doesn't use --model_id; all others do
-    if script_name != "run_sd30_controlnet.py":
-        cmd.extend(["--model_id", model_id])
+    cmd.extend(["--model_id", model_id])
     cmd.extend(common_args + ["--profiling_rounds", str(profiling_rounds)] + filtered_extra_args)
     
     # Add custom_op_path if provided
@@ -290,7 +288,7 @@ def handle_sd3_controlnet_mode(script_name: str, prompt_file_path: Optional[str]
     Returns:
         Updated prompt description
     """
-    if script_name != "run_sd30_controlnet.py" or not prompt_file_path or "--controlnet" not in extra_args:
+    if script_name not in ("run_sd3.py", "run_sd3_controlnet_outpainting.py") or not prompt_file_path or "--controlnet" not in extra_args:
         return prompt_description
     
     try:
@@ -568,7 +566,7 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
         determine_prompt_source_func: Function to determine prompt source
         image_only: If True, run in batch mode without profiling
         traceback_enabled: If True, include full traceback in error messages
-        custom_op_path: Optional path to onnx_custom_ops.dll or libonnx_custom_ops.so
+        custom_op_path: Optional path to onnxruntime_providers_ryzenai.dll (RyzenAI provider library)
         control_images_path: Optional base path for resolving relative control image paths
         config_files_path: Optional base path for resolving relative config file paths
         

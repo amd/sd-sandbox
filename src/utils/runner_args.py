@@ -1052,10 +1052,11 @@ def check_args(args):
     elif system == "Linux":
         share_obj_name = "libonnxruntime_providers_ryzenai.so"
 
+    candidates = []
+    
     if not args.custom_op_path:
         onnx_utils_root = os.environ.get("ONNX_UTILS_ROOT")
         ryzen_root = os.environ.get("RYZEN_AI_INSTALLATION_PATH")
-        candidates = []
 
         # 1. ONNX_UTILS_ROOT/build/install/bin
         if onnx_utils_root:
@@ -1086,14 +1087,16 @@ def check_args(args):
             f"Searched paths:\n  " + "\n  ".join(candidates)
         )
 
-    # Set DD_PLUGINS_ROOT for all SD3 related models
-    is_sd3_model = (
-        "stable-diffusion-3" in args.model_id.lower()
-        or "stable-diffusion-3.5" in args.model_id.lower()
-        or "stable-diffusion-3-5" in args.model_id.lower()
+    # Set DD_PLUGINS_ROOT for models that require transaction plugins
+    model_id_lower = args.model_id.lower()
+    needs_dd_plugins = (
+        "stable-diffusion-3" in model_id_lower
+        or "stable-diffusion-3.5" in model_id_lower
+        or "stable-diffusion-3-5" in model_id_lower
+        or "flux" in model_id_lower
     )
     
-    if is_sd3_model:
+    if needs_dd_plugins:
         # Set DD_PLUGINS_ROOT if not set or empty
         if not os.environ.get("DD_PLUGINS_ROOT"):
             os.environ["DD_PLUGINS_ROOT"] = get_absolute_path("lib/transaction/stx")

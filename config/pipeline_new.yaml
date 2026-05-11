@@ -1,0 +1,187 @@
+# Pipeline Configuration File
+# This file defines all available pipeline configurations and settings
+
+# Project paths configuration
+paths:
+  # Path to models directory (relative to workspace root if not absolute)
+  # models_path: "C:/Users/amd87/Desktop/GenAI-SD-v0224/models/"
+  
+  # Path to test scripts directory (relative to workspace root if not absolute)
+  test_path: "./test"
+  
+  # Path to control images directory (for ControlNet pipelines)
+  # Allows using relative paths in --control_image_path arguments
+  control_images_path: "./test/assets"
+  
+  # Path to configuration files directory (for dynamic shape configs, etc.)
+  # Allows using relative paths in --dynamic_shape_file_path arguments
+  config_files_path: "./config"
+
+# Default settings
+defaults:
+  width: 512
+  height: 512
+  # Streaming display settings
+  streaming_output: true # Enable real-time output by default
+  # Execution provider settings
+  execution:
+    force_cpu: false  # Set to true to force CPU-only execution (disables DML)
+      # RyzenAI provider library path (optional)
+  # Points to the lib directory that should be copied from RyzenAI installation
+  # If not specified, runner_args.py will search in standard locations:
+  # 1. ONNX_UTILS_ROOT/build/install/bin
+  # 2. RYZEN_AI_INSTALLATION_PATH/deployment
+  # 3. project_root/lib
+  # custom_op_path: "./lib/onnxruntime_providers_ryzenai.dll"
+  prompt: "An astronaut riding a green horse in a futuristic cityscape. The astronaut is carrying the Canadian flag."
+
+# default 4 iters, 5x resolutions 
+pipelines:
+  sdxl_turbo:
+    name: "SDXL Turbo Pipeline"
+    script: "run_sd_xl.py"
+    width: 512  # SDXL Turbo optimized for 512x512 for speed
+    height: 512
+    model_ids:
+      - "amd/sdxl-turbo-amdnpu"
+    extra_args:
+      - "--revision"
+      - "1.8.0"
+      - "--num_inference_steps"
+      - "4"
+      - "--guidance_scale"
+      - "0.0"
+      - "--dynamic_shape"
+      - "--dynamic_shape_file_path"
+      - "dynamic_shape_5x.json"
+
+
+# https://huggingface.co/amd/sdxl-base-amdnpu
+# amd/sdxl-base-amdnpu
+# Default prompt: "An astronaut riding a green horse"
+# default: 30 iters, 20x resolutions
+  sdxl_base:
+    name: "SDXL Base Pipeline"
+    script: "run_sd_xl.py"
+    width: 1024  # SDXL requires 1024x1024 for 128x128 latents
+    height: 1024
+    model_ids:
+      - "amd/sdxl-base-amdnpu"
+    extra_args:
+      - "--revision"
+      - "1.8.0"
+      - "--num_inference_steps"
+      - "30"
+      - "--dynamic_shape"
+      - "--dynamic_shape_file_path"
+      - "dynamic_shape_20x.json"
+
+
+
+# https://huggingface.co/amd/SSD-1B-amdnpu/tree/main
+# default 30 steps 20x resolutions
+  ssd_1b:
+    name: "SSD-1B Pipeline"
+    script: "run_sd_xl.py"
+    width: 1024
+    height: 1024
+    model_ids:
+      - "amd/SSD-1B-amdnpu"
+    extra_args:
+      - "--num_inference_steps"
+      - "30"
+      - "--dynamic_shape"
+      - "--dynamic_shape_file_path"
+      - "dynamic_shape_20x.json"
+
+
+
+# segmind/SSD-1B - Compact SDXL variant
+  playground_25:
+    name: "Playground 2.5 Pipeline"
+    script: "run_sd_xl.py"
+    width: 1024
+    height: 1024
+    model_ids:
+      - "amd/playground-v2.5-1024px-aesthetic-amdnpu"
+    extra_args:
+      - "--num_inference_steps"
+      - "30"
+      - "--dynamic_shape"
+      - "--dynamic_shape_file_path"
+      - "dynamic_shape_20x.json"
+
+# https://huggingface.co/amd/dreamshaper-xl-lightning-amdnpu/tree/main
+# default: 6 iters, 20x resolutions
+  dreamshaper_xl:
+    name: "DreamShaper XL Pipeline"
+    script: "run_sd_xl.py"
+    width: 1024
+    height: 1024
+    model_ids:
+      - "amd/dreamshaper-xl-lightning-amdnpu"
+    extra_args:
+      - "--num_inference_steps"
+      - "6"
+      - "--dynamic_shape"
+      - "--dynamic_shape_file_path"
+      - "dynamic_shape_20x.json"
+
+# https://huggingface.co/amd/stable-diffusion-3.5-medium-amdnpu
+#  amd/stable-diffusion-3.5-medium-amdnpu
+# default: 30 iters, 20x resolutions
+### SD 3.5
+  sd35_base:
+    name: "SD3.5 Pipeline"
+    script: "run_sd3.py"
+    model_ids:
+      - "amd/stable-diffusion-3.5-medium-amdnpu"
+    extra_args:
+      - "--revision"
+      - "1.8.0"
+      - "--num_inference_steps"
+      - "30"
+      - "--width"
+      - "1024"
+      - "--height"
+      - "1024"
+      - "--controlnet"
+      - "None"
+      - "--guidance_scale"
+      - "4.5"
+      - "--dynamic_shape"
+      - "--dynamic_shape_file_path"
+      - "dynamic_shape_20x.json"
+
+
+# https://huggingface.co/black-forest-labs/FLUX.1-schnell
+# black-forest-labs/FLUX.1-schnell - Fast Flux model
+# default: 4 iters, 20x resolutions
+  flux_schnell:
+    name: "FLUX.1 Schnell Pipeline"
+    script: "run_flux.py"
+    width: 1024
+    height: 1024
+    model_ids:
+      - "amd/FLUX.1-schnell-amdnpu"
+    extra_args:
+      - "--num_inference_steps"
+      - "4"
+      - "--guidance_scale"
+      - "0.0"
+      - "--revision"
+      - "1.8.0"
+      - "--dynamic_shape"
+      - "--dynamic_shape_file_path"
+      - "dynamic_shape_20x.json"
+
+pipeline_groups:
+
+  all:
+    - sdxl_turbo
+    - sdxl_base
+    - sd35_base
+    - ssd_1b
+    - playground_25
+    - dreamshaper_xl
+    - flux_schnell

@@ -100,11 +100,19 @@ def download_model_from_huggingface(model_id: str, force_download: bool = False,
         # Target path where the model will be downloaded
         model_name = model_id.replace("/", "_")
         local_model_path = cache_dir / model_name
+        revision_file = local_model_path / ".revision"
         
-        # If model exists locally and not forcing download, use cached version
+        # If model exists locally and not forcing download, check revision matches
         if local_model_path.exists() and not force_download:
-            Logger.debug(f"Using locally cached model: {local_model_path}")
-            return str(local_model_path)
+            cached_revision = None
+            if revision_file.exists():
+                cached_revision = revision_file.read_text(encoding='utf-8').strip()
+            
+            if revision and cached_revision != revision:
+                Logger.info(f"Revision mismatch: cached='{cached_revision}', requested='{revision}'. Re-downloading...")
+            else:
+                Logger.debug(f"Using locally cached model: {local_model_path}")
+                return str(local_model_path)
         
         Logger.info(f"Starting download from Hugging Face: {model_id}")
         if revision:
@@ -128,6 +136,12 @@ def download_model_from_huggingface(model_id: str, force_download: bool = False,
                 download_kwargs["revision"] = revision
             
             downloaded_path = snapshot_download(**download_kwargs)
+            
+            # Save revision info for future cache validation
+            if revision:
+                revision_file.write_text(revision, encoding='utf-8')
+            elif revision_file.exists():
+                revision_file.unlink()
             
             Logger.debug("")
             Logger.debug(f"Model download completed: {local_model_path}")
