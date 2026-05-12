@@ -5,3 +5,6 @@ lib/*
 *.bak
 *.pyc 
 test/generated_images/*
+*.png
+*SUMMARY*.md
+*.pdf

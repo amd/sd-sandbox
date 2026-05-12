@@ -139,7 +139,18 @@ cd sd-sandbox
 ```
 #### Step 2: Copy `lib` directory
 
-Copy the `lib` directory in `C:\Program Files\RyzenAI\1.7.1\GenAI-SD\lib` to the `sd-sandbox/` directory. This will allow the pipelines to find the necessary custom operator library for AMD NPU acceleration.
+Copy the `lib` directory from `C:\Program Files\RyzenAI\1.7.1\GenAI-SD\lib` to the `sd-sandbox/` directory. This directory contains the RyzenAI execution provider library (`onnxruntime_providers_ryzenai.dll`) and other dependencies required for AMD NPU acceleration.
+
+The resulting structure should be:
+```
+sd-sandbox/
+  lib/
+    onnxruntime_providers_ryzenai.dll
+    ryzen_mm.dll
+    abseil_dll.dll
+    zlib.dll
+    utf8_validity.dll
+```
 
 
 #### Step 3: Set Up Conda Environment
@@ -170,10 +181,10 @@ You can specify a `--revision` flag to select a specific branch, tag, or commit 
 
 Edit [config/pipeline_configs.yaml](config/pipeline_configs.yaml) to configure paths. The minimum required settings are:
 
-1. The `onnx_custom_ops.dll` path:
+1. The RyzenAI provider library path (should point to the `lib` directory copied in Step 2):
 ```yaml
 defaults:
-  custom_op_path: "C:/Program Files/RyzenAI/1.7.1/deployment/onnx_custom_ops.dll"
+  custom_op_path: "./lib/onnxruntime_providers_ryzenai.dll"
 ```
 
 2. Each pipeline needs a `model_id` for auto-download from Hugging Face, or a `--model_path` for locally stored models:

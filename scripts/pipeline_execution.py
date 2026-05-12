@@ -43,7 +43,7 @@ def build_command(script_path: Path, script_name: str, model_id: str,
         profiling_rounds (int): Number of profiling rounds to run
         extra_args (List[str]): Additional arguments from configuration
         image_only (bool): If True, run in batch mode without profiling (default: False)
-        custom_op_path (str, optional): Path to onnxruntime_providers_ryzenai.dll (RyzenAI provider library)
+        custom_op_path (str, optional): Path to onnx_custom_ops.dll or libonnx_custom_ops.so
         
     Returns:
         List[str]: Complete command list ready for subprocess execution
@@ -566,7 +566,7 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
         determine_prompt_source_func: Function to determine prompt source
         image_only: If True, run in batch mode without profiling
         traceback_enabled: If True, include full traceback in error messages
-        custom_op_path: Optional path to onnxruntime_providers_ryzenai.dll (RyzenAI provider library)
+        custom_op_path: Optional path to onnx_custom_ops.dll or libonnx_custom_ops.so
         control_images_path: Optional base path for resolving relative control image paths
         config_files_path: Optional base path for resolving relative config file paths
         
