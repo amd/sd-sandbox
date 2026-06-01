@@ -26,9 +26,33 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 
+def _new_pipeline_metrics(model_name: str, resolution: str, inference_steps: Optional[int] = None) -> Dict[str, Any]:
+    """Create a fresh pipeline metrics dict with the given base info."""
+    return {
+        'model_name': model_name,
+        'resolution': resolution,
+        'npu_load_time': None,
+        'all_models_load_time': None,
+        'first_gen_time': None,
+        'avg_pipeline_time': None,
+        'npu_memory': None,
+        'total_memory': None,
+        'inference_steps': inference_steps
+    }
+
+
+def _has_metrics(pipeline: Dict[str, Any]) -> bool:
+    """Check if a pipeline dict has any populated timing metrics."""
+    return any(pipeline.get(k) is not None for k in 
+               ['npu_load_time', 'first_gen_time', 'avg_pipeline_time'])
+
+
 def parse_benchmark_file(filepath: Path) -> List[Dict[str, Any]]:
     """
     Parse a benchmark results file and extract pipeline metrics.
+    
+    Supports multi-shape dynamic pipelines where per-shape timing sections
+    are separated by "--- WIDTHxHEIGHT ---" headers within the Timing Summary.
     
     Args:
         filepath: Path to the benchmark results text file
@@ -39,6 +63,9 @@ def parse_benchmark_file(filepath: Path) -> List[Dict[str, Any]]:
     results = []
     current_pipeline = {}
     in_timing_section = False
+    # Base info preserved across shape sections within a single pipeline entry
+    base_model_name = ""
+    base_inference_steps = None
     
     with open(filepath, 'r', encoding='utf-8') as f:
         lines = f.readlines()
@@ -47,41 +74,35 @@ def parse_benchmark_file(filepath: Path) -> List[Dict[str, Any]]:
     while i < len(lines):
         line = lines[i].strip()
         
-        # Detect pipeline header (e.g., "1. SD 1.5 Pipeline (run_sd.py) with runwayml/stable-diffusion-v1-5 @ 512x512")
-        # Pattern: number. Name (script) with model_id @ resolution
-        pipeline_match = re.match(r'^\d+\.\s+(.+?)\s+\((.+?)\)\s+with\s+(.+?)\s+@\s+(\d+)x(\d+)', line)
+        # Detect pipeline header (e.g., "1. SD 1.5 Pipeline (run_sd.py) with model @ 512x512")
+        # Also handles multi-resolution: "... @ 512x512, 1024x1024"
+        pipeline_match = re.match(r'^\d+\.\s+(.+?)\s+\((.+?)\)\s+with\s+(.+?)\s+@\s+(.+)$', line)
         if pipeline_match:
-            # Save previous pipeline if exists
-            if current_pipeline:
+            # Save previous pipeline if it has metrics
+            if current_pipeline and _has_metrics(current_pipeline):
                 results.append(current_pipeline)
+            elif current_pipeline and not _has_metrics(current_pipeline):
+                # Pipeline with no metrics (e.g., failed) - still save it
+                if current_pipeline.get('model_name'):
+                    results.append(current_pipeline)
             
             # Extract pipeline details
             pipeline_name = pipeline_match.group(1).strip()
-            script_name = pipeline_match.group(2).strip()
-            model_id = pipeline_match.group(3).strip()
-            width = pipeline_match.group(4)
-            height = pipeline_match.group(5)
-            resolution = f"{width}x{height}"
+            resolution_str = pipeline_match.group(4).strip()
             
-            # Start new pipeline
-            current_pipeline = {
-                'model_name': pipeline_name,
-                'resolution': resolution,
-                'npu_load_time': None,
-                'all_models_load_time': None,
-                'first_gen_time': None,
-                'avg_pipeline_time': None,
-                'npu_memory': None,
-                'total_memory': None,
-                'inference_steps': None
-            }
+            base_model_name = pipeline_name
+            base_inference_steps = None
+            
+            # Start new pipeline with first/only resolution
+            current_pipeline = _new_pipeline_metrics(pipeline_name, resolution_str)
             in_timing_section = False
         
         # Extract inference steps - pattern: "   Inference Steps: 20"
         elif line.startswith("Inference Steps:") and current_pipeline:
             match = re.search(r'Inference Steps:\s*(\d+)', line)
             if match:
-                current_pipeline['inference_steps'] = int(match.group(1))
+                base_inference_steps = int(match.group(1))
+                current_pipeline['inference_steps'] = base_inference_steps
         
         # Detect timing section start (appears after Status line)
         elif line.startswith("Timing Summary:"):
@@ -89,6 +110,23 @@ def parse_benchmark_file(filepath: Path) -> List[Dict[str, Any]]:
         
         # Parse timing lines
         elif in_timing_section and current_pipeline:
+            # Detect per-shape section header: "--- 512x512 ---"
+            shape_header_match = re.match(r'^---\s+(\d+x\d+)\s+---$', line)
+            if shape_header_match:
+                new_resolution = shape_header_match.group(1)
+                # Save current pipeline if it already has metrics (previous shape)
+                if _has_metrics(current_pipeline):
+                    results.append(current_pipeline)
+                    # Start fresh for the new shape
+                    current_pipeline = _new_pipeline_metrics(
+                        base_model_name, new_resolution, base_inference_steps
+                    )
+                else:
+                    # First shape header - just update resolution
+                    current_pipeline['resolution'] = new_resolution
+                i += 1
+                continue
+            
             # NPU models load time - pattern: "Load time of all NPU models: 2.447241s"
             if "load time of all npu models" in line.lower():
                 match = re.search(r':\s*([\d.]+)s\s*$', line)

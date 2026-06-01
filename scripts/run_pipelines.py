@@ -78,7 +78,7 @@ def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, P
             custom_op_path = config_defaults.get('custom_op_path')
         
         for model_id in config_item["model_ids"]:
-            result = run_pipeline(config_item, model_id, paths['test_path'], paths['source_path'],
+            results = run_pipeline(config_item, model_id, paths['test_path'], paths['source_path'],
                                 args.benchmark, args.timeout, args.prompt, 
                                 args.prompt_file, getattr(args, 'sd3_controlnet_mode', 'text2img'), 
                                 config.get('defaults', {}), log_buffer, determine_prompt_source,
@@ -86,14 +86,28 @@ def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, P
                                 paths.get('control_images_path'), paths.get('config_files_path'))
             
             # Print immediate feedback
-            if result['success']:
-                output_dir = "generated_images/"
-                print(f"[OK] SUCCESS in {result['duration']:.1f}s")
-                print(f"   [Dir] Images saved to: {output_dir}")
+            if len(results) > 1:
+                # Dynamic shape pipeline - per-shape results
+                any_success = any(r['success'] for r in results)
+                total_duration = results[0]['duration']
+                if any_success:
+                    print(f"[OK] SUCCESS in {total_duration:.1f}s ({len(results)} shapes benchmarked)")
+                    for r in results:
+                        status_icon = "[OK]" if r['success'] else "[FAILED]"
+                        print(f"   {status_icon} {r['resolution']}")
+                    print(f"   [Dir] Images saved to: generated_images/")
+                else:
+                    print(f"[FAILED] FAILED in {total_duration:.1f}s - {results[0]['error']}")
+                all_results.extend(results)
             else:
-                print(f"[FAILED] FAILED in {result['duration']:.1f}s - {result['error']}")
-            
-            all_results.append(result)
+                result = results[0]
+                if result['success']:
+                    output_dir = "generated_images/"
+                    print(f"[OK] SUCCESS in {result['duration']:.1f}s")
+                    print(f"   [Dir] Images saved to: {output_dir}")
+                else:
+                    print(f"[FAILED] FAILED in {result['duration']:.1f}s - {result['error']}")
+                all_results.append(result)
     
     # Save log file if log buffer has content
     if log_buffer:

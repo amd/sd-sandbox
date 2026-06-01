@@ -261,14 +261,31 @@ def get_pipeline_resolution(extra_args: List[str], config_item: Dict[str, Any],
     """
     Get the resolution string for this pipeline execution.
     
+    For dynamic shape pipelines with a shape file, reads all shapes from the file
+    and returns a comma-separated resolution string (e.g., "512x512, 1024x1024").
+    
     Args:
         extra_args: Command line arguments (modified in place)
         config_item: Pipeline configuration
         config_defaults: Default configuration values
         
     Returns:
-        Resolution string (e.g., "512x512")
+        Resolution string (e.g., "512x512" or "512x512, 1024x1024")
     """
+    # Check for dynamic shape file to list all shapes
+    if "--dynamic_shape" in extra_args and "--dynamic_shape_file_path" in extra_args:
+        try:
+            idx = extra_args.index("--dynamic_shape_file_path")
+            if idx + 1 < len(extra_args):
+                shape_file = extra_args[idx + 1]
+                with open(shape_file, 'r', encoding='utf-8') as f:
+                    shapes = json.load(f)
+                if isinstance(shapes, list) and shapes:
+                    resolutions = [f"{s['width']}x{s['height']}" for s in shapes]
+                    return ", ".join(resolutions)
+        except (ValueError, IndexError, FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass  # Fall through to default resolution
+    
     width = get_dimension_value("width", extra_args, config_item, config_defaults)
     height = get_dimension_value("height", extra_args, config_item, config_defaults)
     return f"{width}x{height}"
@@ -359,9 +376,12 @@ def setup_process_environment(source_path: Path) -> Dict[str, str]:
 def stream_process_output(process: subprocess.Popen, streaming_enabled: bool, 
                          benchmark_mode: bool, profiling_rounds: int, prompt_count: int,
                          log_buffer: Optional[List[str]], 
-                         pipeline_name: str, model_id: str) -> Tuple[deque, int, List[str]]:
+                         pipeline_name: str, model_id: str) -> Tuple[List[str], int, List[str]]:
     """
     Stream and capture subprocess output with progress tracking.
+    
+    Captures per-shape timing sections for dynamic shape pipelines by detecting
+    "Profile data in performance mode:" markers and shape headers in the output.
     
     Args:
         process: The subprocess to stream from
@@ -374,11 +394,17 @@ def stream_process_output(process: subprocess.Popen, streaming_enabled: bool,
         model_id: Model ID for logging
         
     Returns:
-        Tuple of (last_lines deque, rounds_completed count, error_lines list)
+        Tuple of (timing_lines list, rounds_completed count, error_lines list)
     """
-    last_lines = deque(maxlen=9)
+    last_lines = deque(maxlen=9)  # Fallback for pipelines without profile sections
     error_lines = []  # Capture error/traceback/exception lines
     in_traceback = False  # Track if we're inside a traceback block
+    
+    # Per-shape timing section capture
+    timing_sections = []  # List of {"shape": str, "lines": list}
+    current_shape = None
+    in_profile_section = False
+    current_section_lines = []
     
     # Stream output based on configuration
     if streaming_enabled:
@@ -412,6 +438,28 @@ def stream_process_output(process: subprocess.Popen, streaming_enabled: bool,
         # ANSI escape sequences: \x1b[...m or \033[...m
         text_clean = re.sub(r'\x1b\[[0-9;]*m', '', text)
         text_lower = text_clean.lower()
+        
+        # Detect dynamic shape header: "height: X, width: Y, t5_sequence_len: Z"
+        shape_match = re.search(r'height:\s*(\d+),\s*width:\s*(\d+)', text_clean)
+        if shape_match:
+            current_shape = f"{shape_match.group(2)}x{shape_match.group(1)}"
+        
+        # Detect start of profile summary section
+        if 'profile data in performance mode' in text_lower:
+            in_profile_section = True
+            current_section_lines = []
+        
+        # Capture lines within profile section
+        if in_profile_section:
+            current_section_lines.append(text)
+            # Detect end of profile section ("Total NPU memory usage:" is the last line)
+            if 'total npu memory usage' in text_lower:
+                in_profile_section = False
+                timing_sections.append({
+                    "shape": current_shape or "default",
+                    "lines": current_section_lines.copy()
+                })
+                current_section_lines = []
         
         # Capture error, traceback, and exception lines for error reporting
         # Start capturing when we see traceback or error keywords
@@ -457,10 +505,79 @@ def stream_process_output(process: subprocess.Popen, streaming_enabled: bool,
         if streaming_enabled:
             print(f"     {text}")
 
-        # Keep only last 9 lines for timing summary
+        # Keep last lines as fallback
         last_lines.append(text)
     
-    return last_lines, rounds_completed, error_lines
+    # Build timing_lines from captured sections, or fall back to last_lines
+    if timing_sections:
+        timing_lines = []
+        for section in timing_sections:
+            if len(timing_sections) > 1:
+                timing_lines.append(f"--- {section['shape']} ---")
+            timing_lines.extend(section['lines'])
+            if len(timing_sections) > 1:
+                timing_lines.append("")  # Blank separator between shapes
+        return timing_lines, rounds_completed, error_lines, timing_sections
+    else:
+        return list(last_lines), rounds_completed, error_lines, []
+
+
+# ============================================================================
+# Dynamic Shape Result Splitting
+# ============================================================================
+
+def is_dynamic_shape_pipeline(extra_args: List[str]) -> bool:
+    """
+    Check if extra_args indicate a dynamic shape pipeline with a shape file.
+    
+    Args:
+        extra_args: Command line arguments for the pipeline
+        
+    Returns:
+        True if both --dynamic_shape and --dynamic_shape_file_path are present
+    """
+    return "--dynamic_shape" in extra_args and "--dynamic_shape_file_path" in extra_args
+
+
+def split_dynamic_shape_results(
+    base_result: Dict[str, Any],
+    timing_sections: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """
+    Split a single dynamic shape pipeline result into per-shape results.
+    
+    Each shape that produced timing data becomes its own result entry with
+    its own resolution and timing lines, enabling per-shape rows in the
+    benchmark results and CSV summary.
+    
+    Args:
+        base_result: The combined result dict from the pipeline execution
+        timing_sections: List of per-shape timing sections from stream_process_output,
+                        each containing 'shape' (e.g., '512x768') and 'lines' (timing data)
+    
+    Returns:
+        List of result dicts, one per shape
+    """
+    if not timing_sections:
+        return [base_result]
+    
+    results = []
+    for section in timing_sections:
+        shape_result = create_result_dict(
+            script_name=base_result['script'],
+            model_id=base_result['model_id'],
+            pipeline_name=base_result['pipeline_name'],
+            success=base_result['success'],
+            duration=base_result['duration'],
+            error=base_result['error'],
+            timing_lines=section['lines'],
+            resolution=section['shape'],
+            num_inference_steps=base_result['num_inference_steps'],
+            model_path=base_result.get('model_path')
+        )
+        results.append(shape_result)
+    
+    return results
 
 
 def finalize_execution_log(streaming_enabled: bool, log_buffer: Optional[List[str]],
@@ -573,7 +690,8 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
         config_files_path: Optional base path for resolving relative config file paths
         
     Returns:
-        Dictionary with execution results and metrics
+        List of result dictionaries. For dynamic shape pipelines with a shape file,
+        returns one result per shape. For all other pipelines, returns a single-element list.
     """
     pipeline_name = config_item["name"]
     script_name = config_item["script"]
@@ -587,9 +705,9 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
         streaming_enabled = True
     
     if not script_path.exists():
-        return create_result_dict(script_name, model_id, pipeline_name, 
+        return [create_result_dict(script_name, model_id, pipeline_name, 
                                 error=f"Script {script_path} not found",
-                                model_path=None)
+                                model_path=None)]
     
     # Setup arguments and extract metadata
     profiling_rounds, extra_args, num_inference_steps, model_path = setup_pipeline_args(
@@ -643,7 +761,7 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
         )
         
         # Stream output and track progress
-        last_lines, rounds_completed, error_lines = stream_process_output(
+        timing_lines, rounds_completed, error_lines, timing_sections = stream_process_output(
             process, streaming_enabled, benchmark_mode, profiling_rounds, 
             prompt_count, log_buffer, pipeline_name, model_id
         )
@@ -652,11 +770,11 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
         try:
             return_code = process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
-            return handle_subprocess_timeout(
+            return [handle_subprocess_timeout(
                 process, timeout, streaming_enabled, log_buffer,
                 script_name, model_id, pipeline_name, start_time,
                 resolution, num_inference_steps, model_path
-            )
+            )]
         
         duration = time.time() - start_time
         success = return_code == 0
@@ -670,16 +788,18 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
         else:
             stderr_output = ""
         
-        # Convert deque to list for timing summary
-        timing_lines = list(last_lines)
-        
         # Finalize log
         finalize_execution_log(streaming_enabled, log_buffer, success, duration,
                               stderr_output, resolution, num_inference_steps)
         
-        return create_result_dict(script_name, model_id, pipeline_name, success, duration, 
+        result = create_result_dict(script_name, model_id, pipeline_name, success, duration, 
                                 stderr_output, timing_lines, resolution, num_inference_steps,
                                 model_path)
+        
+        # For dynamic shape pipelines, split into per-shape results
+        if success and is_dynamic_shape_pipeline(extra_args) and timing_sections:
+            return split_dynamic_shape_results(result, timing_sections)
+        return [result]
                                 
     except Exception as e:
         # Traceback Feature: Provides detailed error diagnostics when enabled via --traceback flag
@@ -701,8 +821,8 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str, test_path: Path, so
             log_buffer.append(f"Duration: {duration:.1f}s")
             log_buffer.append("-" * 60)
         
-        return create_result_dict(script_name, model_id, pipeline_name, error=error_message, 
+        return [create_result_dict(script_name, model_id, pipeline_name, error=error_message, 
                                 duration=duration, resolution=resolution, 
                                 num_inference_steps=num_inference_steps,
-                                model_path=model_path)
+                                model_path=model_path)]
 
