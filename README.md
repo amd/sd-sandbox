@@ -47,6 +47,11 @@
 
 The RAI 1.7.1 release of the sd-sandbox adds support for **auto-downloading models from Hugging Face** when a `model_id` is specified.
 
+These models live in two Hugging Face collections:
+
+- **[Ryzen AI 1.7.1 — SD Models (`amd`)](https://huggingface.co/collections/amd/ryzen-ai-171-sd-models)** — AMD's collection of Stable Diffusion models optimized for the AMD Ryzen AI NPU, used by this release of the sd-sandbox.
+- **[AMD Optimized (`stabilityai`)](https://huggingface.co/collections/stabilityai/amd-optimized)** — Stability AI's collection of AMD-optimized models, including both AMD NPU (`-amdnpu`) and AMD GPU (`_amdgpu`) builds. The public SD3 and SD3.5 Medium NPU models used below are hosted here.
+
 Here is a list of currently supported SD models. These models have had nodes replaced with custom ops specifically designed for AMD NPUs.
 
 | HF Model ID | Output Resolution | Text-To-Image | Image-To-Image | ControlNet |
