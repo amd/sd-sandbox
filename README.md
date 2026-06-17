@@ -49,15 +49,15 @@ The RAI 1.7.1 release of the sd-sandbox adds support for **auto-downloading mode
 
 Here is a list of currently supported SD models. These models have had nodes replaced with custom ops specifically designed for AMD NPUs.
 
-| Model | HF Model ID | Output Resolution | Text-To-Image | Image-To-Image | ControlNet |
-|-------|-------------|-------------------|:---:|:---:|:---:|
-| SD 1.5 | `amd/stable-diffusion-1.5-amdnpu` | 512x512 | ✅ | | | | | |
-| SD Turbo | `amd/sd-turbo-amdnpu` | 512x512 | ✅ | | | | | |
-| SD XL Base | `amd/sdxl-base-amdnpu` | 1024x1024 | ✅ | ✅ | | | | |
-| SD XL Turbo | `amd/sdxl-turbo-amdnpu` | 512x512 | ✅ | | | | | |
-| Segmind-Vega | `amd/segmind-vega-amdnpu` | 1024x1024 | ✅ | ✅ | | | | |
-| **SD3 Medium** | `amd/stable-diffusion-3-medium-amdnpu` | 512–1024 | ✅ | | ✅ | 
-| **SD3.5 Medium** | `amd/stable-diffusion-3.5-medium-amdnpu` | 512–1024 | ✅ | | ✅ |
+| HF Model ID | Output Resolution | Text-To-Image | Image-To-Image | ControlNet |
+|-------------|-------------------|:---:|:---:|:---:|
+| [`amd/stable-diffusion-1.5-amdnpu`](https://huggingface.co/amd/stable-diffusion-1.5-amdnpu) | 512x512 | ✅ | | |
+| [`amd/sd-turbo-amdnpu`](https://huggingface.co/amd/sd-turbo-amdnpu) | 512x512 | ✅ | | |
+| [`amd/sdxl-base-amdnpu`](https://huggingface.co/amd/sdxl-base-amdnpu) | 1024x1024 | ✅ | ✅ | |
+| [`amd/sdxl-turbo-amdnpu`](https://huggingface.co/amd/sdxl-turbo-amdnpu) | 512x512 | ✅ | | |
+| [`amd/segmind-vega-amdnpu`](https://huggingface.co/amd/segmind-vega-amdnpu) | 1024x1024 | ✅ | ✅ | |
+| [`stabilityai/stable-diffusion-3-medium-amdnpu`](https://huggingface.co/stabilityai/stable-diffusion-3-medium-amdnpu) | 512–1024 | ✅ | | ✅ |
+| [`stabilityai/stable-diffusion-3.5-medium-amdnpu`](https://huggingface.co/stabilityai/stable-diffusion-3.5-medium-amdnpu) | 512–1024 | ✅ | | ✅ |
 
 ### ControlNet Modes (SD3 / SD3.5)
 
@@ -337,7 +337,6 @@ The following pipeline scripts (in `test/run*.py`) are used under the hood to ru
 | run_sd.py | SD 1.5, SD Turbo |
 | run_sd_xl.py | SDXL Base, SDXL Turbo, Segmind-Vega |
 | run_sd3.py | SD3 Medium, SD3.5 Medium (text-to-image and ControlNet) |
-| run_sd3_dynamic.py | SD3 / SD3.5 with dynamic shape support |
 | run_sd15_controlnet.py | SD 1.5 ControlNet (Canny) |
 | run_sd3_controlnet_outpainting.py | SD3 / SD3.5 Outpainting, Removal, Inpainting |
 

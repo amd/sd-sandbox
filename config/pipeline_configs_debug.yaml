@@ -109,14 +109,14 @@ pipelines:
       - "1"
 
 
-# https://huggingface.co/amd/stable-diffusion-3-medium-amdnpu
-# "amd/stable-diffusion-3-medium-amdnpu"
+# https://huggingface.co/stabilityai/stable-diffusion-3-medium-amdnpu
+# "stabilityai/stable-diffusion-3-medium-amdnpu"
 ### SD3
   sd3_base:
     name: "SD3 Pipeline"
     script: "run_sd3.py"
     model_ids:
-      - "amd/stable-diffusion-3-medium-amdnpu"
+      - "stabilityai/stable-diffusion-3-medium-amdnpu"
     extra_args:
       - "--num_inference_steps"
       - "1"
@@ -134,7 +134,7 @@ pipelines:
     name: "SD3 ControlNet Canny Pipeline"
     script: "run_sd3.py"
     model_ids:
-      - "amd/stable-diffusion-3-medium-amdnpu"
+      - "stabilityai/stable-diffusion-3-medium-amdnpu"
     extra_args:
       - "--num_inference_steps"
       - "1"
@@ -155,7 +155,7 @@ pipelines:
     name: "SD3 ControlNet Pose Pipeline"
     script: "run_sd3.py"
     model_ids:
-      - "amd/stable-diffusion-3-medium-amdnpu"
+      - "stabilityai/stable-diffusion-3-medium-amdnpu"
     extra_args:
       - "--num_inference_steps"
       - "1"
@@ -177,7 +177,7 @@ pipelines:
     name: "SD3 ControlNet Tile Pipeline"
     script: "run_sd3.py"
     model_ids:
-      - "amd/stable-diffusion-3-medium-amdnpu"
+      - "stabilityai/stable-diffusion-3-medium-amdnpu"
     extra_args:
       - "--num_inference_steps"
       - "1"
@@ -196,7 +196,7 @@ pipelines:
       name: "SD3 Dynamic Pipeline"
       script: "run_sd3.py"
       model_ids:
-        - "amd/stable-diffusion-3-medium-amdnpu"
+        - "stabilityai/stable-diffusion-3-medium-amdnpu"
       extra_args:
         - "--num_inference_steps"
         - "1"
@@ -212,7 +212,7 @@ pipelines:
       name: "SD3 ControlNet Pose Dynamic Pipeline"
       script: "run_sd3.py"
       model_ids:
-        - "amd/stable-diffusion-3-medium-amdnpu"
+        - "stabilityai/stable-diffusion-3-medium-amdnpu"
       extra_args:
         - "--num_inference_steps"
         - "1"
@@ -232,7 +232,7 @@ pipelines:
       name: "SD3 ControlNet Tile Dynamic Pipeline"
       script: "run_sd3.py"
       model_ids:
-        - "amd/stable-diffusion-3-medium-amdnpu"
+        - "stabilityai/stable-diffusion-3-medium-amdnpu"
       extra_args:
         - "--num_inference_steps"
         - "1" 
@@ -248,14 +248,14 @@ pipelines:
         - "--dynamic_shape_file_path"
         - "sd3_dynamic_shape.json"
 
-# https://huggingface.co/amd/stable-diffusion-3.5-medium-amdnpu
-#  amd/stable-diffusion-3.5-medium-amdnpu
+# https://huggingface.co/stabilityai/stable-diffusion-3.5-medium-amdnpu
+#  stabilityai/stable-diffusion-3.5-medium-amdnpu
 ### SD 3.5
   sd35_base:
     name: "SD3.5 Pipeline"
     script: "run_sd3.py"
     model_ids:
-      - "amd/stable-diffusion-3.5-medium-amdnpu"
+      - "stabilityai/stable-diffusion-3.5-medium-amdnpu"
     extra_args:
       - "--num_inference_steps"
       - "1"
@@ -272,7 +272,7 @@ pipelines:
       name: "SD3.5 Dynamic Pipeline"
       script: "run_sd3.py"
       model_ids:
-        - "amd/stable-diffusion-3.5-medium-amdnpu"
+        - "stabilityai/stable-diffusion-3.5-medium-amdnpu"
       extra_args:
         - "--num_inference_steps"
         - "1"
