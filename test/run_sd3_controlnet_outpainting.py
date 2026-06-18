@@ -1,6 +1,11 @@
 #
 # Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
 #
+# NOTE: This script drives the OutPainting / Removal / InPainting ControlNet modes,
+# which are NOT supported in the 1.7.1 release (the public NPU model repos ship no
+# weights for these modes). It is kept in place (rather than removed) so it can be
+# re-enabled once the corresponding weights are published.
+#
 
 from pathlib import Path
 import logging as Logger

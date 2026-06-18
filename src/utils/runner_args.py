@@ -48,7 +48,9 @@ parser.add_argument(
     "-C",
     "--controlnet",
     type=str,
-    help="Canny, Tile, Pose, Depth, OutPainting, Removal, InPainting, or None",
+    # OutPainting, Removal, and InPainting are not supported in the 1.7.1 release
+    # (no published NPU model weights). Left commented for when weights are published.
+    help="Canny, Tile, Pose, Depth, or None",  # OutPainting, Removal, InPainting
 )
 
 # runner  related args
@@ -194,11 +196,13 @@ def check_sd3_normal_args(args):
         "tile",
         "pose",
         "depth",
-        "union",
         "none",
-        "outpainting",
-        "removal",
-        "inpainting",
+        # Not supported in the 1.7.1 release (no published NPU model weights).
+        # Left commented for when weights are published.
+        # "union",
+        # "outpainting",
+        # "removal",
+        # "inpainting",
     ]
     if controlnet_type not in VALID_CONTROLNET_VALUES:
         Logger.warning(
@@ -235,91 +239,95 @@ def check_sd3_normal_args(args):
 
 
 def config_sd3_controlnet_args(args):
-    # outpainting
-    if args.controlnet.lower() == "outpainting":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "normal/"
-        args.prompt = args.prompt or "background, nothing, blank"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.95
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/outpainting.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-
-    # removal
-    elif args.controlnet.lower() == "removal":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "normal/"
-        args.prompt = args.prompt or "background, nothing, blank"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.95
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/removal/origin.jpg")
-        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/removal/mask.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
-            raise EnvironmentError(
-                f"can't find control image mask path  {args.control_mask_path}"
-            )
-
-    # inpainting
-    elif args.controlnet.lower() == "inpainting":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "inpainting/"
-        args.prompt = args.prompt or "holiday"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.7
-        )
-        # 7.0 matches official SD3 ControlNet Inpainting example; higher scale helps prompt (e.g. cat) appear in mask
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/inpainting/origin.jpg")
-        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/inpainting/mask.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
-            raise EnvironmentError(
-                f"can't find control image mask path  {args.control_mask_path}"
-            )
+    # NOTE: OutPainting, Removal, and InPainting are not supported in the 1.7.1
+    # release (no published NPU model weights). The blocks below are left commented
+    # out so they can be re-enabled when the corresponding weights are published.
+    #
+    # # outpainting
+    # if args.controlnet.lower() == "outpainting":
+    #     args.height = args.height or 1024
+    #     args.width = args.width or 1024
+    #     if not args.height == 1024 and not args.width == 1024:
+    #         raise ValueError("Height and width must be 1024")
+    #     args.sub_model_path = "normal/"
+    #     args.prompt = args.prompt or "background, nothing, blank"
+    #     args.n_prompt = args.n_prompt or ""
+    #     args.seed = args.seed if args.seed is not None else 0
+    #     args.controlnet_conditioning_scale = (
+    #         args.controlnet_conditioning_scale
+    #         if args.controlnet_conditioning_scale is not None
+    #         else 0.95
+    #     )
+    #     args.guidance_scale = (
+    #         args.guidance_scale if args.guidance_scale is not None else 5.0
+    #     )
+    #     args.control_image_path = args.control_image_path or get_absolute_path("test/ref/outpainting.jpg")
+    #     if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image path  {args.control_image_path}"
+    #         )
+    #
+    # # removal
+    # elif args.controlnet.lower() == "removal":
+    #     args.height = args.height or 1024
+    #     args.width = args.width or 1024
+    #     if not args.height == 1024 and not args.width == 1024:
+    #         raise ValueError("Height and width must be 1024")
+    #     args.sub_model_path = "normal/"
+    #     args.prompt = args.prompt or "background, nothing, blank"
+    #     args.n_prompt = args.n_prompt or ""
+    #     args.seed = args.seed if args.seed is not None else 0
+    #     args.controlnet_conditioning_scale = (
+    #         args.controlnet_conditioning_scale
+    #         if args.controlnet_conditioning_scale is not None
+    #         else 0.95
+    #     )
+    #     args.guidance_scale = (
+    #         args.guidance_scale if args.guidance_scale is not None else 5.0
+    #     )
+    #     args.control_image_path = args.control_image_path or get_absolute_path("test/ref/removal/origin.jpg")
+    #     args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/removal/mask.jpg")
+    #     if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image path  {args.control_image_path}"
+    #         )
+    #     if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image mask path  {args.control_mask_path}"
+    #         )
+    #
+    # # inpainting
+    # elif args.controlnet.lower() == "inpainting":
+    #     args.height = args.height or 1024
+    #     args.width = args.width or 1024
+    #     if not args.height == 1024 and not args.width == 1024:
+    #         raise ValueError("Height and width must be 1024")
+    #     args.sub_model_path = "inpainting/"
+    #     args.prompt = args.prompt or "holiday"
+    #     args.n_prompt = args.n_prompt or ""
+    #     args.seed = args.seed if args.seed is not None else 0
+    #     args.controlnet_conditioning_scale = (
+    #         args.controlnet_conditioning_scale
+    #         if args.controlnet_conditioning_scale is not None
+    #         else 0.7
+    #     )
+    #     # 7.0 matches official SD3 ControlNet Inpainting example; higher scale helps prompt (e.g. cat) appear in mask
+    #     args.guidance_scale = (
+    #         args.guidance_scale if args.guidance_scale is not None else 7.0
+    #     )
+    #     args.control_image_path = args.control_image_path or get_absolute_path("test/ref/inpainting/origin.jpg")
+    #     args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/inpainting/mask.jpg")
+    #     if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image path  {args.control_image_path}"
+    #         )
+    #     if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image mask path  {args.control_mask_path}"
+    #         )
 
     # canny
-    elif args.controlnet.lower() == "canny":
+    if args.controlnet.lower() == "canny":
         args.height = args.height or 512
         args.width = args.width or 512
         args.sub_model_path = "normal/"
@@ -420,27 +428,27 @@ def config_sd3_controlnet_args(args):
             raise EnvironmentError(
                 f"can't find control image path  {args.control_image_path}"
             )
-    # union
-    elif args.controlnet.lower() == "union":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        args.prompt = args.prompt or "a lovely dog"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.7
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 3.5
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/union.jfif")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
+    # union (not supported in 1.7.1 — no published NPU model weights; left commented out)
+    # elif args.controlnet.lower() == "union":
+    #     args.height = args.height or 512
+    #     args.width = args.width or 512
+    #     args.sub_model_path = "normal/"
+    #     args.prompt = args.prompt or "a lovely dog"
+    #     args.n_prompt = args.n_prompt or ""
+    #     args.seed = args.seed if args.seed is not None else 0
+    #     args.controlnet_conditioning_scale = (
+    #         args.controlnet_conditioning_scale
+    #         if args.controlnet_conditioning_scale is not None
+    #         else 0.7
+    #     )
+    #     args.guidance_scale = (
+    #         args.guidance_scale if args.guidance_scale is not None else 3.5
+    #     )
+    #     args.control_image_path = args.control_image_path or get_absolute_path("test/ref/union.jfif")
+    #     if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image path  {args.control_image_path}"
+    #         )
 
     # t2i flow
     elif args.controlnet.lower() == "none":
@@ -464,180 +472,187 @@ def config_sd3_controlnet_args(args):
 
 
 def config_sd35_controlnet_args(args):
-    # outpainting
-    if args.controlnet.lower() == "outpainting":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "normal/"
-        args.prompt = args.prompt or "background, nothing, blank"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed or 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.95
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/outpainting.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-
-    # removal
-    elif args.controlnet.lower() == "removal":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "normal/"
-        args.prompt = args.prompt or "background, nothing, blank"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.95
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/removal/origin.jpg")
-        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/removal/mask.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
-            raise EnvironmentError(
-                f"can't find control image mask path  {args.control_mask_path}"
-            )
-
-    # inpainting
-    elif args.controlnet.lower() == "inpainting":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "inpainting/"
-        args.prompt = args.prompt or "holiday"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.7
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/inpainting/origin.jpg")
-        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/inpainting/mask.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
-            raise EnvironmentError(
-                f"can't find control image mask path  {args.control_mask_path}"
-            )
-    # canny
-    elif args.controlnet.lower() == "canny":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        # Set prompt file path if neither prompt nor prompt file is specified
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
-        # Only set default prompt if no prompt and no prompt file
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
-        args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
-        args.seed = args.seed if args.seed is not None else 42
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.7
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/canny.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-
-    # tile
-    elif args.controlnet.lower() == "tile":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        # Set prompt file path if neither prompt nor prompt file is specified
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
-        # Only set default prompt if no prompt and no prompt file
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
-        args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
-        args.seed = args.seed if args.seed is not None else 42
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.7
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/tile.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-
-    # pose
-    elif args.controlnet.lower() == "pose":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        # Set prompt file path if neither prompt nor prompt file is specified
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
-        # Only set default prompt if no prompt and no prompt file
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
-        args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
-        args.seed = args.seed if args.seed is not None else 42
-        if args.height == 512:
-            args.controlnet_conditioning_scale = (
-                args.controlnet_conditioning_scale
-                if args.controlnet_conditioning_scale is not None
-                else 0.8
-            )
-            args.guidance_scale = (
-                args.guidance_scale if args.guidance_scale is not None else 5.0
-            )
-        else:
-            args.controlnet_conditioning_scale = (
-                args.controlnet_conditioning_scale
-                if args.controlnet_conditioning_scale is not None
-                else 0.7
-            )
-            args.guidance_scale = (
-                args.guidance_scale if args.guidance_scale is not None else 5.0
-            )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/pose.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
+    # NOTE: The public stabilityai/stable-diffusion-3.5-medium-amdnpu repo is
+    # text-to-image only — it ships no ControlNet (or outpainting/removal/inpainting)
+    # NPU model weights. All ControlNet branches below are therefore commented out
+    # and SD3.5 runs the "none" (text-to-image) path. Re-enable these when SD3.5
+    # ControlNet weights are published.
+    #
+    # # outpainting
+    # if args.controlnet.lower() == "outpainting":
+    #     args.height = args.height or 1024
+    #     args.width = args.width or 1024
+    #     if not args.height == 1024 and not args.width == 1024:
+    #         raise ValueError("Height and width must be 1024")
+    #     args.sub_model_path = "normal/"
+    #     args.prompt = args.prompt or "background, nothing, blank"
+    #     args.n_prompt = args.n_prompt or ""
+    #     args.seed = args.seed or 0
+    #     args.controlnet_conditioning_scale = (
+    #         args.controlnet_conditioning_scale
+    #         if args.controlnet_conditioning_scale is not None
+    #         else 0.95
+    #     )
+    #     args.guidance_scale = (
+    #         args.guidance_scale if args.guidance_scale is not None else 5.0
+    #     )
+    #     args.control_image_path = args.control_image_path or get_absolute_path("test/ref/outpainting.jpg")
+    #     if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image path  {args.control_image_path}"
+    #         )
+    #
+    # # removal
+    # elif args.controlnet.lower() == "removal":
+    #     args.height = args.height or 1024
+    #     args.width = args.width or 1024
+    #     if not args.height == 1024 and not args.width == 1024:
+    #         raise ValueError("Height and width must be 1024")
+    #     args.sub_model_path = "normal/"
+    #     args.prompt = args.prompt or "background, nothing, blank"
+    #     args.n_prompt = args.n_prompt or ""
+    #     args.seed = args.seed if args.seed is not None else 0
+    #     args.controlnet_conditioning_scale = (
+    #         args.controlnet_conditioning_scale
+    #         if args.controlnet_conditioning_scale is not None
+    #         else 0.95
+    #     )
+    #     args.guidance_scale = (
+    #         args.guidance_scale if args.guidance_scale is not None else 5.0
+    #     )
+    #     args.control_image_path = args.control_image_path or get_absolute_path("test/ref/removal/origin.jpg")
+    #     args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/removal/mask.jpg")
+    #     if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image path  {args.control_image_path}"
+    #         )
+    #     if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image mask path  {args.control_mask_path}"
+    #         )
+    #
+    # # inpainting
+    # elif args.controlnet.lower() == "inpainting":
+    #     args.height = args.height or 1024
+    #     args.width = args.width or 1024
+    #     if not args.height == 1024 and not args.width == 1024:
+    #         raise ValueError("Height and width must be 1024")
+    #     args.sub_model_path = "inpainting/"
+    #     args.prompt = args.prompt or "holiday"
+    #     args.n_prompt = args.n_prompt or ""
+    #     args.seed = args.seed if args.seed is not None else 0
+    #     args.controlnet_conditioning_scale = (
+    #         args.controlnet_conditioning_scale
+    #         if args.controlnet_conditioning_scale is not None
+    #         else 0.7
+    #     )
+    #     args.guidance_scale = (
+    #         args.guidance_scale if args.guidance_scale is not None else 5.0
+    #     )
+    #     args.control_image_path = args.control_image_path or get_absolute_path("test/ref/inpainting/origin.jpg")
+    #     args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/inpainting/mask.jpg")
+    #     if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image path  {args.control_image_path}"
+    #         )
+    #     if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image mask path  {args.control_mask_path}"
+    #         )
+    #
+    # # canny
+    # elif args.controlnet.lower() == "canny":
+    #     args.height = args.height or 512
+    #     args.width = args.width or 512
+    #     args.sub_model_path = "normal/"
+    #     # Set prompt file path if neither prompt nor prompt file is specified
+    #     if not args.prompt and not args.prompt_file_path:
+    #         args.prompt_file_path = get_absolute_path("config/prompts_config.json")
+    #     # Only set default prompt if no prompt and no prompt file
+    #     if not args.prompt and not args.prompt_file_path:
+    #         args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
+    #     args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
+    #     args.seed = args.seed if args.seed is not None else 42
+    #     args.controlnet_conditioning_scale = (
+    #         args.controlnet_conditioning_scale
+    #         if args.controlnet_conditioning_scale is not None
+    #         else 0.7
+    #     )
+    #     args.guidance_scale = (
+    #         args.guidance_scale if args.guidance_scale is not None else 5.0
+    #     )
+    #     args.control_image_path = args.control_image_path or get_absolute_path("test/ref/canny.jpg")
+    #     if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image path  {args.control_image_path}"
+    #         )
+    #
+    # # tile
+    # elif args.controlnet.lower() == "tile":
+    #     args.height = args.height or 512
+    #     args.width = args.width or 512
+    #     args.sub_model_path = "normal/"
+    #     # Set prompt file path if neither prompt nor prompt file is specified
+    #     if not args.prompt and not args.prompt_file_path:
+    #         args.prompt_file_path = get_absolute_path("config/prompts_config.json")
+    #     # Only set default prompt if no prompt and no prompt file
+    #     if not args.prompt and not args.prompt_file_path:
+    #         args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
+    #     args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
+    #     args.seed = args.seed if args.seed is not None else 42
+    #     args.controlnet_conditioning_scale = (
+    #         args.controlnet_conditioning_scale
+    #         if args.controlnet_conditioning_scale is not None
+    #         else 0.7
+    #     )
+    #     args.guidance_scale = (
+    #         args.guidance_scale if args.guidance_scale is not None else 5.0
+    #     )
+    #     args.control_image_path = args.control_image_path or get_absolute_path("test/ref/tile.jpg")
+    #     if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image path  {args.control_image_path}"
+    #         )
+    #
+    # # pose
+    # elif args.controlnet.lower() == "pose":
+    #     args.height = args.height or 512
+    #     args.width = args.width or 512
+    #     args.sub_model_path = "normal/"
+    #     # Set prompt file path if neither prompt nor prompt file is specified
+    #     if not args.prompt and not args.prompt_file_path:
+    #         args.prompt_file_path = get_absolute_path("config/prompts_config.json")
+    #     # Only set default prompt if no prompt and no prompt file
+    #     if not args.prompt and not args.prompt_file_path:
+    #         args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
+    #     args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
+    #     args.seed = args.seed if args.seed is not None else 42
+    #     if args.height == 512:
+    #         args.controlnet_conditioning_scale = (
+    #             args.controlnet_conditioning_scale
+    #             if args.controlnet_conditioning_scale is not None
+    #             else 0.8
+    #         )
+    #         args.guidance_scale = (
+    #             args.guidance_scale if args.guidance_scale is not None else 5.0
+    #         )
+    #     else:
+    #         args.controlnet_conditioning_scale = (
+    #             args.controlnet_conditioning_scale
+    #             if args.controlnet_conditioning_scale is not None
+    #             else 0.7
+    #         )
+    #         args.guidance_scale = (
+    #             args.guidance_scale if args.guidance_scale is not None else 5.0
+    #         )
+    #     args.control_image_path = args.control_image_path or get_absolute_path("test/ref/pose.jpg")
+    #     if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
+    #         raise EnvironmentError(
+    #             f"can't find control image path  {args.control_image_path}"
+    #         )
 
     # t2i flow
-    elif args.controlnet.lower() == "none":
+    if args.controlnet.lower() == "none":
         args.height = args.height or 512
         args.width = args.width or 512
         args.sub_model_path = "normal/"
@@ -769,7 +784,8 @@ def check_args(args):
         args.num_images_per_prompt = args.num_images_per_prompt or 1
         args.sub_model_path = "normal/"
         args.common_model_path = "common/"
-        args.controlnet = args.controlnet or "Canny"
+        # SD3.5 public repo is text-to-image only (no ControlNet weights), so default to "none".
+        args.controlnet = args.controlnet or "none"
         check_sd3_normal_args(args)
         # default prompt, n_prompt, seed, guidance_scale, controlnet_conditioning_scale are set in check_sd3_normal_args
         config_sd35_controlnet_args(args)

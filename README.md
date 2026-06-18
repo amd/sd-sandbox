@@ -62,11 +62,14 @@ Here is a list of currently supported SD models. These models have had nodes rep
 | [`amd/sdxl-turbo-amdnpu`](https://huggingface.co/amd/sdxl-turbo-amdnpu) | 512x512 | ✅ | | |
 | [`amd/segmind-vega-amdnpu`](https://huggingface.co/amd/segmind-vega-amdnpu) | 1024x1024 | ✅ | ✅ | |
 | [`stabilityai/stable-diffusion-3-medium-amdnpu`](https://huggingface.co/stabilityai/stable-diffusion-3-medium-amdnpu) | 512–1024 | ✅ | | ✅ |
-| [`stabilityai/stable-diffusion-3.5-medium-amdnpu`](https://huggingface.co/stabilityai/stable-diffusion-3.5-medium-amdnpu) | 512–1024 | ✅ | | ✅ |
+| [`stabilityai/stable-diffusion-3.5-medium-amdnpu`](https://huggingface.co/stabilityai/stable-diffusion-3.5-medium-amdnpu) | 512–1024 | ✅ | | <!-- ✅ ControlNet not published for SD3.5 in 1.7.1; re-enable when weights are public --> |
 
-### ControlNet Modes (SD3 / SD3.5)
+<!-- SD3.5 ControlNet is not published in the public NPU repo for 1.7.1, so the
+     heading and text below are scoped to SD3 Medium. Original: "ControlNet Modes (SD3 / SD3.5)" /
+     "supported for SD3 and SD3.5 models". Restore the SD3.5 mention when its weights are public. -->
+### ControlNet Modes (SD3 Medium)
 
-The following ControlNet modes are supported for SD3 and SD3.5 models:
+The following ControlNet modes are supported for the SD3 Medium model:
 
 | Mode | Description | Control Image Required |
 |------|-------------|:---:|
@@ -341,8 +344,12 @@ The following pipeline scripts (in `test/run*.py`) are used under the hood to ru
 |--------|----------|
 | run_sd.py | SD 1.5, SD Turbo |
 | run_sd_xl.py | SDXL Base, SDXL Turbo, Segmind-Vega |
-| run_sd3.py | SD3 Medium, SD3.5 Medium (text-to-image and ControlNet) |
+| run_sd3.py | SD3 Medium (text-to-image and ControlNet), SD3.5 Medium (text-to-image) |
 | run_sd15_controlnet.py | SD 1.5 ControlNet (Canny) |
+<!-- Not supported in 1.7.1 (no published NPU model weights); restore when weights are public:
+| run_sd3_controlnet_outpainting.py | SD3 / SD3.5 Outpainting, Removal, Inpainting | -->
+<!-- run_sd3_dynamic.py was removed upstream; dynamic shape is handled by run_sd3.py with --dynamic_shape -->
+
 
 Most pipeline-specific option are passed via the `extra_args` list in the yaml file. Not all options are supported yet, but most are.
 
