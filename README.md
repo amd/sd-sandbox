@@ -343,7 +343,6 @@ The following pipeline scripts (in `test/run*.py`) are used under the hood to ru
 | run_sd_xl.py | SDXL Base, SDXL Turbo, Segmind-Vega |
 | run_sd3.py | SD3 Medium, SD3.5 Medium (text-to-image and ControlNet) |
 | run_sd15_controlnet.py | SD 1.5 ControlNet (Canny) |
-| run_sd3_controlnet_outpainting.py | SD3 / SD3.5 Outpainting, Removal, Inpainting |
 
 Most pipeline-specific option are passed via the `extra_args` list in the yaml file. Not all options are supported yet, but most are.
 
