@@ -14,6 +14,11 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
+# pr-231: force unbuffered stdout so orchestrator progress appears immediately
+# even when output is piped or redirected
+os.environ["PYTHONUNBUFFERED"] = "1"
+sys.stdout.reconfigure(line_buffering=True)
+
 # Import from helper modules
 from pipeline_config import load_config, get_pipeline_configs
 from pipeline_execution import (
@@ -25,11 +30,14 @@ from pipeline_helpers import (
     print_results_summary, list_pipelines, determine_prompt_source
 )
 
+# arg-validation: validate pipeline config args before subprocess launch
+# VALID_ARGS is also used for the drift-check against runner_args.py (see below)
+from config_validator import validate_config_structure, VALID_ARGS
+
 # Configuration
 WORKSPACE_ROOT = Path(__file__).parent.parent
 CONFIG_DIR = WORKSPACE_ROOT / "config"
-env = os.environ.copy()
-env["PYTHONUNBUFFERED"] = "1"
+# pr-231: removed subprocess env dict — pipelines now run in-process
 
 
 def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, Path], 
@@ -78,7 +86,7 @@ def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, P
             custom_op_path = config_defaults.get('custom_op_path')
         
         for model_id in config_item["model_ids"]:
-            results = run_pipeline(config_item, model_id, paths['test_path'], paths['source_path'],
+            result = run_pipeline(config_item, model_id, paths['test_path'], paths['source_path'],
                                 args.benchmark, args.timeout, args.prompt, 
                                 args.prompt_file, getattr(args, 'sd3_controlnet_mode', 'text2img'), 
                                 config.get('defaults', {}), log_buffer, determine_prompt_source,
@@ -86,28 +94,14 @@ def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, P
                                 paths.get('control_images_path'), paths.get('config_files_path'))
             
             # Print immediate feedback
-            if len(results) > 1:
-                # Dynamic shape pipeline - per-shape results
-                any_success = any(r['success'] for r in results)
-                total_duration = results[0]['duration']
-                if any_success:
-                    print(f"[OK] SUCCESS in {total_duration:.1f}s ({len(results)} shapes benchmarked)")
-                    for r in results:
-                        status_icon = "[OK]" if r['success'] else "[FAILED]"
-                        print(f"   {status_icon} {r['resolution']}")
-                    print(f"   [Dir] Images saved to: generated_images/")
-                else:
-                    print(f"[FAILED] FAILED in {total_duration:.1f}s - {results[0]['error']}")
-                all_results.extend(results)
+            if result['success']:
+                output_dir = "generated_images/"
+                print(f"[OK] SUCCESS in {result['duration']:.1f}s")
+                print(f"   [Dir] Images saved to: {output_dir}")
             else:
-                result = results[0]
-                if result['success']:
-                    output_dir = "generated_images/"
-                    print(f"[OK] SUCCESS in {result['duration']:.1f}s")
-                    print(f"   [Dir] Images saved to: {output_dir}")
-                else:
-                    print(f"[FAILED] FAILED in {result['duration']:.1f}s - {result['error']}")
-                all_results.append(result)
+                print(f"[FAILED] FAILED in {result['duration']:.1f}s - {result['error']}")
+            
+            all_results.append(result)
     
     # Save log file if log buffer has content
     if log_buffer:
@@ -130,8 +124,7 @@ def main():
                        help="Enable benchmark mode (10 profiling rounds). Default is quick mode (1 round).")
     parser.add_argument("--timeout", type=int, default=600,
                        help="Timeout in seconds for each run (default: 600)")
-    parser.add_argument("--script", type=str, nargs="*",
-                       help="Run only these script names (e.g. --script run_sd.py run_sd_xl.py)")
+    # pr-231: removed --script filter -- all pipelines now use unified run.py entry point
     parser.add_argument("--model_id", type=str, nargs="*",
                        help="Run only these model IDs (e.g. --model_id runwayml/stable-diffusion-v1-5)")
     parser.add_argument("--pipelines", type=str, nargs="*",
@@ -177,6 +170,36 @@ def main():
     except Exception as e:
         print(f"Error loading configuration: {e}")
         return False
+    
+    # arg-validation: validate YAML configuration structure and arg definitions before running
+    # Sync-check: ensure VALID_ARGS stays in sync with the argparse parser (runner_args.py).
+    # This catches cases where a new arg is added to the parser but not the validator,
+    # which would cause false-positive "unknown argument" warnings.
+    try:
+        from src.utils.runner_args import parser as _runner_parser
+        _parser_flags = set()
+        for _action in _runner_parser._actions:
+            for _flag in _action.option_strings:
+                if _flag not in ("-h", "--help"):
+                    _parser_flags.add(_flag)
+        _missing = _parser_flags - set(VALID_ARGS.keys())
+        if _missing:
+            print(f"\nWARNING: runner_args.py has flags not in config_validator.VALID_ARGS: {sorted(_missing)}")
+            print("  The validator may produce false 'unknown argument' warnings for these.")
+    except ImportError:
+        pass  # If src.utils can't be imported, skip sync check (shouldn't happen in normal use)
+
+    validation = validate_config_structure(config)
+    validation.log_results()
+    if not validation.is_valid:
+        print(f"\nConfiguration validation failed:")
+        for err in validation.errors:
+            print(f"  ERROR: {err}")
+        return False
+    if validation.warnings:
+        print(f"\nConfiguration warnings:")
+        for warn in validation.warnings:
+            print(f"  WARNING: {warn}")
     
     # Setup execution providers based on config and command line args
     setup_execution_provider(args, config)

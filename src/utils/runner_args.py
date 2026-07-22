@@ -7,20 +7,24 @@ import os
 import sys
 import logging as Logger
 import platform
-from src.utils.common import get_absolute_path
+from .common import get_absolute_path, resolve_project_path, resolve_root_model_path
+from .model_config import InferenceConfig, detect_model_spec
 
 parser = argparse.ArgumentParser(description="Pipeline Config")
 # Env related args
-parser.add_argument("--root_path", type=str, default="..", help="Path to SD/SD3 models")
+parser.add_argument("--model_path", type=str, default=None, help="Path to SD/SD3 models")
 parser.add_argument(
     "-v", "--verbose", action="store_true", help="Enable verbose output."
 )
 parser.add_argument("--custom_op_path", type=str, help="Path to ONNX custom ops DLL")
 parser.add_argument(
-    "--gpu", help="Running with DynamicDispatch or GPU", action="store_true"
+    "-c", "--enable_compile", action="store_true", help="Enable compile fusion runtime."
 )
 parser.add_argument(
-    "-c", "--enable_compile", action="store_true", help="Enable compile fusion runtime."
+    "-O1",
+    "--optimize_o1",
+    action="store_true",
+    help="Enable O1 preset optimizations.",
 )
 # model related args
 parser.add_argument(
@@ -31,12 +35,12 @@ parser.add_argument(
         e.g., 'runwayml/stable-diffusion-v1-5', 'stabilityai/stable-diffusion-2-1-base', \
             'stabilityai/sd-turbo', 'stabilityai/stable-diffusion-2-1', 'stabilityai/sdxl-turbo', \
             'stabilityai/stable-diffusion-xl-base-1.0', 'stabilityai/stable-diffusion-3-medium-diffuser', \
-            stabilityai/stable-diffusion-3.5-medium",
-)
-parser.add_argument(
-    "--model_path",
-    type=str,
-    help="Path to SD models",
+            'stabilityai/stable-diffusion-3.5-medium',             'black-forest-labs/FLUX.1-schnell', \
+            'black-forest-labs/FLUX.1-dev', \
+            'black-forest-labs/FLUX.2-klein-4B', \
+            'stabilityai/stable-diffusion-3.5-medium', \
+            'playgroundai/playground-v2.5-1024px-aesthetic', \
+            '/Lykon/dreamshaper-xl-lightning', 'segmind/SSD-1B'",
 )
 parser.add_argument(
     "--revision",
@@ -106,6 +110,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--edit_image_path",
+    type=str,
+    nargs="+",
+    default=None,
+    help="Reference image path(s) for FLUX.2-klein image-to-image or multi-image edit mode.",
+)
+
+parser.add_argument(
     "--image_pads",
     type=int,
     nargs="+",
@@ -140,9 +152,13 @@ parser.add_argument(
 parser.add_argument(
     "--t5_sequence_len",
     type=int,
-    default=83,
-    choices=[77, 83],
-    help="T5 sequence length (77 or 83)",
+    choices=[77, 83, 256],
+    help="T5 sequence length (77, 83, or 256 for Flux)",
+)
+parser.add_argument(
+    "--prompt_2",
+    type=str,
+    help="Second prompt for dual text encoder models (e.g., Flux T5 encoder)",
 )
 parser.add_argument(
     "-pr",
@@ -166,7 +182,7 @@ parser.add_argument(
 # IMPORTANT: Default is None (not a JSON file path) to support two distinct use cases:
 # 1. --dynamic_shape with --width/--height: Use specified resolution with dynamic shape models
 # 2. --dynamic_shape with --dynamic_shape_file_path: Iterate through all resolutions in JSON file
-# Previously defaulted to "config/sd3_dynamic_shape.json" which always iterated through all shapes,
+# Previously defaulted to "config/dynamic_shape_8x.json" which always iterated through all shapes,
 # preventing single-resolution testing with dynamic models. Setting default=None allows the
 # run_sd3.py script to differentiate between these two modes based on whether the file path is provided.
 parser.add_argument(
@@ -181,9 +197,28 @@ parser.add_argument(
 parser.add_argument(
     "--strength",
     type=float,
-    default=0.3,
+    default=None,
     help="indicates how much to transform the reference image in segmind-vega image to image pipeline. \
         A value of 1.0 essentially ignores image",
+)
+
+parser.add_argument(
+    "--tea_caching",
+    action="store_true",
+    help=argparse.SUPPRESS,
+)
+parser.add_argument(
+    "--tea_caching_delta",
+    type=float,
+    default=None,
+    help=argparse.SUPPRESS,
+)
+parser.add_argument(
+    "--tea_caching_coef",
+    type=float,
+    nargs="+",
+    default=None,
+    help=argparse.SUPPRESS,
 )
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -234,422 +269,75 @@ def check_sd3_normal_args(args):
     return args
 
 
-def config_sd3_controlnet_args(args):
-    # outpainting
-    if args.controlnet.lower() == "outpainting":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "normal/"
-        args.prompt = args.prompt or "background, nothing, blank"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.95
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/outpainting.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
+def _apply_spec_defaults(args, cfg: InferenceConfig) -> None:
+    """Fill unset ``args`` fields from ``InferenceConfig`` defaults.
 
-    # removal
-    elif args.controlnet.lower() == "removal":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "normal/"
-        args.prompt = args.prompt or "background, nothing, blank"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.95
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/removal/origin.jpg")
-        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/removal/mask.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
-            raise EnvironmentError(
-                f"can't find control image mask path  {args.control_mask_path}"
-            )
+    CLI-supplied values always take precedence; a field is only filled when it is
+    ``None`` (or empty string for ``prompt`` / ``n_prompt``).
+    """
+    def _set(attr, val):
+        if val is not None and getattr(args, attr, None) is None:
+            setattr(args, attr, val)
 
-    # inpainting
-    elif args.controlnet.lower() == "inpainting":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "inpainting/"
-        args.prompt = args.prompt or "holiday"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.7
-        )
-        # 7.0 matches official SD3 ControlNet Inpainting example; higher scale helps prompt (e.g. cat) appear in mask
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/inpainting/origin.jpg")
-        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/inpainting/mask.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
-            raise EnvironmentError(
-                f"can't find control image mask path  {args.control_mask_path}"
-            )
+    _set("height",                       cfg.height)
+    _set("width",                        cfg.width)
+    _set("t5_sequence_len",              cfg.t5_sequence_len)
+    _set("num_inference_steps",          cfg.num_inference_steps)
+    _set("num_images_per_prompt",        cfg.num_images_per_prompt)
+    _set("guidance_scale",               cfg.guidance_scale)
+    _set("seed",                         cfg.seed)
+    _set("strength",                     cfg.strength)
+    _set("controlnet_conditioning_scale", cfg.controlnet_conditioning_scale)
+    _set("control_image_path",           cfg.control_image_path)
+    _set("control_mask_path",            cfg.control_mask_path)
 
-    # canny
-    elif args.controlnet.lower() == "canny":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        # Set prompt file path if neither prompt nor prompt file is specified
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
-        # Only set default prompt if no prompt and no prompt file
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
-        args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
-        args.seed = args.seed if args.seed is not None else 42
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.5
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/canny.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
+    if not getattr(args, "prompt", None) and not getattr(args, "prompt_file_path", None):
+        if cfg.prompt:
+            args.prompt = cfg.prompt
+        elif cfg.prompt_file_path:
+            args.prompt_file_path = cfg.prompt_file_path
 
-    # tile
-    elif args.controlnet.lower() == "tile":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        # Set prompt file path if neither prompt nor prompt file is specified
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
-        # Only set default prompt if no prompt and no prompt file
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
-        args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
-        args.seed = args.seed if args.seed is not None else 42
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.5
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/tile.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
+    if not getattr(args, "n_prompt", None):
+        args.n_prompt = cfg.n_prompt or ""
 
-    # pose
-    elif args.controlnet.lower() == "pose":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        # Set prompt file path if neither prompt nor prompt file is specified
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
-        # Only set default prompt if no prompt and no prompt file
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
-        args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
-        args.seed = args.seed if args.seed is not None else 42
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.5
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/pose.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-
-    # depth
-    elif args.controlnet.lower() == "depth":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        args.prompt = args.prompt or "a panda cub, captured in a close-up, in forest, is perched on a tree trunk. good composition, Photography, the cub's ears, a fluffy black, are tucked behind its head, adding a touch of whimsy to its appearance. a lush tapestry of green leaves in the background. depth of field, National Geographic"
-        args.n_prompt = args.n_prompt or "bad hands, blurry, NSFW, nude, naked, porn, ugly, bad quality, worst quality"
-        args.seed = args.seed if args.seed is not None else 42
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.5
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/depth.jpeg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-    # union
-    elif args.controlnet.lower() == "union":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        args.prompt = args.prompt or "a lovely dog"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.7
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 3.5
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/union.jfif")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-
-    # t2i flow
-    elif args.controlnet.lower() == "none":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        args.prompt = (
-            args.prompt
-            or "Photo of a ultra realistic sailing ship, dramatic light, pale sunrise, \
-            cinematic lighting, battered, low angle, trending on artstation, 4k, hyper realistic, focused, \
-                extreme details, unreal engine 5, cinematic, masterpiece, art by studio ghibli, \
-                    intricate artwork by john william turner"
-        )
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
-        args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 3.0
-        )
-        args.seed = args.seed if args.seed is not None else 0
-
-
-def config_sd35_controlnet_args(args):
-    # outpainting
-    if args.controlnet.lower() == "outpainting":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "normal/"
-        args.prompt = args.prompt or "background, nothing, blank"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed or 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.95
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/outpainting.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-
-    # removal
-    elif args.controlnet.lower() == "removal":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "normal/"
-        args.prompt = args.prompt or "background, nothing, blank"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.95
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/removal/origin.jpg")
-        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/removal/mask.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
-            raise EnvironmentError(
-                f"can't find control image mask path  {args.control_mask_path}"
-            )
-
-    # inpainting
-    elif args.controlnet.lower() == "inpainting":
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        if not args.height == 1024 and not args.width == 1024:
-            raise ValueError("Height and width must be 1024")
-        args.sub_model_path = "inpainting/"
-        args.prompt = args.prompt or "holiday"
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.7
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/inpainting/origin.jpg")
-        args.control_mask_path = args.control_mask_path or get_absolute_path("test/ref/inpainting/mask.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-        if "http" not in args.control_mask_path and not os.path.exists(args.control_mask_path):
-            raise EnvironmentError(
-                f"can't find control image mask path  {args.control_mask_path}"
-            )
-    # canny
-    elif args.controlnet.lower() == "canny":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        # Set prompt file path if neither prompt nor prompt file is specified
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
-        # Only set default prompt if no prompt and no prompt file
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
-        args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
-        args.seed = args.seed if args.seed is not None else 42
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.7
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/canny.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-
-    # tile
-    elif args.controlnet.lower() == "tile":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        # Set prompt file path if neither prompt nor prompt file is specified
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
-        # Only set default prompt if no prompt and no prompt file
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
-        args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
-        args.seed = args.seed if args.seed is not None else 42
-        args.controlnet_conditioning_scale = (
-            args.controlnet_conditioning_scale
-            if args.controlnet_conditioning_scale is not None
-            else 0.7
-        )
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 5.0
-        )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/tile.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
-            )
-
-    # pose
-    elif args.controlnet.lower() == "pose":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        # Set prompt file path if neither prompt nor prompt file is specified
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
-        # Only set default prompt if no prompt and no prompt file
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt = "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text 'InstantX' on image"
-        args.n_prompt = args.n_prompt or "NSFW, nude, naked, porn, ugly"
-        args.seed = args.seed if args.seed is not None else 42
-        if args.height == 512:
-            args.controlnet_conditioning_scale = (
-                args.controlnet_conditioning_scale
-                if args.controlnet_conditioning_scale is not None
-                else 0.8
-            )
-            args.guidance_scale = (
-                args.guidance_scale if args.guidance_scale is not None else 5.0
-            )
+    if args.optimize_o1 and cfg.tea_caching_delta is not None and cfg.tea_caching_coef is not None:
+        controlnet_none = args.controlnet is None or (args.controlnet is not None and args.controlnet.lower() == "none")
+        if args.num_inference_steps <= 4 and controlnet_none:
+            args.tea_caching = False
+            _set("tea_caching_delta", 0.1)
+            _set("tea_caching_coef", [1.0, 0.0])
+            Logger.info("Disable tea caching for O1 when ControlNet=None and num_inference_steps<=4.")
         else:
-            args.controlnet_conditioning_scale = (
-                args.controlnet_conditioning_scale
-                if args.controlnet_conditioning_scale is not None
-                else 0.7
-            )
-            args.guidance_scale = (
-                args.guidance_scale if args.guidance_scale is not None else 5.0
-            )
-        args.control_image_path = args.control_image_path or get_absolute_path("test/ref/pose.jpg")
-        if "http" not in args.control_image_path and not os.path.exists(args.control_image_path):
-            raise EnvironmentError(
-                f"can't find control image path  {args.control_image_path}"
+            args.tea_caching = True
+            _set("tea_caching_delta", cfg.tea_caching_delta)
+            _set("tea_caching_coef", cfg.tea_caching_coef)
+            Logger.info(
+                "O1 preset applied: tea_caching=%s, tea_caching_delta=%s, tea_caching_coef=%s",
+                args.tea_caching,
+                args.tea_caching_delta,
+                args.tea_caching_coef,
             )
 
-    # t2i flow
-    elif args.controlnet.lower() == "none":
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.sub_model_path = "normal/"
-        args.common_model_path = "common/"
-        args.prompt = args.prompt or "A capybara holding a sign that reads Hello World"
-        if not args.prompt and not args.prompt_file_path:
-            args.prompt_file_path = get_absolute_path("config/prompts_config.json")
-        args.n_prompt = ""
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 4.5
-        )
-        args.seed = args.seed if args.seed is not None else 45
+    if not getattr(args, "common_model_path", None):
+        args.common_model_path = cfg.common_model_path
+    if not getattr(args, "sub_model_path", None):
+        args.sub_model_path = cfg.sub_model_path
+
+
+def _validate_control_paths(args) -> None:
+    """Raise ``EnvironmentError`` when a declared control-image or mask path is missing."""
+    for attr, label in (
+        ("control_image_path", "control image"),
+        ("control_mask_path",  "control mask"),
+    ):
+        path = getattr(args, attr, None)
+        if path and "http" not in path and not os.path.exists(path):
+            raise EnvironmentError(f"Can't find {label}: {path}")
+
+    edit_paths = getattr(args, "edit_image_path", None) or []
+    for path in edit_paths:
+        if path and "http" not in path and not os.path.exists(path):
+            raise EnvironmentError(f"Can't find edit image: {path}")
 
 
 def check_args(args):
@@ -662,200 +350,54 @@ def check_args(args):
             level=Logger.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
         )
 
-    if not os.path.exists(args.root_path):
-        raise EnvironmentError(f"root_path {args.root_path} is not invalid")
-
-    # Set defaults for sub_model_path and common_model_path if not already set
-    if not hasattr(args, 'sub_model_path'):
-        args.sub_model_path = "normal/"
-    if not hasattr(args, 'common_model_path'):
-        args.common_model_path = "common/"
 
     if not args.model_id:
-        Logger.warning("model_id is not set.")
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.num_inference_steps = args.num_inference_steps or 20
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.5
-        )
-        args.num_images_per_prompt = args.num_images_per_prompt or 1
-        args.prompt = (
-            args.prompt
-            or "Photo of a ultra realistic sailing ship, dramatic light, pale sunrise, cinematic lighting, \
-                        battered, low angle, trending on artstation, 4k, hyper realistic, focused, extreme details, \
-                        unreal engine 5, cinematic, masterpiece, art by studio ghibli, intricate artwork by john william turner."
-        )
-        args.n_prompt = args.n_prompt or ""
-    elif "stable-diffusion-v1-5" in args.model_id or "stable-diffusion-1.5" in args.model_id or "sd15-controlnet" in args.model_id:
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.num_inference_steps = args.num_inference_steps or 20
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.5
-        )
-        args.num_images_per_prompt = args.num_images_per_prompt or 1
-        args.n_prompt = args.n_prompt or ""
-        args.controlnet = args.controlnet or "none"
-        if args.controlnet.lower() == "canny":
-            args.controlnet_conditioning_scale = (
-                args.controlnet_conditioning_scale
-                if args.controlnet_conditioning_scale is not None
-                else 1.5
+        Logger.warning("model_id is not set, using built-in defaults.")
+        _apply_spec_defaults(args, InferenceConfig())
+    else:
+        mid = args.model_id.lower()
+
+        try:
+            spec = detect_model_spec(args.model_id, getattr(args, "controlnet", None))
+            _apply_spec_defaults(args, spec.defaults)
+        except ValueError:
+            Logger.warning(
+                "No ModelSpec matched model_id=%r; using built-in defaults.", args.model_id
             )
-            args.prompt = args.prompt or "a blue paraidse bird in the jungle"
-            args.control_image_path = args.control_image_path or get_absolute_path("test/ref/control.png")
-        elif args.controlnet.lower() == "none":
-            args.prompt = (
-                args.prompt
-                or "Photo of a ultra realistic sailing ship, dramatic light, pale sunrise, cinematic lighting, \
-                            battered, low angle, trending on artstation, 4k, hyper realistic, focused, extreme details, \
-                            unreal engine 5, cinematic, masterpiece, art by studio ghibli, intricate artwork by john william turner."
-            )
+            _apply_spec_defaults(args, InferenceConfig())
 
-    elif "sd-turbo" in args.model_id:
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.num_inference_steps = args.num_inference_steps or 1
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 0.0
-        )
-        args.num_images_per_prompt = args.num_images_per_prompt or 1
-        args.prompt = (
-            args.prompt
-            or "A cinematic shot of a baby racoon wearing an intricate italian priest robe."
-        )
-        args.n_prompt = args.n_prompt or ""
-
-    elif "stable-diffusion-2-1-base" in args.model_id:
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.num_inference_steps = args.num_inference_steps or 50
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.5
-        )
-        args.num_images_per_prompt = args.num_images_per_prompt or 1
-        args.prompt = args.prompt or "A photo of an astronaut riding a horse on mars."
-
-    elif "stable-diffusion-2-1" in args.model_id:
-        args.height = args.height or 768
-        args.width = args.width or 768
-        args.num_inference_steps = args.num_inference_steps or 50
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.5
-        )
-        args.num_images_per_prompt = args.num_images_per_prompt or 1
-        args.prompt = args.prompt or "A photo of an astronaut riding a horse on mars."
-
-    elif "stable-diffusion-3-medium" in args.model_id:
-        args.num_inference_steps = args.num_inference_steps or 8
-        args.num_images_per_prompt = args.num_images_per_prompt or 1
-        args.common_model_path = "common/"
+    if not hasattr(args, "sub_model_path"):
         args.sub_model_path = "normal/"
-        args.controlnet = args.controlnet or "Canny"
-        check_sd3_normal_args(args)
-        # default prompt, n_prompt, seed, guidance_scale, controlnet_conditioning_scale are set in check_sd3_normal_args
-        config_sd3_controlnet_args(args)
-        if args.dynamic_shape_file_path is None and args.height is None and args.width is None:
-            args.height = 1024
-            args.width = 1024
-
-    elif (
-        "stable-diffusion-3.5-medium" in args.model_id
-        or "stable-diffusion-3-5" in args.model_id
-        or "stable-diffusion-3.5" in args.model_id
-    ):
-        args.num_inference_steps = args.num_inference_steps or 8
-        args.num_images_per_prompt = args.num_images_per_prompt or 1
-        args.sub_model_path = "normal/"
+    if not hasattr(args, "common_model_path"):
         args.common_model_path = "common/"
-        args.controlnet = args.controlnet or "Canny"
-        check_sd3_normal_args(args)
-        # default prompt, n_prompt, seed, guidance_scale, controlnet_conditioning_scale are set in check_sd3_normal_args
-        config_sd35_controlnet_args(args)
-        if args.dynamic_shape_file_path is None and args.height is None and args.width is None:
-            args.height = 1024
-            args.width = 1024
 
-    elif "sdxl-turbo" in args.model_id:
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.num_inference_steps = args.num_inference_steps or 1
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 0.0
-        )
-        args.num_images_per_prompt = args.num_images_per_prompt or 1
-        args.prompt = (
-            args.prompt
-            or "A cinematic shot of a baby racoon wearing an intricate italian priest robe."
-        )
-        args.n_prompt = args.n_prompt or ""
+    _validate_control_paths(args)
 
-    elif "stable-diffusion-xl-base-1.0" in args.model_id or "sdxl-base" in args.model_id:
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        args.num_inference_steps = args.num_inference_steps or 50
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.5
-        )
-        args.num_images_per_prompt = args.num_images_per_prompt or 1
-        args.prompt = args.prompt or "An astronaut riding a green horse"
-        args.n_prompt = args.n_prompt or ""
+    if not args.model_id:
+        # Skip model-path / env validation when no model is configured.
+        return args
 
-    elif "Nitro-E".lower() in args.model_id.lower():
-        
-        args.height = args.height or 512
-        args.width = args.width or 512
-        args.num_inference_steps = args.num_inference_steps or 20
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 4.5
-        )
-        args.num_images_per_prompt = args.num_images_per_prompt or 1
-        args.prompt = args.prompt or "A hot air balloon in the shape of a heart grand canyon."
-        args.n_prompt = args.n_prompt or ""
-        args.seed = args.seed if args.seed is not None else 0
-        
-    elif "Segmind-Vega".lower() in args.model_id.lower():
-        args.height = args.height or 1024
-        args.width = args.width or 1024
-        args.num_inference_steps = args.num_inference_steps or 50
-        args.guidance_scale = (
-            args.guidance_scale if args.guidance_scale is not None else 7.5
-        )
-        args.num_images_per_prompt = args.num_images_per_prompt or 1
-        if args.control_image_path is not None:
-            if args.strength is None or args.strength < 0.0 or args.strength > 1.0:
-                Logger.warning(
-                    f"Invalid value for --strength: '{args.strength}'. "
-                    f"Allowed values should be in [0.0, 1.0]. "
-                    f"Set --strength to its default value 0.3 . "
-                )
-                args.strength = 0.3 
-            actual_iters =  args.strength * args.num_inference_steps
-            if actual_iters < 1.0:
-                args.strength = round(1.01 / args.num_inference_steps, 3)
-                Logger.warning(
-                    f"There should be at least 1 denoising iteration. "
-                    f"Actual value ({actual_iters}) assigned is not applicable. "
-                    f"Set --strength to {args.strength} according to "
-                    f"--num_inference_steps(which is {args.num_inference_steps}). "
-                )
-        args.prompt = args.prompt or "An astronaut riding a green horse"
-        args.n_prompt = args.n_prompt or ""
+    if args.tea_caching_coef is None:
+        args.tea_caching_coef = [1.0, 0.0]
 
     if not args.model_path:
-        Logger.debug(f"Will auto-download model from Hugging Face: {args.model_id}")
-        args.model_path = None
+        # No path given at all — auto-download from Hugging Face.
+        args.model_path = resolve_root_model_path(args.model_id, None, args.revision)
     else:
+        args.model_path = os.path.abspath(args.model_path)
         if not os.path.exists(args.model_path):
-            raise FileNotFoundError(f"model_path {args.model_path} not exist")
+            raise FileNotFoundError(
+                f"model_path '{args.model_path}' does not exist. "
+                f"Pass the correct path with --model_path, or omit it to auto-download."
+            )
+    
 
     system = platform.system()
     share_obj_name = ""
     if system == "Windows":
-        share_obj_name = "onnx_custom_ops.dll"
+        share_obj_name = "onnxruntime_providers_ryzenai.dll"
     elif system == "Linux":
-        share_obj_name = "libonnx_custom_ops.so"
+        share_obj_name = "libonnxruntime_providers_ryzenai.so"
 
     if not args.custom_op_path:
         onnx_utils_root = os.environ.get("ONNX_UTILS_ROOT")
@@ -867,18 +409,15 @@ def check_args(args):
             candidates.append(
                 os.path.join(onnx_utils_root, "build", "install", "bin", share_obj_name)
             )
-
         # 2. RYZEN_AI_INSTALLATION_PATH/deployment
         if ryzen_root:
             candidates.append(
                 os.path.join(ryzen_root, "deployment", share_obj_name)
             )
-
-        # 3. project local lib fallback
+        # 3. project local lib fallback  # pr-231: uncommented -- enables lib/ EP DLL discovery
         candidates.append(
-            get_absolute_path(os.path.join("lib", share_obj_name))
+            resolve_project_path(os.path.join("lib", share_obj_name))
         )
-
         # pick first existing
         args.custom_op_path = next(
             (p for p in candidates if os.path.exists(p)),
@@ -891,21 +430,19 @@ def check_args(args):
             f"Searched paths:\n  " + "\n  ".join(candidates)
         )
 
-    # Set DD_PLUGINS_ROOT for all SD3 related models
+    mid = args.model_id.lower()
     is_sd3_model = (
-        "stable-diffusion-3" in args.model_id.lower()
-        or "stable-diffusion-3.5" in args.model_id.lower()
-        or "stable-diffusion-3-5" in args.model_id.lower()
+        "stable-diffusion-3" in mid
+        or "stable-diffusion-3.5" in mid
+        or "stable-diffusion-3-5" in mid
     )
-    
-    if is_sd3_model:
-        # Set DD_PLUGINS_ROOT if not set or empty
+    # pr-231: FLUX models also need DD_PLUGINS_ROOT for NPU transactions
+    is_flux_model = "flux" in mid
+    if is_sd3_model or is_flux_model:
         if not os.environ.get("DD_PLUGINS_ROOT"):
             os.environ["DD_PLUGINS_ROOT"] = get_absolute_path("lib/transaction/stx")
-        
         dd_plugins_path = os.environ["DD_PLUGINS_ROOT"]
         Logger.debug(f"DD_PLUGINS_ROOT set to: {dd_plugins_path}")
-        
         if not os.path.exists(dd_plugins_path):
             raise EnvironmentError(
                 f"invalid DD_PLUGINS_ROOT {os.environ['DD_PLUGINS_ROOT']}"
@@ -916,34 +453,6 @@ def check_args(args):
     if not os.path.exists(os.environ["DD_ROOT"]):
         raise EnvironmentError(f"invalid DD_ROOT {os.environ['DD_ROOT']}")
 
-    # dynamic shape feature support does not require width and height to be equal
-    # # Check width and height are equal and valid values
-    # if args.width != args.height:
-    #     # TODO, sd3 support h!=w
-    #     raise ValueError("Width and height must be equal")
-
-    # if args.width not in [512, 768, 1024]:
-    #     raise ValueError("Width/height must be either 512, 768 or 1024")
-
-    # DD_ENV_INSTR_STACK_SIZE_MB are disabled for now, the default values are:
-    # SD3 without preemption: 30MB
-    # SD3 with preemption: 60MB
-    # others: 8MB
-    # [deprecated]
-    # # Set DD_ENV_INSTR_STACK_SIZE_MB environment variable based on width
-    # if "DD_ENV_INSTR_STACK_SIZE_MB" not in os.environ:
-    #     if args.width in (1024, 768):
-    #         os.environ["DD_ENV_INSTR_STACK_SIZE_MB"] = "30"
-    #     # else:
-    #     #     os.environ["DD_ENV_INSTR_STACK_SIZE_MB"] = ""
-
-    # # Check if both controlnet and prompt are specified
-    # if args.controlnet and args.prompt:
-    #     Logger.warning(
-    #         "Both controlnet and prompt parameters specified. Note that the prompt will be overridden by GetControlnetInfo based on the controlnet type."
-    #     )
-
-    # profiling mode
     if args.enable_profile:
         if args.profiling_rounds <= 0:
             raise ValueError(

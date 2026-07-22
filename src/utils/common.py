@@ -2,24 +2,40 @@
 # Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
 #
 
-import torch
-import onnxruntime
-import os
+import ctypes
+import inspect
 import json
+import logging as Logger
+import os
+import re
 import sys
 import time
 import logging as Logger
+from dataclasses import dataclass
 import re
 import warnings
 import psutil
 import ctypes
 from pathlib import Path
+try:
+    import winreg
+    _WINREG_AVAILABLE = True
+except ImportError:
+    _WINREG_AVAILABLE = False
 import pandas as pd
+import psutil
+import torch
+import onnxruntime
 from huggingface_hub import snapshot_download
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 process = psutil.Process()
 from diffusers import OnnxRuntimeModel
+from diffusers.pipelines.onnx_utils import OnnxRuntimeModel
 
+_EP_REGISTERED = False
+EP_NAME = "RyzenAILightExecutionProvider"
 
 
 def _configure_external_loggers():
@@ -50,10 +66,7 @@ try:
 except ImportError:
     pass
 
-from diffusers.pipelines.onnx_utils import OnnxRuntimeModel
 from datetime import datetime
-from typing import List, Optional, Tuple, Any
-from pathlib import Path
 
 # CHANGE ADDED: Dynamic provider label helper for --force-cpu functionality
 # This function returns "CPU" when --force-cpu is used (ORT_DISABLE_GPU=1), "NPU" otherwise
@@ -64,12 +77,17 @@ def _get_provider_label():
     else:
         return "NPU"
 
-def get_absolute_path(sub_path: str) -> str:
+def resolve_project_path(sub_path: str) -> str:
+    """Resolve a path relative to the project root without requiring it to exist."""
     project_root = Path(__file__).resolve().parents[2]
-    absolute_path = project_root / sub_path
+    return str((project_root / sub_path).resolve())
+
+
+def get_absolute_path(sub_path: str) -> str:
+    absolute_path = resolve_project_path(sub_path)
     if not os.path.exists(absolute_path):
         raise FileNotFoundError(f"File not found: {absolute_path}")
-    return str(absolute_path.resolve())
+    return absolute_path
 
 
 def download_model_from_huggingface(model_id: str, force_download: bool = False, revision: str = None) -> str:
@@ -85,19 +103,35 @@ def download_model_from_huggingface(model_id: str, force_download: bool = False,
         str: Local path of the downloaded model
     """
     try:
-        # Set cache directory (under models/ in project root)
-        cache_dir = Path(get_absolute_path("models"))
+        # Set cache directory (under models/ in project root by default).
+        models_root = (
+            os.environ.get("RYZENAI_GENAI_SD_MODELS_ROOT")
+        )
+        if models_root is not None:
+            cache_dir = Path(models_root)
+        else:
+            cache_dir = Path(get_absolute_path("models"))
         cache_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Target path where the model will be downloaded
         model_name = model_id.replace("/", "_")
         local_model_path = cache_dir / model_name
-        
-        # If model exists locally and not forcing download, use cached version
+        revision_file = local_model_path / ".revision"
+
+        # pr-231: revision-aware caching -- if a revision is requested, check
+        # whether the cached model was downloaded with that same revision.
+        # If revisions don't match, re-download with the correct one.
         if local_model_path.exists() and not force_download:
-            Logger.debug(f"Using locally cached model: {local_model_path}")
-            return str(local_model_path)
-        
+            cached_revision = None
+            if revision_file.exists():
+                cached_revision = revision_file.read_text(encoding='utf-8').strip()
+
+            if revision and cached_revision != revision:
+                Logger.info(f"Revision mismatch: cached='{cached_revision}', requested='{revision}'. Re-downloading...")
+            else:
+                Logger.debug(f"Using locally cached model: {local_model_path}")
+                return str(local_model_path)
+
         Logger.info(f"Starting download from Hugging Face: {model_id}")
         if revision:
             Logger.debug(f"Using revision/branch: {revision}")
@@ -105,7 +139,7 @@ def download_model_from_huggingface(model_id: str, force_download: bool = False,
         Logger.debug("This may take a few minutes depending on network speed...")
         Logger.debug("Using snapshot_download (with built-in progress bar)...")
         Logger.debug("")
-        
+
         # Use snapshot_download to download entire repository
         # local_dir: directly download to the specified directory
         # snapshot_download has built-in progress bar via tqdm
@@ -118,12 +152,18 @@ def download_model_from_huggingface(model_id: str, force_download: bool = False,
             }
             if revision:
                 download_kwargs["revision"] = revision
-            
+
             downloaded_path = snapshot_download(**download_kwargs)
-            
+
+            # pr-231: save revision info for future cache validation
+            if revision:
+                revision_file.write_text(revision, encoding='utf-8')
+            elif revision_file.exists():
+                revision_file.unlink()
+
             Logger.debug("")
             Logger.debug(f"Model download completed: {local_model_path}")
-            
+
         except Exception as download_error:
             Logger.error(f"snapshot_download failed: {str(download_error)}")
             Logger.error("This might be due to:")
@@ -132,9 +172,9 @@ def download_model_from_huggingface(model_id: str, force_download: bool = False,
             Logger.error("  3. Hugging Face API rate limiting")
             Logger.error("  4. Insufficient disk space")
             raise
-        
+
         return str(local_model_path)
-        
+
     except Exception as e:
         Logger.error(f"Failed to download model from Hugging Face: {str(e)}")
         Logger.error(f"Please check:")
@@ -193,42 +233,42 @@ def generate_filename(
         # -> "sd3_img0_canny_profiling_1024x1024_steps8_prompt0_20250108_120000.png"
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
+
     model_name = model_id.split('/')[-1]
     parts = [model_name]
 
     if image_idx is not None:
         parts.append(f"img{image_idx}")
-    
+
     # Add controlnet info
     if controlnet and controlnet.lower() != "none":
         parts.append(controlnet)
-    
+
     # Add run mode
     if run_mode:
         parts.append(run_mode)
-    
+
     # Add resolution
     parts.append(f"{width}x{height}")
-    
+
     # Add steps
     parts.append(f"steps{num_steps}")
-    
+
     # Add prompt index
     if prompt_idx is not None:
         parts.append(f"prompt{prompt_idx}")
-    
+
     # Add batch size if provided
     if batch_size is not None:
         parts.append(f"bs{batch_size}")
-    
+
     # Add timestamp
     parts.append(timestamp)
-    
+
     return "_".join(parts) + suffix
 
 
-def setup_npu_runtime(root_path, bin_path):
+def setup_npu_runtime(bin_path):
     t5_path = get_absolute_path("src/t5")
     if t5_path not in sys.path:
         sys.path.insert(0, t5_path)
@@ -242,277 +282,220 @@ def setup_npu_runtime(root_path, bin_path):
     AIEGEMM.select_op_handle()
 
 
-def LoadT5NPUTorchModel(
-    root_path,
-    model_path,
-    folder,
-    model_name="serialized_quantized_t5-v1_1-xxl_w4_g128_gptq.safetensors",
-    bin_name="serialized_quantized_t5-v1_1-xxl_w4_g128_gptq.bin",
-):
-    Logger.debug("------------------------------")
-    Logger.info(f"Load NPU model {os.path.join(model_path, folder)}")
-
-    safetensors_path = os.path.join(model_path, folder, model_name)
-    bin_path = os.path.join(model_path, folder, bin_name)
-    setup_npu_runtime(root_path, bin_path)
-    
-    from modeling_t5 import T5Config, T5EncoderModel  # pyright: ignore[reportMissingImports]
-    from qlinear import AIEGEMM, QLinearPerGrp  # pyright: ignore[reportMissingImports]
-    from safetensors import safe_open
-    from safetensors.torch import load_file
-
-    t0 = time.perf_counter()
-
-    with safe_open(safetensors_path, framework="pt") as f:
-        meta = f.metadata()
-    with torch.device("meta"):
-        model = T5EncoderModel(T5Config.from_dict(json.loads(meta["__config__"])))
-    QLinearPerGrp.prepare_model(model, meta)
-    model.load_state_dict(
-        load_file(safetensors_path, device="cpu"), strict=False, assign=True
-    )
-    model.model_name = "t5"
-    AIEGEMM.load_npu(model, meta)
-
-    Logger.debug(f"Model {folder} loading time = {time.perf_counter() - t0}s")
-
-    return model
-
-
-def LoadModel(
-    model_path,
-    config_folder,
-    folder,
-    session_options=None,
-    filename="model.onnx",
-    providers=["CPUExecutionProvider"],
-):
-    Logger.info("Load {} ... ".format(folder))
-    config_abs_path = os.path.join(model_path, config_folder, "config.json")
-    model_abs_path = os.path.join(model_path, folder, filename)
-
-    # load model
-    t0 = time.perf_counter()
-    m = onnxruntime.InferenceSession(
-        model_abs_path, sess_options=session_options, providers=providers
-    )
-    Logger.debug(f"Model {folder} loading time = {time.perf_counter() - t0}s")
-
-    # Print the active providers
-    Logger.debug("Active providers:")
-    for provider in m.get_providers():
-        Logger.debug(f"  - provider: {provider}")
-
-    m = OnnxRuntimeModel(m)
+def register_ep(ep_dll: Path) -> None:
+    """Register the RyzenAI EP once per process."""
+    global _EP_REGISTERED
+    if _EP_REGISTERED:
+        return
+    ep_dll = ep_dll.resolve()  # pr-231: resolve symlinks so dll_dir is correct
+    dll_dir = ep_dll.parent
+    # pr-231: os.add_dll_directory is required on Windows so ORT can resolve dependency DLLs
+    if hasattr(os, "add_dll_directory"):
+        os.add_dll_directory(str(dll_dir))
+    prev_cwd = os.getcwd()
     try:
-        with open(config_abs_path, "r") as file:
-            config = json.load(file)
+        os.chdir(dll_dir)
+        onnxruntime.register_execution_provider_library(EP_NAME, str(ep_dll))
+    finally:
+        os.chdir(prev_cwd)
+    _EP_REGISTERED = True
 
-        m.config = config
-    except:
-        Logger.warning("Don't find the config file for " + folder)
-        m.config = {}
 
-    return m
+def get_total_physical_memory_gb() -> float:
+    """Get the total physical memory of the system (GiB) using the Windows GlobalMemoryStatusEx API."""
+    kernel32 = ctypes.windll.kernel32
+    class MEMORYSTATUSEX(ctypes.Structure):
+        _fields_ = [
+            ("dwLength", ctypes.c_ulong),
+            ("dwMemoryLoad", ctypes.c_ulong),
+            ("ullTotalPhys", ctypes.c_ulonglong),
+            ("ullAvailPhys", ctypes.c_ulonglong),
+            ("ullTotalPageFile", ctypes.c_ulonglong),
+            ("ullAvailPageFile", ctypes.c_ulonglong),
+            ("ullTotalVirtual", ctypes.c_ulonglong),
+            ("ullAvailVirtual", ctypes.c_ulonglong),
+            ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+        ]
+
+    stat = MEMORYSTATUSEX()
+    stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+    kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))
+    return stat.ullTotalPhys / (1024 ** 3)
+
+
+def get_shared_memory_limit_gb() -> float:
+    total_mem = get_total_physical_memory_gb()
+    if not _WINREG_AVAILABLE:
+        return total_mem
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Control\GraphicsDrivers\MemoryManager",
+        )
+        value, _ = winreg.QueryValueEx(key, "SystemPartitionCommitLimitPercentage")
+        winreg.CloseKey(key)
+    except FileNotFoundError:
+        value = 50
+    return total_mem * value / 100
+
+
+def apply_low_memory_optimization(
+    session_options: onnxruntime.SessionOptions,
+    threshold_gb: float,
+) -> bool:
+    if threshold_gb < 0.0:
+        return False
+    shared_gb = get_shared_memory_limit_gb()
+    Logger.info(
+        f"Shared memory limit: {shared_gb:.2f} GiB, threshold: {threshold_gb:.2f} GiB"
+    )
+    if shared_gb < threshold_gb:
+        session_options.add_session_config_entry("fusion_opt_enable_shared_const_buffers", "1")
+        Logger.info(
+            f"fusion_opt_enable_shared_const_buffers "
+            f"(shared {shared_gb:.2f} GiB < threshold {threshold_gb:.2f} GiB)."
+        )
+        total_gb = get_total_physical_memory_gb()
+        minimum_shared_threshold = threshold_gb / total_gb
+        if total_gb < threshold_gb:
+            pass
+        else:
+            Logger.warning(f"If the shared memory is less than the minimum shared threshold, the performance will be degraded.")
+            Logger.warning(f"You can set the shared memory percentage by setting the value of HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers\\MemoryManager\\SystemPartitionCommitLimitPercentage at least {minimum_shared_threshold * 100}% to achieve better performance.")
+        return True
+    return False
+
 
 def config_session_options(
-    custom_op_path, dd_model_path, enable_dd_fusion_compile
+    custom_op_path,
+    dd_model_path,
+    enable_dd_fusion_compile,
+    low_memory_threshold_gb: float = -1.0,
+    execution_providers: List[str] = ["CPUExecutionProvider"],
 ):
-    print(f'custom op   path: {custom_op_path}')
-    # CHANGED: Check if custom_op_path exists before loading to prevent errors when path is None/invalid
-    if custom_op_path and os.path.exists(custom_op_path):
-        ctypes.CDLL(custom_op_path)
     session_options = onnxruntime.SessionOptions()
     session_options.graph_optimization_level = (
         onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     )
+    low_memory_optimized = apply_low_memory_optimization(session_options, threshold_gb=low_memory_threshold_gb)
     if custom_op_path and os.path.exists(custom_op_path):
-        session_options.add_session_config_entry("dd_cache", (Path(dd_model_path).parent / "cache").as_posix())
-        # model loading optimization
-        session_options.add_session_config_entry(
-            "onnx_custom_ops_const_key", dd_model_path
-        )
-        # can be commented out to reduce compiling time if you have compiled before
-        if enable_dd_fusion_compile:
-            session_options.add_session_config_entry("compile_fusion_rt", "1")
+        # CHANGED: Check if custom_op_path exists before loading to prevent errors when path is None/invalid
+        ctypes.CDLL(custom_op_path)
+        register_ep(Path(custom_op_path))
+        # DML must be registered before RyzenAI for fallback (e.g. NHWCConv on controlnet).
+        # RyzenAI -> DML -> CPU can crash at runtime; DML -> RyzenAI -> CPU is stable.
+        dd_path = Path(dd_model_path) if dd_model_path else None
+        const_key = dd_path.as_posix() if low_memory_optimized and dd_path else ""
+        compile_fusion_rt = "1" if enable_dd_fusion_compile else "0"
+        dd_cache = (dd_path / "cache").as_posix() if dd_path else ""
+        available_execution_providers = onnxruntime.get_available_providers()
+        for ep in execution_providers:
+            if ep == "DmlExecutionProvider":
+                if "DmlExecutionProvider" not in available_execution_providers:
+                    Logger.warning(f"DmlExecutionProvider is not available, skipping...")
+                    continue
+                if os.environ.get("ORT_DISABLE_GPU", "0") == "1":
+                    Logger.warning(f"DmlExecutionProvider is disabled by ORT_DISABLE_GPU, skipping...")
+                    continue
+                session_options.add_provider("DmlExecutionProvider", {})
+                Logger.debug(f"Added DmlExecutionProvider")
+            elif ep == EP_NAME:
+                session_options.add_provider_for_devices(
+                    [d for d in onnxruntime.get_ep_devices() if d.ep_name == EP_NAME], {
+                        "dd_cache": dd_cache,
+                        "onnx_custom_ops_const_key": const_key,
+                        "compile_fusion_rt": compile_fusion_rt
+                    }
+                )
+                Logger.debug(f"Added {EP_NAME}")
+            elif ep in available_execution_providers:
+                session_options.add_provider(ep, {})
+                Logger.debug(f"Added {ep}")
+            else:
+                Logger.warning(f"Execution provider {ep} is not available, skipping...")
         session_options.register_custom_ops_library(custom_op_path)
     return session_options
 
 
-def get_sd_dd_model_dir(MODEL_PATH, model_type, width=None):
-    if width:
-        model_dir = f"{model_type}/{str(width)}/dd"
-    else:
-        model_dir = f"{model_type}/dd"
-    if os.path.exists(os.path.join(MODEL_PATH, model_dir)):
-        return model_dir
-    elif os.path.exists(os.path.join(MODEL_PATH, f"{model_type}/dynamic/dd")):
-        return f"{model_type}/dynamic/dd"
-    else:
-        raise ValueError(f"Model directory {os.path.join(MODEL_PATH, model_dir)} not found")
-
-def get_sd_dd_dynamic_model_dir(model_type):
-    return f"{model_type}/dynamic/dd"
-
-def get_sd3_dd_model_dir(MODEL_PATH, model_type, width, t5_sequence_len=None):
-    width_str = "512" if width == 512 else "1024"
-
-    # Add t5_sequence_len to path for controlnet or transformer models
-    if t5_sequence_len is not None:
-        model_dir = f"{model_type}/{width_str}_{t5_sequence_len}/dd"
-        if os.path.exists(os.path.join(MODEL_PATH, model_dir)):
-            return model_dir
-        elif os.path.exists(os.path.join(MODEL_PATH, f"{model_type}/dynamic/dd")):
-            return f"{model_type}/dynamic/dd"
-        else:
-            raise ValueError(f"Model directory {os.path.join(MODEL_PATH, model_dir)} not found")
-    else:
-        model_dir = f"{model_type}/{width_str}/dd"
-        if os.path.exists(os.path.join(MODEL_PATH, model_dir)):
-            return model_dir
-        elif os.path.exists(os.path.join(MODEL_PATH, f"{model_type}/dynamic/dd")):
-            return f"{model_type}/dynamic/dd"
-        else:
-            raise ValueError(f"Model directory {os.path.join(MODEL_PATH, model_dir)} not found")
-
-def get_op_namespace(
-    model_type: str,
-    width: int | None = None,
-    t5_sequence_len: int | None = None,
-    is_dynamic: bool = False,
+def resolve_root_model_path(
+    model_id: Optional[str],
+    root_path: Optional[str],
+    revision: Optional[str] = None,
 ) -> str:
+    """
+    Return ``root_path`` if non-empty; otherwise download via ``model_id`` (and optional ``revision``).
+    """
+    if root_path is not None and str(root_path).strip() != "":
+        return root_path
+    Logger.debug("=" * 60)
+    Logger.debug("model_path not provided, will download model from Hugging Face")
+    Logger.debug(f"Model ID: {model_id}")
+    if revision:
+        Logger.debug(f"Revision/Branch: {revision}")
+    Logger.debug("=" * 60)
+    resolved = download_model_from_huggingface(model_id, revision=revision)
+    Logger.debug("=" * 60)
+    Logger.debug(f"Model ready: {resolved}")
+    Logger.debug("Starting to load model components...")
+    Logger.debug("=" * 60)
+    return resolved
+
+
+def resolve_dd_model_path(
+    model_path: Path,
+    device: str = "CPU",
+    width: Optional[int] = None,
+    t5_sequence_len: Optional[int] = None,
+    is_dynamic: bool = False
+) -> Path:
+    """
+    Resolve the directory of DD model for SD/SD3 pipelines.
+    Args:
+        model_path: path to the model
+        device: device to use
+        width: optional width (512, 1024, etc.)
+        t5_sequence_len: optional sequence length for SD3
+        is_dynamic: if True, return the dd/ path directly (tries dd/ then dynamic/dd/)
+    Returns:
+        Path to the model directory
+    """
+    if device != "NPU":
+        return model_path
+
+    # Two layouts exist on disk:
+    #   SDXL/SD-style:      <component>/dd/
+    #   FLUX/SD3.5-style:   <component>/dynamic/dd/
+    dd_path = model_path / "dd"
+    dynamic_dd_path = model_path / "dynamic" / "dd"
+
     if is_dynamic:
-        return "dynamic"
-    elif model_type.startswith("transformer"):
-        return "sd3"
-    elif model_type.startswith("controlnet") and t5_sequence_len is not None:
-        return "sd3"
-    else:
-        return "sd15"
-
-
-def gpu_flat_onnx_exists(model_root: str, component: str) -> bool:
-    """True if ``model_root/component`` exists and contains ``model.onnx`` or ``replaced.onnx``."""
-    base = os.path.join(model_root, component)
-    if not os.path.isdir(base):
-        return False
-    for fn in ("model.onnx", "replaced.onnx"):
-        if os.path.isfile(os.path.join(base, fn)):
-            return True
-    return False
-
-
-def dd_onnx_exists_at_model_root(
-    model_root: str,
-    model_type: str,
-    model_file: str,
-    width: int,
-    t5_sequence_len: int,
-    is_dynamic: bool = False,
-) -> bool:
-    """True if the DD-fusion ONNX bundle for ``model_type`` exists under ``model_root``."""
-    try:
-        op_namespace = get_op_namespace(
-            model_type, width, t5_sequence_len, is_dynamic
+        if dd_path.exists():
+            return dd_path
+        if dynamic_dd_path.exists():
+            return dynamic_dd_path
+        raise FileNotFoundError(
+            f"Dynamic model directory not found: tried {dd_path} and {dynamic_dd_path}"
         )
-        if op_namespace == "dynamic":
-            dd_model_dir = get_sd_dd_dynamic_model_dir(model_type)
-        elif op_namespace == "sd3":
-            dd_model_dir = get_sd3_dd_model_dir(
-                model_root, model_type, width, t5_sequence_len
-            )
-        else:
-            dd_model_dir = get_sd_dd_model_dir(model_root, model_type, width)
-        return os.path.isfile(os.path.join(model_root, dd_model_dir, model_file))
-    except ValueError:
-        return False
 
+    # Build candidate path (width-specific, e.g. unet/512/dd)
+    parts = []
+    if width:
+        parts.append(str(width))
+    if t5_sequence_len:
+        parts[-1] += f"_{t5_sequence_len}"
+    parts.append("dd")
 
-def pick_aux_model_root(
-    abs_sub_model_path: str,
-    model_path: str,
-    model_type: str,
-    *,
-    width: int,
-    t5_sequence_len: int,
-    gpu: bool,
-) -> str:
-    """
-    Prefer ``transformer`` / ``tea_caching`` under the inpainting sub-model root; if the
-    bundle is missing, try sibling ``normal`` then ``<model_path>/normal``.
-    """
-    candidates = []
-    seen = set()
-    for p in (
-        abs_sub_model_path,
-        os.path.join(os.path.dirname(abs_sub_model_path.rstrip(os.sep)), "normal"),
-        os.path.join(model_path, "normal"),
-    ):
-        p = os.path.normpath(p)
-        if not p or p in seen:
-            continue
-        seen.add(p)
-        candidates.append(p)
+    candidate_path = model_path.joinpath(*parts)
+    if candidate_path.exists():
+        return candidate_path
 
-    for root in candidates:
-        if not os.path.isdir(root):
-            continue
-        if gpu:
-            ok = gpu_flat_onnx_exists(root, model_type)
-        else:
-            ok = dd_onnx_exists_at_model_root(
-                root, model_type, "replaced.onnx", width, t5_sequence_len, False
-            )
-        if ok:
-            if root != abs_sub_model_path:
-                Logger.info(
-                    f"{model_type}: using fallback MODEL_PATH {root!r} "
-                    f"(not found under inpainting root {abs_sub_model_path!r})"
-                )
-            return root
+    # Fallback: try flat dd/ then dynamic/dd/
+    if dd_path.exists():
+        return dd_path
+    if dynamic_dd_path.exists():
+        return dynamic_dd_path
 
-    raise FileNotFoundError(
-        f"No {model_type} ONNX found under inpainting root or 'normal' fallbacks. "
-        f"Tried: {candidates}"
-    )
-
-
-def load_model_with_session(
-    MODEL_PATH,
-    model_type,
-    model_file,
-    custom_op_path="",
-    enable_dd_fusion_compile=True,
-    providers=["CPUExecutionProvider"],
-    width=None,
-    t5_sequence_len=None,
-    is_dynamic=False,
-):
-    session = None
-    dd_model_dir = model_type
-    if custom_op_path:
-        op_namespace = get_op_namespace(model_type, width, t5_sequence_len, is_dynamic)
-        if op_namespace == "dynamic":
-            dd_model_dir = get_sd_dd_dynamic_model_dir(model_type)
-        elif op_namespace == "sd3":
-            dd_model_dir = get_sd3_dd_model_dir(MODEL_PATH, model_type, width, t5_sequence_len)
-        elif op_namespace == "sd15":
-            dd_model_dir = get_sd_dd_model_dir(MODEL_PATH, model_type, width)
-        else:
-            raise ValueError(f"Unsupported model type: {model_type}")
-        session = config_session_options(
-            custom_op_path,
-            os.path.join(MODEL_PATH, dd_model_dir, model_file),
-            enable_dd_fusion_compile,
-        )
-    return LoadModel(
-        MODEL_PATH,
-        model_type,
-        dd_model_dir,
-        session_options=session,
-        filename=model_file,
-        providers=providers,
-    )
+    raise FileNotFoundError(f"Model path not found: {candidate_path}")
 
 
 def print_config(config):
@@ -657,48 +640,48 @@ def str2bool(value):
 
 
 def get_controlnet_model_name(target: str):
-    if target.lower() == "OutPainting".lower():
-        model_name = "controlnet-outpainting"
-    elif target.lower() == "Removal".lower():
-        model_name = "controlnet-removal"
-    elif target.lower() == "InPainting".lower():
-        model_name = "controlnet-inpainting"
-    else:
-        raise ValueError(f"Unsupported controlnet type: {target}, only support OutPainting, Removal, InPainting")
-
-    return model_name
+    supported_controlnet_types = ["outpainting", "removal", "inpainting", "canny", "tile", "pose", "depth", "union"]
+    if target.lower() not in supported_controlnet_types:
+        raise ValueError(f"Unsupported controlnet type: {target}, only support {', '.join(supported_controlnet_types)}")
+    return f"controlnet-{target.lower()}"
 
 
-def get_normal_controlnet_model_name(target: str):
-    if target.lower() == "Canny".lower():
-        model_name = "controlnet-canny"
-    elif target.lower() == "Tile".lower():
-        model_name = "controlnet-tile"
-    elif target.lower() == "Pose".lower():
-        model_name = "controlnet-pose"
-    elif target.lower() == "Depth".lower():
-        model_name = "controlnet-depth"
-    elif target.lower() == "union".lower():
-        model_name = "controlnet-union"
-    elif target.lower() in ["outpainting", "removal", "inpainting"]:
-        raise ValueError(f"Unsupported controlnet type: {target}, please try run_sd3_controlnet_outpainting.py instead.")
-    else:
-        model_name = "controlnet-canny"
-        Logger.warning(
-            f"Unhandled target: {target}, will use Canny by default in normal controlnet pipeline"
+
+def retrieve_timesteps(
+    scheduler,
+    num_inference_steps: Optional[int] = None,
+    device: Optional[Union[str, torch.device]] = None,
+    timesteps: Optional[List[int]] = None,
+    sigmas: Optional[List[float]] = None,
+    **kwargs,
+):
+    """Call scheduler.set_timesteps and return (timesteps, num_inference_steps).
+    Supports custom timestep or sigma schedules passed by the caller.
+    """
+    if timesteps is not None and sigmas is not None:
+        raise ValueError(
+            "Only one of `timesteps` or `sigmas` can be passed. "
+            "Please choose one to set custom values."
         )
-    return model_name
-
-def get_normal_transformer_model_name(abs_sub_model_path: str, target: str):
-    if target.lower() == "none":
-        if os.path.exists(os.path.join(abs_sub_model_path, "transformer_igpu")):
-            model_name = "transformer_igpu"
-        elif os.path.exists(os.path.join(abs_sub_model_path, "transformer-union")):
-            model_name = "transformer-union"
-        else:
-            model_name = "transformer"
-    elif target.lower() == "union":
-        model_name = "transformer-union"
+    if timesteps is not None:
+        if "timesteps" not in inspect.signature(scheduler.set_timesteps).parameters:
+            raise ValueError(
+                f"{scheduler.__class__}'s `set_timesteps` does not support custom "
+                "timestep schedules."
+            )
+        scheduler.set_timesteps(timesteps=timesteps, device=device, **kwargs)
+        timesteps = scheduler.timesteps
+        num_inference_steps = len(timesteps)
+    elif sigmas is not None:
+        if "sigmas" not in inspect.signature(scheduler.set_timesteps).parameters:
+            raise ValueError(
+                f"{scheduler.__class__}'s `set_timesteps` does not support custom "
+                "sigma schedules."
+            )
+        scheduler.set_timesteps(sigmas=sigmas, device=device, **kwargs)
+        timesteps = scheduler.timesteps
+        num_inference_steps = len(timesteps)
     else:
-        model_name = "transformer"
-    return model_name
+        scheduler.set_timesteps(num_inference_steps, device=device, **kwargs)
+        timesteps = scheduler.timesteps
+    return timesteps, num_inference_steps

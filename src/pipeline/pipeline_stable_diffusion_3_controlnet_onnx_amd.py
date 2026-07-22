@@ -45,6 +45,8 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.pipelines.stable_diffusion_3.pipeline_output import (
     StableDiffusion3PipelineOutput,
 )
+from src.pipeline.pipeline_utils import retrieve_timesteps  # pr-231: was duplicated inline
+from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # pr-231: replaces duplicated properties
 
 
 if is_torch_xla_available():
@@ -76,73 +78,6 @@ EXAMPLE_DOC_STRING = """
         >>> image.save("sd3.png")
         ```
 """
-
-
-def retrieve_timesteps(
-    scheduler,
-    num_inference_steps: Optional[int] = None,
-    device: Optional[Union[str, torch.device]] = None,
-    timesteps: Optional[List[int]] = None,
-    sigmas: Optional[List[float]] = None,
-    **kwargs,
-):
-    """
-    Calls the scheduler's `set_timesteps` method and retrieves timesteps from the scheduler after the call. Handles
-    custom timesteps. Any kwargs will be supplied to `scheduler.set_timesteps`.
-
-    Args:
-        scheduler (`SchedulerMixin`):
-            The scheduler to get timesteps from.
-        num_inference_steps (`int`):
-            The number of diffusion steps used when generating samples with a pre-trained model. If used, `timesteps`
-            must be `None`.
-        device (`str` or `torch.device`, *optional*):
-            The device to which the timesteps should be moved to. If `None`, the timesteps are not moved.
-        timesteps (`List[int]`, *optional*):
-            Custom timesteps used to override the timestep spacing strategy of the scheduler. If `timesteps` is passed,
-            `num_inference_steps` and `sigmas` must be `None`.
-        sigmas (`List[float]`, *optional*):
-            Custom sigmas used to override the timestep spacing strategy of the scheduler. If `sigmas` is passed,
-            `num_inference_steps` and `timesteps` must be `None`.
-
-    Returns:
-        `Tuple[torch.Tensor, int]`: A tuple where the first element is the timestep schedule from the scheduler and the
-        second element is the number of inference steps.
-    """
-    if timesteps is not None and sigmas is not None:
-        raise ValueError(
-            "Only one of `timesteps` or `sigmas` can be passed. Please choose one to set custom values"
-        )
-    if timesteps is not None:
-        accepts_timesteps = "timesteps" in set(
-            inspect.signature(scheduler.set_timesteps).parameters.keys()
-        )
-        if not accepts_timesteps:
-            raise ValueError(
-                f"The current scheduler class {scheduler.__class__}'s `set_timesteps` does not support custom"
-                f" timestep schedules. Please check whether you are using the correct scheduler."
-            )
-        scheduler.set_timesteps(timesteps=timesteps, device=device, **kwargs)
-        timesteps = scheduler.timesteps
-        num_inference_steps = len(timesteps)
-    elif sigmas is not None:
-        accept_sigmas = "sigmas" in set(
-            inspect.signature(scheduler.set_timesteps).parameters.keys()
-        )
-        if not accept_sigmas:
-            raise ValueError(
-                f"The current scheduler class {scheduler.__class__}'s `set_timesteps` does not support custom"
-                f" sigmas schedules. Please check whether you are using the correct scheduler."
-            )
-        scheduler.set_timesteps(sigmas=sigmas, device=device, **kwargs)
-        timesteps = scheduler.timesteps
-        num_inference_steps = len(timesteps)
-    else:
-        scheduler.set_timesteps(num_inference_steps, device=device, **kwargs)
-        timesteps = scheduler.timesteps
-    return timesteps, num_inference_steps
-
-
 def extend_control_block_samples(src_list):
     extended_list = []
 
@@ -161,10 +96,179 @@ def extend_control_block_samples(src_list):
 
     return extended_list
 
+### Tea Caching Functions ###
+
+class CacheContext:
+    """TeaCache context: polynomial coefficients + modulated/residual cache"""
+    def __init__(self):
+        # polynomial coefficients: [a_n, a_{n-1}, ..., a_0] -> y = a_n*x^n + ... + a_0
+        # poly10/default (SD3): f(x)=x
+        self.default_coef = [1.0, 0.0]
+        # poly210: f(x)=2x^2+x
+        self.default2_coef = [2.0, 1.0, 0.0]
+        # flux
+        self.flux_coef = [498.651651, -283.781631, 55.8554382, -3.82021401, 0.264230861]
+        
+        # cache state
+        self.modulated_inputs = None      # prev timestep norm1 output
+        self.hidden_states_residual = None   # for use_cache: output = input + residual
+        self.encoder_hidden_states_residual = None # for use_cache: output = input + residual
+
+    def get_coef(self, name: str):
+        if "sd3" in name or "default" in name:
+            return self.default_coef
+        # poly210 -> default2, flux -> flux
+        coef_map = {"poly210": self.default2_coef, "flux": self.flux_coef}
+        return coef_map.get(name, self.default_coef)
+
+def poly_rescale(x, coefficients):
+    """
+    y = a_0*x^n + a_1*x^(n-1) + ... + a_n
+    coefficients: [a_0, a_1, ..., a_n], from high degree to low degree
+    """
+    degree = len(coefficients) - 1
+    result = 0.0
+    for i, coef in enumerate(coefficients):
+        result += coef * (x ** (degree - i))
+    return result
+
+def l1_distance_rel(curr, prev):
+    """
+    Relative L1: mean(|curr - prev|) / mean(|prev|)
+    Paper Eq.4: L1_rel = ||curr - prev||_1 / ||prev||_1
+    """
+    curr_arr = np.asarray(curr)
+    prev_arr = np.asarray(prev)
+    diff = np.mean(np.abs(curr_arr - prev_arr))
+    norm = np.mean(np.abs(prev_arr))
+    return float(diff / (norm + 1e-8))
+
+class TeaCacheState:
+    """
+    TeaCache state machine - reset each frame generation, keep the same within one generation
+    """
+    def __init__(self, num_steps: int, delta: float = 0.2, poly_coef: list = None):
+        self.num_steps = num_steps
+        self.delta = delta  # paper: 0.1(slow), 0.2(fast)
+        self.poly_coef = poly_coef or [1.0, 0.0]  # SD3 default: identity
+        
+        self.cnt = 0
+        self.accumulated = 0.0
+        self.prev_modulated = None
+        self.cached_residual = None  # noise_pred - latent_model_input
+
+    def reset(self):
+        """Call each time before each new generation"""
+        self.cnt = 0
+        self.accumulated = 0.0
+        self.prev_modulated = None
+        self.cached_residual = None
+
+    def step(self, modulated_curr):
+        """
+        Call each timestep, return (use_cache, l1_value)
+        modulated_curr: current timestep norm1 output (Add_2_output_0)
+        """
+        # first and last step force computation
+        if self.cnt == 0 or self.cnt == self.num_steps - 1:
+            self.accumulated = 0.0
+            self.prev_modulated = modulated_curr
+            self.cnt += 1
+            if self.cnt == self.num_steps:
+                self.cnt = 0
+            return False, 0.0
+
+        # calculate L1 and rescale
+        l1_rel = l1_distance_rel(modulated_curr, self.prev_modulated)
+        self.accumulated += poly_rescale(l1_rel, self.poly_coef)
+        l1_value = self.accumulated  # for logging
+
+        # check if use_cache
+        if self.accumulated < self.delta:
+            use_cache = True
+        else:
+            use_cache = False
+            self.accumulated = 0.0
+
+        self.prev_modulated = modulated_curr
+        self.cnt += 1
+        if self.cnt == self.num_steps:
+            self.cnt = 0
+
+        return use_cache, l1_value
+### End of Tea Caching Functions ###
+
+### Tea Caching Functions ###
+
+def poly_rescale(x, coefficients):
+    """y = a_0*x^n + a_1*x^(n-1) + ... + a_n; coefficients from high to low degree."""
+    degree = len(coefficients) - 1
+    result = 0.0
+    for i, coef in enumerate(coefficients):
+        result += coef * (x ** (degree - i))
+    return result
+
+
+def l1_distance_rel(curr, prev):
+    """Relative L1: mean(|curr - prev|) / mean(|prev|)"""
+    curr_arr = np.asarray(curr)
+    prev_arr = np.asarray(prev)
+    diff = np.mean(np.abs(curr_arr - prev_arr))
+    norm = np.mean(np.abs(prev_arr))
+    return float(diff / (norm + 1e-8))
+
+
+class TeaCacheState:
+    """TeaCache state machine - reset each frame generation."""
+
+    def __init__(self, num_steps: int, delta: float = 0.2, poly_coef: list = None):
+        self.num_steps = num_steps
+        self.delta = delta
+        self.poly_coef = poly_coef or [1.0, 0.0]
+        self.cnt = 0
+        self.accumulated = 0.0
+        self.prev_modulated = None
+        self.cached_residual = None
+
+    def reset(self):
+        self.cnt = 0
+        self.accumulated = 0.0
+        self.prev_modulated = None
+        self.cached_residual = None
+
+    def step(self, modulated_curr):
+        """Return (use_cache, l1_value) for the current timestep."""
+        if self.cnt == 0 or self.cnt == self.num_steps - 1:
+            self.accumulated = 0.0
+            self.prev_modulated = modulated_curr
+            self.cnt += 1
+            if self.cnt == self.num_steps:
+                self.cnt = 0
+            return False, 0.0
+
+        l1_rel = l1_distance_rel(modulated_curr, self.prev_modulated)
+        self.accumulated += poly_rescale(l1_rel, self.poly_coef)
+        l1_value = self.accumulated
+
+        if self.accumulated < self.delta:
+            use_cache = True
+        else:
+            use_cache = False
+            self.accumulated = 0.0
+
+        self.prev_modulated = modulated_curr
+        self.cnt += 1
+        if self.cnt == self.num_steps:
+            self.cnt = 0
+
+        return use_cache, l1_value
+
+### End of Tea Caching Functions ###
+
 
 class OnnxStableDiffusion3ControlNetPipelineAMD(
-    DiffusionPipeline, SD3LoraLoaderMixin, FromSingleFileMixin
-):
+    DiffusionPipeline, SD3LoraLoaderMixin, FromSingleFileMixin,
+    AMDPipelineMixin,):
     r"""
     Args:
         transformer ([`SD3Transformer2DModel`]):
@@ -226,6 +330,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
         transformer: OnnxRuntimeModel = None,
         vae_decoder: OnnxRuntimeModel = None,
         controlnet: OnnxRuntimeModel = None,
+        tea_caching: OnnxRuntimeModel = None,
     ):
         super().__init__()
 
@@ -242,6 +347,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
             vae_encoder=vae_encoder,
             controlnet=controlnet,
         )
+        self.tea_caching_model = tea_caching
 
         self.vae_scale_factor = (
             2 ** (len(self.vae_encoder.config["block_out_channels"]) - 1)
@@ -266,6 +372,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
             "t5": [],
             "ctrlnet": [],
             "dit": [],
+            "tea_caching": [],
         }
 
         self.perf_time_gpu_model = {
@@ -274,18 +381,8 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
             "tokenizer_2": [],
             "text_encoder_2": [],
             "tokenizer_3": [],
+            "tea_caching": [],
         }
-
-    def _clear_time_dict(
-        self,
-    ):
-
-        for key in self.perf_time_dict:
-            self.perf_time_dict[key] = []
-
-        for key in self.perf_time_gpu_model:
-            self.perf_time_gpu_model[key] = []
-
     def _load_text_encoders_precomputed_values(
         self, prompt, text_encoder, device, dtype, max_sequence_length=0
     ):
@@ -821,36 +918,6 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
             )
 
     # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.prepare_latents
-    def prepare_latents(
-        self,
-        batch_size,
-        num_channels_latents,
-        height,
-        width,
-        dtype,
-        device,
-        generator,
-        latents=None,
-    ):
-        if latents is not None:
-            return latents.to(device=device, dtype=dtype)
-
-        shape = (
-            batch_size,
-            num_channels_latents,
-            int(height) // self.vae_scale_factor,
-            int(width) // self.vae_scale_factor,
-        )
-
-        if isinstance(generator, list) and len(generator) != batch_size:
-            raise ValueError(
-                f"You have passed a list of generators of length {len(generator)}, but requested an effective batch"
-                f" size of {batch_size}. Make sure the batch size matches the length of the generators."
-            )
-
-        latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
-        return latents
-
     def prepare_image(
         self,
         image,
@@ -921,28 +988,8 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
         return zero_block_dict
 
     @property
-    def guidance_scale(self):
-        return self._guidance_scale
-
-    @property
-    def clip_skip(self):
-        return self._clip_skip
-
-    @property
     def do_classifier_free_guidance(self):
         return self._guidance_scale > 1
-
-    @property
-    def joint_attention_kwargs(self):
-        return self._joint_attention_kwargs
-
-    @property
-    def num_timesteps(self):
-        return self._num_timesteps
-
-    @property
-    def interrupt(self):
-        return self._interrupt
 
     @torch.no_grad()
     @replace_example_docstring(EXAMPLE_DOC_STRING)
@@ -979,6 +1026,9 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
         callback_on_step_end_tensor_inputs: List[str] = ["latents"],
         max_sequence_length: int = 256,
         enable_text_encoder_precompute_value: bool = False,
+        enable_tea_caching: bool = False,
+        tea_caching_delta: float = 0.1,
+        tea_caching_coef: List[float] = [1.0, 0.0]
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -1281,6 +1331,10 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
         )
 
         # 7. Denoising loop
+        if enable_tea_caching:
+            cache_state = TeaCacheState(num_steps=num_inference_steps, delta=tea_caching_delta, poly_coef=tea_caching_coef)
+            cache_state.reset()
+            
         t0 = time.perf_counter()
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
@@ -1301,101 +1355,122 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
                 )
                 timestep = timestep.to(dtype=torch.float16).cpu().numpy()
 
-                ctrlnet_start_time = time.perf_counter()
-                if self.controlnet is not None:
-
-                    if isinstance(controlnet_keep[i], list):
-                        cond_scale = [
-                            c * s
-                            for c, s in zip(
-                                controlnet_conditioning_scale, controlnet_keep[i]
-                            )
-                        ]
-                    else:
-                        controlnet_cond_scale = controlnet_conditioning_scale
-                        if isinstance(controlnet_cond_scale, list):
-                            controlnet_cond_scale = controlnet_cond_scale[0]
-                        cond_scale = controlnet_cond_scale * controlnet_keep[i]
-
-                    cond_scale = np.full(1, cond_scale).astype(np.float16)
-                    cond_scale = np.full(1, cond_scale).astype(np.float16)
-                    has_encoder_hidden_states = any(input.name == "encoder_hidden_states" for input in self.controlnet.model.get_inputs())
-                    if has_encoder_hidden_states:
-                        model_input = {
-                            "hidden_states": latent_model_input,
-                            "controlnet_cond": controlnet_cond,
-                            "conditioning_scale": cond_scale,
-                            "encoder_hidden_states": prompt_embeds,
-                            "pooled_projections": controlnet_pooled_projections,
-                            "timestep": timestep,
-                        }
-                    else:
-                        model_input = {
-                            "hidden_states": latent_model_input,
-                            "controlnet_cond": controlnet_cond,
-                            "conditioning_scale": cond_scale,
-                            "pooled_projections": controlnet_pooled_projections,
-                            "timestep": timestep,
-                        }
-                    control_block_samples = self.controlnet.model.run(None, model_input)
-                    num_control_block_samples = len(control_block_samples)
-                    if num_control_block_samples == 6:
-                        model_input = {
-                            "hidden_states": latent_model_input,
-                            "timestep": timestep,
-                            "encoder_hidden_states": prompt_embeds,
-                            "pooled_projections": pooled_prompt_embeds,
-                            "block_controlnet_hidden_states_0": control_block_samples[0],
-                            "block_controlnet_hidden_states_1": control_block_samples[0],
-                            "block_controlnet_hidden_states_2": control_block_samples[1],
-                            "block_controlnet_hidden_states_3": control_block_samples[1],
-                            "block_controlnet_hidden_states_4": control_block_samples[2],
-                            "block_controlnet_hidden_states_5": control_block_samples[2],
-                            "block_controlnet_hidden_states_6": control_block_samples[3],
-                            "block_controlnet_hidden_states_7": control_block_samples[3],
-                            "block_controlnet_hidden_states_8": control_block_samples[4],
-                            "block_controlnet_hidden_states_9": control_block_samples[4],
-                            "block_controlnet_hidden_states_10": control_block_samples[5],
-                            "block_controlnet_hidden_states_11": control_block_samples[5],
-                        }
-                    elif num_control_block_samples == 12:
-                        model_input = {
-                            "hidden_states": latent_model_input,
-                            "timestep": timestep,
-                            "encoder_hidden_states": prompt_embeds,
-                            "pooled_projections": pooled_prompt_embeds,
-                            "block_controlnet_hidden_states_0": control_block_samples[0],
-                            "block_controlnet_hidden_states_1": control_block_samples[1],
-                            "block_controlnet_hidden_states_2": control_block_samples[2],
-                            "block_controlnet_hidden_states_3": control_block_samples[3],
-                            "block_controlnet_hidden_states_4": control_block_samples[4],
-                            "block_controlnet_hidden_states_5": control_block_samples[5],
-                            "block_controlnet_hidden_states_6": control_block_samples[6],
-                            "block_controlnet_hidden_states_7": control_block_samples[7],
-                            "block_controlnet_hidden_states_8": control_block_samples[8],
-                            "block_controlnet_hidden_states_9": control_block_samples[9],
-                            "block_controlnet_hidden_states_10": control_block_samples[10],
-                            "block_controlnet_hidden_states_11": control_block_samples[11],
-                        }
-                    else:
-                        raise ValueError(f"Currently, only ControlNet output numbers of 6 or 12 are supported.")
-                else:
-                    model_input = {
+                use_cache = False
+                tea_start_time = None
+                if enable_tea_caching:
+                    tea_start_time = time.perf_counter()
+                    tea_caching_model_input = {
                         "hidden_states": latent_model_input,
                         "timestep": timestep,
-                        "encoder_hidden_states": prompt_embeds,
                         "pooled_projections": pooled_prompt_embeds,
                     }
-                    control_block_samples = self.create_zero_control_blocks(height, width, latent_model_input.shape[0])
-                    model_input.update(control_block_samples)
-                ctrlnet_time = time.perf_counter() - ctrlnet_start_time
-                self.perf_time_dict["ctrlnet"].append(ctrlnet_time)
+                    modulated_output = self.tea_caching_model.model.run(None, tea_caching_model_input)[0]
+                    use_cache, _ = cache_state.step(modulated_output)
 
-                transformer_start_time = time.perf_counter()
-                noise_pred = self.transformer.model.run(None, model_input)
-                transformer_time = time.perf_counter() - transformer_start_time
-                self.perf_time_dict["dit"].append(transformer_time)
-                noise_pred = torch.from_numpy(noise_pred[0]).to(device)
+                if use_cache and cache_state.cached_residual is not None:
+                    noise_pred_np = latent_model_input + cache_state.cached_residual
+                else:
+                    ctrlnet_start_time = time.perf_counter()
+                    if self.controlnet is not None:
+
+                        if isinstance(controlnet_keep[i], list):
+                            cond_scale = [
+                                c * s
+                                for c, s in zip(
+                                    controlnet_conditioning_scale, controlnet_keep[i]
+                                )
+                            ]
+                        else:
+                            controlnet_cond_scale = controlnet_conditioning_scale
+                            if isinstance(controlnet_cond_scale, list):
+                                controlnet_cond_scale = controlnet_cond_scale[0]
+                            cond_scale = controlnet_cond_scale * controlnet_keep[i]
+
+                        cond_scale = np.full(1, cond_scale).astype(np.float16)
+                        cond_scale = np.full(1, cond_scale).astype(np.float16)
+                        has_encoder_hidden_states = any(input.name == "encoder_hidden_states" for input in self.controlnet.model.get_inputs())
+                        if has_encoder_hidden_states:
+                            model_input = {
+                                "hidden_states": latent_model_input,
+                                "controlnet_cond": controlnet_cond,
+                                "conditioning_scale": cond_scale,
+                                "encoder_hidden_states": prompt_embeds,
+                                "pooled_projections": controlnet_pooled_projections,
+                                "timestep": timestep,
+                            }
+                        else:
+                            model_input = {
+                                "hidden_states": latent_model_input,
+                                "controlnet_cond": controlnet_cond,
+                                "conditioning_scale": cond_scale,
+                                "pooled_projections": controlnet_pooled_projections,
+                                "timestep": timestep,
+                            }
+                        control_block_samples = self.controlnet.model.run(None, model_input)
+                        num_control_block_samples = len(control_block_samples)
+                        if num_control_block_samples == 6:
+                            model_input = {
+                                "hidden_states": latent_model_input,
+                                "timestep": timestep,
+                                "encoder_hidden_states": prompt_embeds,
+                                "pooled_projections": pooled_prompt_embeds,
+                                "block_controlnet_hidden_states_0": control_block_samples[0],
+                                "block_controlnet_hidden_states_1": control_block_samples[0],
+                                "block_controlnet_hidden_states_2": control_block_samples[1],
+                                "block_controlnet_hidden_states_3": control_block_samples[1],
+                                "block_controlnet_hidden_states_4": control_block_samples[2],
+                                "block_controlnet_hidden_states_5": control_block_samples[2],
+                                "block_controlnet_hidden_states_6": control_block_samples[3],
+                                "block_controlnet_hidden_states_7": control_block_samples[3],
+                                "block_controlnet_hidden_states_8": control_block_samples[4],
+                                "block_controlnet_hidden_states_9": control_block_samples[4],
+                                "block_controlnet_hidden_states_10": control_block_samples[5],
+                                "block_controlnet_hidden_states_11": control_block_samples[5],
+                            }
+                        elif num_control_block_samples == 12:
+                            model_input = {
+                                "hidden_states": latent_model_input,
+                                "timestep": timestep,
+                                "encoder_hidden_states": prompt_embeds,
+                                "pooled_projections": pooled_prompt_embeds,
+                                "block_controlnet_hidden_states_0": control_block_samples[0],
+                                "block_controlnet_hidden_states_1": control_block_samples[1],
+                                "block_controlnet_hidden_states_2": control_block_samples[2],
+                                "block_controlnet_hidden_states_3": control_block_samples[3],
+                                "block_controlnet_hidden_states_4": control_block_samples[4],
+                                "block_controlnet_hidden_states_5": control_block_samples[5],
+                                "block_controlnet_hidden_states_6": control_block_samples[6],
+                                "block_controlnet_hidden_states_7": control_block_samples[7],
+                                "block_controlnet_hidden_states_8": control_block_samples[8],
+                                "block_controlnet_hidden_states_9": control_block_samples[9],
+                                "block_controlnet_hidden_states_10": control_block_samples[10],
+                                "block_controlnet_hidden_states_11": control_block_samples[11],
+                            }
+                        else:
+                            raise ValueError(f"Currently, only ControlNet output numbers of 6 or 12 are supported.")
+                    else:
+                        model_input = {
+                            "hidden_states": latent_model_input,
+                            "timestep": timestep,
+                            "encoder_hidden_states": prompt_embeds,
+                            "pooled_projections": pooled_prompt_embeds,
+                        }
+                        control_block_samples = self.create_zero_control_blocks(height, width, latent_model_input.shape[0])
+                        model_input.update(control_block_samples)
+                    ctrlnet_time = time.perf_counter() - ctrlnet_start_time
+                    self.perf_time_dict["ctrlnet"].append(ctrlnet_time)
+
+                    transformer_start_time = time.perf_counter()
+                    noise_pred_np = self.transformer.model.run(None, model_input)[0]
+                    transformer_time = time.perf_counter() - transformer_start_time
+                    self.perf_time_dict["dit"].append(transformer_time)
+                    if enable_tea_caching:
+                        cache_state.cached_residual = noise_pred_np - latent_model_input
+
+                if enable_tea_caching and tea_start_time is not None:
+                    tea_time = time.perf_counter() - tea_start_time
+                    self.perf_time_dict["tea_caching"].append(tea_time)
+                noise_pred = torch.from_numpy(noise_pred_np).to(device)
 
                 # perform guidance
                 if self.do_classifier_free_guidance:
@@ -1438,10 +1513,21 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
 
                 if XLA_AVAILABLE:
                     xm.mark_step()
-                    
-        msg = "ControlNet + MMDiT" if self.controlnet is not None else "MMDiT"
+ 
+        model_names = "ControlNet + MMDiT" if self.controlnet is not None else "MMDiT"
+        if enable_tea_caching:
+            cache_miss = len(self.perf_time_dict["dit"])
+            cache_hit = num_inference_steps - cache_miss
+            mmdit_time = sum(self.perf_time_dict["dit"])
+            model_time = mmdit_time
+            if self.controlnet is not None:
+                conctrl_time = sum(self.perf_time_dict["ctrlnet"])
+                model_time += conctrl_time
+            sd3Logger.info(f"tea caching cache hit {cache_hit} times(s). {model_names} actually inferenced {cache_miss} steps.")
+            sd3Logger.info(f"{model_names} average latency = {(model_time) / cache_miss:.3f} s.")
+                   
         sd3Logger.debug(
-            f"{msg} inference total time ({num_inference_steps} steps) = {time.perf_counter() - t0:.3f}s"
+            f"{model_names} inference total time ({num_inference_steps} steps) = {time.perf_counter() - t0:.3f}s"
         )
 
         t0 = time.perf_counter()
@@ -1469,7 +1555,10 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
 
         # dump perf counters
         for k, v in self.perf_time_dict.items():
-            sd3Logger.debug(f"==> {k} : exec time {len(v)}, avg time {sum(v)/len(v)}")
+            if len(v) != 0:
+                sd3Logger.debug(f"==> {k} : exec time {len(v)}, avg time {sum(v)/len(v)}")
+            else:
+                sd3Logger.debug(f"==> {k} : exec time {0}, avg time {0}")
 
         # Offload all models
         self.maybe_free_model_hooks()

@@ -100,6 +100,39 @@ def resolve_prompt_shorthand(arg: str, prompts_dict: Dict[str, str]) -> str:
     return prompts_dict.get(arg, arg)
 
 
+def expand_args_dict(pipeline: Dict[str, Any]) -> None:
+    """
+    Convert a pipeline's 'args' dictionary to the flat 'extra_args' list format.
+    
+    Supports both formats in the YAML config:
+      args:                          extra_args:
+        num_inference_steps: 4         - "--num_inference_steps"
+        guidance_scale: 0.0            - "4"
+                                       ...
+    
+    If both 'args' and 'extra_args' are present, dict entries are prepended.
+    Boolean True values become bare flags (e.g. dynamic_shape: true → --dynamic_shape).
+    Boolean False values are omitted.
+    """
+    args_dict = pipeline.pop('args', None)
+    if not args_dict:
+        return
+    flat = []
+    for key, value in args_dict.items():
+        flag = f"--{key}"
+        if isinstance(value, bool):
+            if value:
+                flat.append(flag)
+        elif isinstance(value, list):
+            flat.append(flag)
+            flat.extend(str(v) for v in value)
+        else:
+            flat.append(flag)
+            flat.append(str(value))
+    existing = pipeline.get('extra_args', [])
+    pipeline['extra_args'] = flat + existing
+
+
 def process_extra_args(extra_args: List[str], config: Dict[str, Any], paths: Dict[str, Path]) -> List[str]:
     """
     Process command-line arguments to resolve references to config defaults.
@@ -190,12 +223,14 @@ def get_pipeline_configs(config: Dict[str, Any], paths: Dict[str, Path],
         pipeline = pipeline_defs[name]
         # Copy pipeline config and add processed extra_args
         pipeline_config = pipeline.copy()
-        pipeline_config["extra_args"] = process_extra_args(pipeline.get('extra_args', []), config, paths)
+        # Support dict-style 'args' alongside flat 'extra_args' lists
+        expand_args_dict(pipeline_config)
+        pipeline_config["extra_args"] = process_extra_args(pipeline_config.get('extra_args', []), config, paths)
+        # pr-231: fall back to defaults.script (run.py) if not set per-pipeline
+        if "script" not in pipeline_config:
+            defaults = config.get('defaults', {})
+            pipeline_config["script"] = defaults.get("script", "run.py")
         
         configs.append(pipeline_config)
-    
-    # Filter by script if specified
-    if args.script:
-        configs = [cfg for cfg in configs if cfg["script"] in args.script]
     
     return configs

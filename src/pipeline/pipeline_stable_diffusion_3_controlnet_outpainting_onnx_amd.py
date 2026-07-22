@@ -45,6 +45,10 @@ from diffusers.models.autoencoders.vae import DiagonalGaussianDistribution
 import time
 import numpy as np
 
+from .pipeline_stable_diffusion_3_controlnet_onnx_amd import TeaCacheState
+from src.pipeline.pipeline_utils import retrieve_timesteps  # pr-231: was duplicated inline
+from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # pr-231: replaces duplicated properties
+
 if is_torch_xla_available():
     import torch_xla.core.xla_model as xm
 
@@ -103,76 +107,11 @@ EXAMPLE_DOC_STRING = """
 
 
 # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.retrieve_timesteps
-def retrieve_timesteps(
-    scheduler,
-    num_inference_steps: Optional[int] = None,
-    device: Optional[Union[str, torch.device]] = None,
-    timesteps: Optional[List[int]] = None,
-    sigmas: Optional[List[float]] = None,
-    **kwargs,
-):
-    r"""
-    Calls the scheduler's `set_timesteps` method and retrieves timesteps from the scheduler after the call. Handles
-    custom timesteps. Any kwargs will be supplied to `scheduler.set_timesteps`.
-
-    Args:
-        scheduler (`SchedulerMixin`):
-            The scheduler to get timesteps from.
-        num_inference_steps (`int`):
-            The number of diffusion steps used when generating samples with a pre-trained model. If used, `timesteps`
-            must be `None`.
-        device (`str` or `torch.device`, *optional*):
-            The device to which the timesteps should be moved to. If `None`, the timesteps are not moved.
-        timesteps (`List[int]`, *optional*):
-            Custom timesteps used to override the timestep spacing strategy of the scheduler. If `timesteps` is passed,
-            `num_inference_steps` and `sigmas` must be `None`.
-        sigmas (`List[float]`, *optional*):
-            Custom sigmas used to override the timestep spacing strategy of the scheduler. If `sigmas` is passed,
-            `num_inference_steps` and `timesteps` must be `None`.
-
-    Returns:
-        `Tuple[torch.Tensor, int]`: A tuple where the first element is the timestep schedule from the scheduler and the
-        second element is the number of inference steps.
-    """
-    if timesteps is not None and sigmas is not None:
-        raise ValueError(
-            "Only one of `timesteps` or `sigmas` can be passed. Please choose one to set custom values"
-        )
-    if timesteps is not None:
-        accepts_timesteps = "timesteps" in set(
-            inspect.signature(scheduler.set_timesteps).parameters.keys()
-        )
-        if not accepts_timesteps:
-            raise ValueError(
-                f"The current scheduler class {scheduler.__class__}'s `set_timesteps` does not support custom"
-                f" timestep schedules. Please check whether you are using the correct scheduler."
-            )
-        scheduler.set_timesteps(timesteps=timesteps, device=device, **kwargs)
-        timesteps = scheduler.timesteps
-        num_inference_steps = len(timesteps)
-    elif sigmas is not None:
-        accept_sigmas = "sigmas" in set(
-            inspect.signature(scheduler.set_timesteps).parameters.keys()
-        )
-        if not accept_sigmas:
-            raise ValueError(
-                f"The current scheduler class {scheduler.__class__}'s `set_timesteps` does not support custom"
-                f" sigmas schedules. Please check whether you are using the correct scheduler."
-            )
-        scheduler.set_timesteps(sigmas=sigmas, device=device, **kwargs)
-        timesteps = scheduler.timesteps
-        num_inference_steps = len(timesteps)
-    else:
-        scheduler.set_timesteps(num_inference_steps, device=device, **kwargs)
-        timesteps = scheduler.timesteps
-    return timesteps, num_inference_steps
-
-
 class StableDiffusion3ControlNetOutpaintingPipeline(
     DiffusionPipeline,
     SD3LoraLoaderMixin,
     FromSingleFileMixin,
-):
+    AMDPipelineMixin,):
     r"""
     Args:
         transformer ([`SD3Transformer2DModel`]):
@@ -238,6 +177,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
         controlnet: OnnxRuntimeModel = None,
         transformer: OnnxRuntimeModel = None,
         vae_decoder: OnnxRuntimeModel = None,
+        tea_caching: OnnxRuntimeModel = None,
         # image_encoder: SiglipModel = None,
         # feature_extractor: Optional[SiglipImageProcessor] = None,
     ):
@@ -256,6 +196,8 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             scheduler=scheduler,
             controlnet=controlnet,
         )
+        self.tea_caching_model = tea_caching
+
         self.vae_scale_factor = (
             2 ** (len(self.vae_encoder.config["block_out_channels"]) - 1)
             if getattr(self, "vae", None)
@@ -295,6 +237,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             "t5": [],
             "ctrlnet": [],
             "dit": [],
+            "tea_caching": [],
         }
 
         self.perf_time_gpu_model = {
@@ -303,18 +246,8 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             "tokenizer_2": [],
             "text_encoder_2": [],
             "tokenizer_3": [],
+            "tea_caching": [],
         }
-
-    def _clear_time_dict(
-        self,
-    ):
-
-        for key in self.perf_time_dict:
-            self.perf_time_dict[key] = []
-
-        for key in self.perf_time_gpu_model:
-            self.perf_time_gpu_model[key] = []
-
     def _onnx_type_str_to_numpy_type(self, onnx_type_str: str):
         onnx_to_numpy_dtype = {
             "tensor(bool)": np.bool_,
@@ -856,38 +789,6 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             raise AttributeError("Could not access latents of provided encoder_output")
 
     # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.prepare_latents
-    def prepare_latents(
-        self,
-        batch_size,
-        num_channels_latents,
-        height,
-        width,
-        dtype,
-        device,
-        generator,
-        latents=None,
-    ):
-        if latents is not None:
-            return latents.to(device=device, dtype=dtype)
-
-        shape = (
-            batch_size,
-            num_channels_latents,
-            int(height) // self.vae_scale_factor,
-            int(width) // self.vae_scale_factor,
-        )
-
-        if isinstance(generator, list) and len(generator) != batch_size:
-            raise ValueError(
-                f"You have passed a list of generators of length {len(generator)}, but requested an effective batch"
-                f" size of {batch_size}. Make sure the batch size matches the length of the generators."
-            )
-
-        latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
-
-        return latents
-
-
     def prepare_image_with_mask(
         self,
         image,
@@ -957,31 +858,11 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
         return control_image, origin_image
 
     @property
-    def guidance_scale(self):
-        return self._guidance_scale
-
-    @property
-    def clip_skip(self):
-        return self._clip_skip
-
     # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
     # of the Imagen paper: https://huggingface.co/papers/2205.11487 . `guidance_scale = 1`
     # corresponds to doing no classifier free guidance.
-    @property
     def do_classifier_free_guidance(self):
         return self._guidance_scale > 1
-
-    @property
-    def joint_attention_kwargs(self):
-        return self._joint_attention_kwargs
-
-    @property
-    def num_timesteps(self):
-        return self._num_timesteps
-
-    @property
-    def interrupt(self):
-        return self._interrupt
 
     def _build_block_controlnet_inputs(
         self,
@@ -1133,6 +1014,9 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
         callback_on_step_end: Optional[Callable[[int, int, Dict], None]] = None,
         callback_on_step_end_tensor_inputs: List[str] = ["latents"],
         max_sequence_length: int = 256,
+        enable_tea_caching: bool = False,
+        tea_caching_delta: float = 0.1,
+        tea_caching_coef: List[float] = [1.0, 0.0],
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -1248,6 +1132,10 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
                 will be passed as `callback_kwargs` argument. You will only be able to include variables listed in the
                 `._callback_tensor_inputs` attribute of your pipeline class.
             max_sequence_length (`int` defaults to 256): Maximum sequence length to use with the `prompt`.
+            enable_tea_caching (`bool`, *optional*, defaults to `False`):
+                If True, skip full ControlNet + transformer on some steps using TeaCache (requires `tea_caching` ONNX).
+            tea_caching_delta (`float`, *optional*, defaults to 0.1): TeaCache accumulated threshold.
+            tea_caching_coef (`List[float]`, *optional*): Polynomial coefficients for rescaling L1 (SD3 default `[1.0, 0.0]`).
 
         Examples:
 
@@ -1463,6 +1351,14 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             controlnet_pooled_projections.to(dtype=torch.float16).cpu().numpy()
         )
         # 7. Denoising loop
+        if enable_tea_caching:
+            cache_state = TeaCacheState(
+                num_steps=num_inference_steps,
+                delta=tea_caching_delta,
+                poly_coef=tea_caching_coef,
+            )
+            cache_state.reset()
+
         t0 = time.perf_counter()
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
@@ -1477,56 +1373,86 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
                 )
                 # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
                 timestep = t.expand(latent_model_input.shape[0])
-                ctrlnet_start_time = time.perf_counter()
-                if isinstance(controlnet_keep[i], list):
-                    cond_scale = [
-                        c * s
-                        for c, s in zip(
-                            controlnet_conditioning_scale, controlnet_keep[i]
-                        )
-                    ]
-                else:
-                    controlnet_cond_scale = controlnet_conditioning_scale
-                    if isinstance(controlnet_cond_scale, list):
-                        controlnet_cond_scale = controlnet_cond_scale[0]
-                    cond_scale = controlnet_cond_scale * controlnet_keep[i]
 
-                # controlnet(s) inference
                 latent_model_input = (
                     latent_model_input.to(dtype=torch.float16).cpu().numpy()
                 )
                 timestep = timestep.to(dtype=torch.float16).cpu().numpy()
-                cond_scale = np.full(1, cond_scale).astype(np.float16)
-                model_input = {
-                    "hidden_states": latent_model_input,
-                    "controlnet_cond": controlnet_cond,
-                    "conditioning_scale": cond_scale,
-                    "encoder_hidden_states": controlnet_prompt_embeds,
-                    "pooled_projections": controlnet_pooled_projections,
-                    "timestep": timestep,
-                }
-                control_block_samples = self.controlnet.model.run(None, model_input)
-                ctrlnet_time = time.perf_counter() - ctrlnet_start_time
-                self.perf_time_dict["ctrlnet"].append(ctrlnet_time)
-                transformer_start_time = time.perf_counter()
 
-                # Transformer expects a fixed number of block_controlnet inputs (23 for inpainting, 12 for normal).
-                # ControlNet may output 23, 8, 6, etc.; we map outputs to blocks evenly via _build_block_controlnet_inputs.
-                num_blocks = 23 if control_name == "inpainting" else 12
-                block_controlnet_inputs = self._build_block_controlnet_inputs(
-                    list(control_block_samples), num_blocks
-                )
-                model_input = {
-                    "hidden_states": latent_model_input,
-                    "timestep": timestep,
-                    "encoder_hidden_states": prompt_embeds,
-                    "pooled_projections": pooled_prompt_embeds,
-                    **block_controlnet_inputs,
-                }
-                noise_pred = self.transformer.model.run(None, model_input)
-                transformer_time = time.perf_counter() - transformer_start_time
-                self.perf_time_dict["dit"].append(transformer_time)
-                noise_pred = torch.from_numpy(noise_pred[0]).to(device)
+                use_cache = False
+                tea_start_time = None
+                if enable_tea_caching:
+                    tea_start_time = time.perf_counter()
+                    tea_caching_model_input = {
+                        "hidden_states": latent_model_input,
+                        "timestep": timestep,
+                        "pooled_projections": pooled_prompt_embeds,
+                    }
+                    modulated_output = self.tea_caching_model.model.run(
+                        None, tea_caching_model_input
+                    )[0]
+                    use_cache, _ = cache_state.step(modulated_output)
+
+                if use_cache and cache_state.cached_residual is not None:
+                    noise_pred_np = latent_model_input + cache_state.cached_residual
+                else:
+                    ctrlnet_start_time = time.perf_counter()
+                    if isinstance(controlnet_keep[i], list):
+                        cond_scale = [
+                            c * s
+                            for c, s in zip(
+                                controlnet_conditioning_scale, controlnet_keep[i]
+                            )
+                        ]
+                    else:
+                        controlnet_cond_scale = controlnet_conditioning_scale
+                        if isinstance(controlnet_cond_scale, list):
+                            controlnet_cond_scale = controlnet_cond_scale[0]
+                        cond_scale = controlnet_cond_scale * controlnet_keep[i]
+                    cond_scale = np.full(1, cond_scale).astype(np.float16)
+                    model_input = {
+                        "hidden_states": latent_model_input,
+                        "controlnet_cond": controlnet_cond,
+                        "conditioning_scale": cond_scale,
+                        "encoder_hidden_states": controlnet_prompt_embeds,
+                        "pooled_projections": controlnet_pooled_projections,
+                        "timestep": timestep,
+                    }
+                    control_block_samples = self.controlnet.model.run(None, model_input)
+                    ctrlnet_time = time.perf_counter() - ctrlnet_start_time
+                    self.perf_time_dict["ctrlnet"].append(ctrlnet_time)
+                    transformer_start_time = time.perf_counter()
+
+                    # Transformer expects a fixed number of block_controlnet inputs (23 for inpainting, 12 for normal).
+                    # ControlNet may output 23, 8, 6, etc.; we map outputs to blocks evenly via _build_block_controlnet_inputs.
+                    num_blocks = sum(
+                        [
+                            "block_controlnet_hidden_states_"
+                            in self.transformer.model.get_inputs()[j].name
+                            for j in range(len(self.transformer.model.get_inputs()))
+                        ]
+                    )
+                    block_controlnet_inputs = self._build_block_controlnet_inputs(
+                        list(control_block_samples), num_blocks
+                    )
+                    model_input = {
+                        "hidden_states": latent_model_input,
+                        "timestep": timestep,
+                        "encoder_hidden_states": prompt_embeds,
+                        "pooled_projections": pooled_prompt_embeds,
+                        **block_controlnet_inputs,
+                    }
+                    noise_pred_np = self.transformer.model.run(None, model_input)[0]
+                    transformer_time = time.perf_counter() - transformer_start_time
+                    self.perf_time_dict["dit"].append(transformer_time)
+                    if enable_tea_caching:
+                        cache_state.cached_residual = noise_pred_np - latent_model_input
+
+                if enable_tea_caching and tea_start_time is not None:
+                    tea_time = time.perf_counter() - tea_start_time
+                    self.perf_time_dict["tea_caching"].append(tea_time)
+
+                noise_pred = torch.from_numpy(noise_pred_np).to(device)
                 # perform guidance
                 if self.do_classifier_free_guidance:
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
@@ -1568,6 +1494,16 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
 
                 if XLA_AVAILABLE:
                     xm.mark_step()
+
+        if enable_tea_caching:
+            cache_miss = len(self.perf_time_dict["dit"])
+            cache_hit = num_inference_steps - cache_miss
+            model_names = "controlnet + transformer"
+            mmdit_time = sum(self.perf_time_dict["dit"])
+            conctrl_time = sum(self.perf_time_dict["ctrlnet"])
+            model_time = mmdit_time + conctrl_time
+            logger.info(f"tea caching cache hit {cache_hit} times(s). {model_names} actually inferenced {cache_miss} steps.")
+            logger.info(f"{model_names} average latency = {(model_time) / cache_miss:.3f} s.")
         logger.debug(
             f"controlnet + transformer inference total time ({num_inference_steps} steps) = {time.perf_counter() - t0:.3f}s"
         )
@@ -1586,7 +1522,10 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
         image = torch.from_numpy(image)
         image = self.image_processor.postprocess(image, output_type=output_type)
         for k, v in self.perf_time_dict.items():
-            logger.debug(f"==> {k} : exec time {len(v)}, avg time {sum(v)/len(v)}")
+            if len(v) != 0:
+                logger.debug(f"==> {k} : exec time {len(v)}, avg time {sum(v)/len(v)}")
+            else:
+                logger.debug(f"==> {k} : exec time {0}, avg time {0}")
         if not return_dict:
             return (image,)
         return StableDiffusion3PipelineOutput(images=image)

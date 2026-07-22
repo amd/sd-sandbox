@@ -69,6 +69,8 @@ from diffusers.pipelines.onnx_utils import OnnxRuntimeModel, ORT_TO_NP_TYPE
 
 import numpy as np
 import time
+from src.pipeline.pipeline_utils import retrieve_timesteps, rescale_noise_cfg  # pr-231: was duplicated inline
+from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # pr-231: replaces duplicated properties
 
 if is_torch_xla_available():
     import torch_xla.core.xla_model as xm
@@ -97,102 +99,7 @@ EXAMPLE_DOC_STRING = """
 
 
 # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.rescale_noise_cfg
-def rescale_noise_cfg(noise_cfg, noise_pred_text, guidance_rescale=0.0):
-    r"""
-    Rescales `noise_cfg` tensor based on `guidance_rescale` to improve image quality and fix overexposure. Based on
-    Section 3.4 from [Common Diffusion Noise Schedules and Sample Steps are
-    Flawed](https://arxiv.org/pdf/2305.08891.pdf).
-
-    Args:
-        noise_cfg (`torch.Tensor`):
-            The predicted noise tensor for the guided diffusion process.
-        noise_pred_text (`torch.Tensor`):
-            The predicted noise tensor for the text-guided diffusion process.
-        guidance_rescale (`float`, *optional*, defaults to 0.0):
-            A rescale factor applied to the noise predictions.
-
-    Returns:
-        noise_cfg (`torch.Tensor`): The rescaled noise prediction tensor.
-    """
-    std_text = noise_pred_text.std(
-        dim=list(range(1, noise_pred_text.ndim)), keepdim=True
-    )
-    std_cfg = noise_cfg.std(dim=list(range(1, noise_cfg.ndim)), keepdim=True)
-    # rescale the results from guidance (fixes overexposure)
-    noise_pred_rescaled = noise_cfg * (std_text / std_cfg)
-    # mix with the original results from guidance by factor guidance_rescale to avoid "plain looking" images
-    noise_cfg = (
-        guidance_rescale * noise_pred_rescaled + (1 - guidance_rescale) * noise_cfg
-    )
-    return noise_cfg
-
-
 # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.retrieve_timesteps
-def retrieve_timesteps(
-    scheduler,
-    num_inference_steps: Optional[int] = None,
-    device: Optional[Union[str, torch.device]] = None,
-    timesteps: Optional[List[int]] = None,
-    sigmas: Optional[List[float]] = None,
-    **kwargs,
-):
-    r"""
-    Calls the scheduler's `set_timesteps` method and retrieves timesteps from the scheduler after the call. Handles
-    custom timesteps. Any kwargs will be supplied to `scheduler.set_timesteps`.
-
-    Args:
-        scheduler (`SchedulerMixin`):
-            The scheduler to get timesteps from.
-        num_inference_steps (`int`):
-            The number of diffusion steps used when generating samples with a pre-trained model. If used, `timesteps`
-            must be `None`.
-        device (`str` or `torch.device`, *optional*):
-            The device to which the timesteps should be moved to. If `None`, the timesteps are not moved.
-        timesteps (`List[int]`, *optional*):
-            Custom timesteps used to override the timestep spacing strategy of the scheduler. If `timesteps` is passed,
-            `num_inference_steps` and `sigmas` must be `None`.
-        sigmas (`List[float]`, *optional*):
-            Custom sigmas used to override the timestep spacing strategy of the scheduler. If `sigmas` is passed,
-            `num_inference_steps` and `timesteps` must be `None`.
-
-    Returns:
-        `Tuple[torch.Tensor, int]`: A tuple where the first element is the timestep schedule from the scheduler and the
-        second element is the number of inference steps.
-    """
-    if timesteps is not None and sigmas is not None:
-        raise ValueError(
-            "Only one of `timesteps` or `sigmas` can be passed. Please choose one to set custom values"
-        )
-    if timesteps is not None:
-        accepts_timesteps = "timesteps" in set(
-            inspect.signature(scheduler.set_timesteps).parameters.keys()
-        )
-        if not accepts_timesteps:
-            raise ValueError(
-                f"The current scheduler class {scheduler.__class__}'s `set_timesteps` does not support custom"
-                f" timestep schedules. Please check whether you are using the correct scheduler."
-            )
-        scheduler.set_timesteps(timesteps=timesteps, device=device, **kwargs)
-        timesteps = scheduler.timesteps
-        num_inference_steps = len(timesteps)
-    elif sigmas is not None:
-        accept_sigmas = "sigmas" in set(
-            inspect.signature(scheduler.set_timesteps).parameters.keys()
-        )
-        if not accept_sigmas:
-            raise ValueError(
-                f"The current scheduler class {scheduler.__class__}'s `set_timesteps` does not support custom"
-                f" sigmas schedules. Please check whether you are using the correct scheduler."
-            )
-        scheduler.set_timesteps(sigmas=sigmas, device=device, **kwargs)
-        timesteps = scheduler.timesteps
-        num_inference_steps = len(timesteps)
-    else:
-        scheduler.set_timesteps(num_inference_steps, device=device, **kwargs)
-        timesteps = scheduler.timesteps
-    return timesteps, num_inference_steps
-
-
 class StableDiffusionXLPipelineAMD(
     DiffusionPipeline,
     StableDiffusionMixin,
@@ -200,7 +107,7 @@ class StableDiffusionXLPipelineAMD(
     StableDiffusionXLLoraLoaderMixin,
     TextualInversionLoaderMixin,
     IPAdapterMixin,
-):
+    AMDPipelineMixin,):
     r"""
     Pipeline for text-to-image generation using Stable Diffusion XL.
 
@@ -325,17 +232,6 @@ class StableDiffusionXLPipelineAMD(
             "tokenizer_negative": [],
             "text_encoder_negative": [],
         }
-
-    def _clear_time_dict(
-        self,
-    ):
-
-        for key in self.perf_time_dict:
-            self.perf_time_dict[key] = []
-
-        for key in self.perf_time_gpu_model:
-            self.perf_time_gpu_model[key] = []
-
     def encode_prompt(
         self,
         prompt: str,
@@ -732,27 +628,6 @@ class StableDiffusionXLPipelineAMD(
         return ip_adapter_image_embeds
 
     # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_extra_step_kwargs
-    def prepare_extra_step_kwargs(self, generator, eta):
-        # prepare extra kwargs for the scheduler step, since not all schedulers have the same signature
-        # eta (η) is only used with the DDIMScheduler, it will be ignored for other schedulers.
-        # eta corresponds to η in DDIM paper: https://arxiv.org/abs/2010.02502
-        # and should be between [0, 1]
-
-        accepts_eta = "eta" in set(
-            inspect.signature(self.scheduler.step).parameters.keys()
-        )
-        extra_step_kwargs = {}
-        if accepts_eta:
-            extra_step_kwargs["eta"] = eta
-
-        # check if the scheduler accepts generator
-        accepts_generator = "generator" in set(
-            inspect.signature(self.scheduler.step).parameters.keys()
-        )
-        if accepts_generator:
-            extra_step_kwargs["generator"] = generator
-        return extra_step_kwargs
-
     def check_inputs(
         self,
         prompt,
@@ -958,40 +833,6 @@ class StableDiffusionXLPipelineAMD(
             return timesteps, num_inference_steps
 
     # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
-    def prepare_latents(
-        self,
-        batch_size,
-        num_channels_latents,
-        height,
-        width,
-        dtype,
-        device,
-        generator,
-        latents=None,
-    ):
-        shape = (
-            batch_size,
-            num_channels_latents,
-            int(height) // self.vae_scale_factor,
-            int(width) // self.vae_scale_factor,
-        )
-        if isinstance(generator, list) and len(generator) != batch_size:
-            raise ValueError(
-                f"You have passed a list of generators of length {len(generator)}, but requested an effective batch"
-                f" size of {batch_size}. Make sure the batch size matches the length of the generators."
-            )
-
-        if latents is None:
-            latents = randn_tensor(
-                shape, generator=generator, device=device, dtype=dtype
-            )
-        else:
-            latents = latents.to(device)
-
-        # scale the initial noise by the standard deviation required by the scheduler
-        latents = latents * self.scheduler.init_noise_sigma
-        return latents
-
     def prepare_image(
         self,
         image,
@@ -1066,75 +907,22 @@ class StableDiffusionXLPipelineAMD(
             self.vae.decoder.mid_block.to(dtype)
 
     # Copied from diffusers.pipelines.latent_consistency_models.pipeline_latent_consistency_text2img.LatentConsistencyModelPipeline.get_guidance_scale_embedding
-    def get_guidance_scale_embedding(
-        self,
-        w: torch.Tensor,
-        embedding_dim: int = 512,
-        dtype: torch.dtype = torch.float32,
-    ) -> torch.Tensor:
-        """
-        See https://github.com/google-research/vdm/blob/dc27b98a554f65cdc654b800da5aa1846545d41b/model_vdm.py#L298
-
-        Args:
-            w (`torch.Tensor`):
-                Generate embedding vectors with a specified guidance scale to subsequently enrich timestep embeddings.
-            embedding_dim (`int`, *optional*, defaults to 512):
-                Dimension of the embeddings to generate.
-            dtype (`torch.dtype`, *optional*, defaults to `torch.float32`):
-                Data type of the generated embeddings.
-
-        Returns:
-            `torch.Tensor`: Embedding vectors with shape `(len(w), embedding_dim)`.
-        """
-        assert len(w.shape) == 1
-        w = w * 1000.0
-
-        half_dim = embedding_dim // 2
-        emb = torch.log(torch.tensor(10000.0)) / (half_dim - 1)
-        emb = torch.exp(torch.arange(half_dim, dtype=dtype) * -emb)
-        emb = w.to(dtype)[:, None] * emb[None, :]
-        emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
-        if embedding_dim % 2 == 1:  # zero pad
-            emb = torch.nn.functional.pad(emb, (0, 1))
-        assert emb.shape == (w.shape[0], embedding_dim)
-        return emb
-
-    @property
-    def guidance_scale(self):
-        return self._guidance_scale
-
     @property
     def guidance_rescale(self):
         return self._guidance_rescale
 
     @property
-    def clip_skip(self):
-        return self._clip_skip
-
     # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
     # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
     # corresponds to doing no classifier free guidance.
-    @property
     def do_classifier_free_guidance(self):
         return (
             self._guidance_scale > 1 and self.unet.config["time_cond_proj_dim"] is None
         )
 
     @property
-    def cross_attention_kwargs(self):
-        return self._cross_attention_kwargs
-
-    @property
     def denoising_end(self):
         return self._denoising_end
-
-    @property
-    def num_timesteps(self):
-        return self._num_timesteps
-
-    @property
-    def interrupt(self):
-        return self._interrupt
 
     @torch.no_grad()
     @replace_example_docstring(EXAMPLE_DOC_STRING)
@@ -1716,24 +1504,16 @@ class StableDiffusionXLPipelineAMD(
             # unscale/denormalize the latents
             # denormalize with the mean and std if available and not None
             has_latents_mean = (
-                hasattr(self.vae_decoder.config, "latents_mean")
+                "latents_mean" in self.vae_decoder.config
                 and self.vae_decoder.config["latents_mean"] is not None
             )
             has_latents_std = (
-                hasattr(self.vae_decoder.config, "latents_std")
+                "latents_std" in self.vae_decoder.config
                 and self.vae_decoder.config["latents_std"] is not None
             )
             if has_latents_mean and has_latents_std:
-                latents_mean = (
-                    torch.tensor(self.vae_decoder.config["latents_mean"])
-                    .view(1, 4, 1, 1)
-                    .to(latents.device, latents.dtype)
-                )
-                latents_std = (
-                    torch.tensor(self.vae_decoder.config["latents_std"])
-                    .view(1, 4, 1, 1)
-                    .to(latents.device, latents.dtype)
-                )
+                latents_mean = np.array(self.vae_decoder.config["latents_mean"]).reshape(1, 4, 1, 1).astype(vae_dtype)
+                latents_std = np.array(self.vae_decoder.config["latents_std"]).reshape(1, 4, 1, 1).astype(vae_dtype)
                 latents = (
                     latents * latents_std / self.vae_decoder.config["scaling_factor"]
                     + latents_mean

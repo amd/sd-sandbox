@@ -26,327 +26,252 @@ defaults:
   # Execution provider settings
   execution:
     force_cpu: false  # Set to true to force CPU-only execution (disables DML)
-  # Custom operator library path (optional)
-  # If not specified, runner_args.py will search in standard locations
-  custom_op_path: "C:/Program Files/RyzenAI/1.7.1/deployment/onnx_custom_ops.dll"
-  prompt: "An astronaut riding a green horse"
-  # prompts:
-    # medieval: "Photo of a bustling medieval marketplace, vibrant colors, detailed costumes, lively crowd, cinematic lighting, 8k resolution, masterpiece, art by Pieter Bruegel and John Howe"
-    # anime: 'Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching. text "InstantX" on image'
-  # prompt_file: "./config/artistic_prompts.json"
+      # Custom operator library path (optional)
+  # If not specified, runner_args.py will auto-detect from lib/ or RYZEN_AI_INSTALLATION_PATH
+  # pr-231: commented out -- let runner_args auto-detect the correct EP DLL
+  # custom_op_path: "./lib/onnxruntime_providers_ryzenai.dll"
+  # pr-231: script defaults to run.py -- unified entry point for all pipelines
+  script: "run.py"
+  prompt: "A red sports car parked beside a yellow fire hydrant on a cobblestone street. Behind the car is a blue storefront with a sign that reads \"OPEN\". A green bicycle is leaning against the building. Bright sunny day, realistic photography, sharp focus, detailed textures"
 
 
-# Available pipeline configurations
+# default 4 iters, 5x resolutions 
 pipelines:
-# https://huggingface.co/amd/stable-diffusion-1.5-amdnpu
-# amd/stable-diffusion-1.5-amdnpu
-# Default prompt for 1.5 : Photo of a ultra realistic sailing ship, dramatic light, pale sunrise, cinematic lighting
+  
   sd_15:
     name: "SD 1.5 Pipeline"
-    script: "run_sd.py"
-    model_ids:
-      - "amd/stable-diffusion-1.5-amdnpu"
-    extra_args:
-      - "--num_inference_steps"
-      - "20"
+    model_ids: [ "amd/stable-diffusion-1.5-amdnpu"]
+    prompt: "A cozy cabin by a mountain lake in autumn, colorful fall foliage, mirror-like water reflections, misty mountains, golden hour lighting, landscape photography, high detail, 4k"
+    args:
+      num_inference_steps: 20
 
-# https://huggingface.co/amd/sd-turbo-amdnpu
-# amd/sd-turbo-amdnpu
-# Default prompt: "A cinematic shot of a baby racoon wearing an intricate italian priest robe."
+  sd_15_controlnet:
+    name: "SD 1.5 ControlNet Pipeline"
+    model_ids: [ "amd/sd1.5-controlnet-canny"]
+    args:
+      num_inference_steps: 20
+
   sd_turbo:
     name: "SD Turbo Pipeline"
-    script: "run_sd.py"
-    # Execution provider settings (overrides defaults)
-    model_ids:
-      - "amd/sd-turbo-amdnpu"
-    extra_args:
-      - "--num_inference_steps"
-      - "1"
-      - "--guidance_scale"
-      - "0.0"
+    model_ids: [ "amd/sd-turbo-amdnpu"]
+    prompt: "A cup of steaming coffee on a rainy window ledge, water droplets on glass, warm indoor lighting, cozy atmosphere, realistic photography"
+    args:
+      num_inference_steps: 1
+      guidance_scale: 0.0
 
-  
-# https://huggingface.co/amd/sdxl-base-amdnpu
-# amd/sdxl-base-amdnpu
-# Default prompt: "An astronaut riding a green horse"
-  sdxl_base:
-    name: "SDXL Base Pipeline"
-    script: "run_sd_xl.py"
-    width: 1024  # SDXL requires 1024x1024 for 128x128 latents
-    height: 1024
-    model_ids:
-      - "amd/sdxl-base-amdnpu"
-    extra_args:
-      - "--num_inference_steps"
-      - "50"
-
-# https://huggingface.co/amd/sdxl-turbo-amdnpu
-# amd/sdxl-turbo-amdnpu
-# Default prompt: "A cinematic shot of a baby racoon wearing an intricate italian priest robe."
   sdxl_turbo:
     name: "SDXL Turbo Pipeline"
-    script: "run_sd_xl.py"
-    width: 512  # SDXL Turbo optimized for 512x512 for speed
+    width: 512
     height: 512
-    prompt: "A cat sitting on a fluffy cloud, reading a book, whimsical and dreamy atmosphere"
-    model_ids:
-      - "amd/sdxl-turbo-amdnpu"
-    extra_args:
-      - "--num_inference_steps"
-      - "1"
-      - "--guidance_scale"
-      - "0.0"
+    model_ids: ["amd/sdxl-turbo-amdnpu"]
+    args:
+      revision: "1.8.0"
+      num_inference_steps: 4
+      guidance_scale: 0.0
 
-# https://huggingface.co/amd/segmind-vega-amdnpu
-# "amd/segmind-vega-amdnpu"
-# Default prompt: "An astronaut riding a green horse"
+  sdxl_base:
+    name: "SDXL Base Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/sdxl-base-amdnpu"]
+    args:
+      revision: "1.8.0"
+      num_inference_steps: 30
+
+  ssd_1b:
+    name: "SSD-1B Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/SSD-1B-amdnpu"]
+    prompt: "A red sports car parked beside a mountain lake at sunrise, realistic reflections, detailed photography, clear sky, high quality."
+    args:
+      num_inference_steps: 30
+
+  playground_25:
+    name: "Playground 2.5 Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/playground-v2.5-1024px-aesthetic-amdnpu"]
+    prompt: "A young woman sitting at a Paris café during golden hour, soft sunlight, shallow depth of field, natural skin texture, stylish clothing, candid photography, award-winning lifestyle photograph."
+    args:
+      num_inference_steps: 30
+
+  dreamshaper_xl:
+    name: "DreamShaper XL Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/dreamshaper-xl-lightning-amdnpu"]
+    prompt: "A majestic dragon flying above snow-covered mountains at sunset, dramatic clouds, volumetric lighting, fantasy artwork, highly detailed."
+    args:
+      num_inference_steps: 6
+
   segmind_vega:
     name: "Segmind-Vega Pipeline"
-    script: "run_sd_xl.py"
-    width: 1024  
+    width: 1024
     height: 1024
-    model_ids:
-      - "amd/segmind-vega-amdnpu"
-    extra_args:
-      - "--num_inference_steps"
-      - "50"
+    model_ids: ["amd/segmind-vega-amdnpu"]
+    prompt: "a cozy European café terrace on a rainy evening, warm amber lights, wet cobblestone street, reflections in puddles, outdoor tables with candles, lush potted plants, charming old buildings, photorealistic, cinematic lighting, high detail"
+    args:
+      num_inference_steps: 50
 
+# Use of control image forces i2i
+  segmind_vega_i2i:
+    name: "Segmind-Vega I2I Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/segmind-vega-amdnpu"]
+    prompt: "a sailing ship in a fierce storm at night near rocky cliffs, massive waves crashing against rocks, lightning illuminating dark clouds, dramatic cinematic atmosphere, dark fantasy art, highly detailed"
+    args:
+      num_inference_steps: 50
+      n_prompt: "blurry, low quality, distorted, ugly, watermark, text"
+      control_image_path: "outpainting_output_1024x1024.png"
+      strength: 0.45
+      guidance_scale: 7.0
 
-# https://huggingface.co/amd/stable-diffusion-3-medium-amdnpu
-# "amd/stable-diffusion-3-medium-amdnpu"
-### SD3
+# Colorize line art via ControlNet (generates color from scratch, uses lines as structure only)
+  
+
   sd3_base:
     name: "SD3 Pipeline"
-    script: "run_sd3.py"
-    model_ids:
-      - "amd/stable-diffusion-3-medium-amdnpu"
-    extra_args:
-      - "--num_inference_steps"
-      - "8"
-      - "--width"
-      - "1024"
-      - "--height"
-      - "768"
-      - "--controlnet"
-      - "None"
-      - "--guidance_scale"
-      - "4.5"
-      - "--dynamic_shape"
-
-  sd3_controlnet_canny:
-    name: "SD3 ControlNet Canny Pipeline"
-    script: "run_sd3.py"
-    model_ids:
-      - "amd/stable-diffusion-3-medium-amdnpu"
-    extra_args:
-      - "--num_inference_steps"
-      - "8"
-      - "--width"
-      - "512"
-      - "--height"
-      - "512"
-      - "--controlnet"
-      - "Canny"
-      - "--control_image_path"
-      - "canny.jpg"
-      - "--controlnet_conditioning_scale"
-      - "0.2"
-      - "--guidance_scale"
-      - "4.5"
-
-  sd3_controlnet_pose:
-    name: "SD3 ControlNet Pose Pipeline"
-    script: "run_sd3.py"
-    model_ids:
-      - "amd/stable-diffusion-3-medium-amdnpu"
-    extra_args:
-      - "--num_inference_steps"
-      - "8"
-      - "--width"
-      - "1024"
-      - "--height"
-      - "1024"
-      - "--controlnet"
-      - "Pose"
-      - "--control_image_path"
-      - "pose.jpg"
-      - "--controlnet_conditioning_scale"
-      - "0.2"
-      - "--guidance_scale"
-      - "4.5"
-
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
+    prompt: "a colorful songbird perched on a wooden branch, iridescent blue and orange feathers, soft morning light, lush green garden background, nature wildlife photography, sharp focus, detailed plumage, bokeh background, National Geographic style"
+    args:
+      num_inference_steps: 30
+      width: 1024
+      height: 1024
+      controlnet: "None"
+      guidance_scale: 4.5
+      dynamic_shape: true
 
   sd3_controlnet_tile:
     name: "SD3 ControlNet Tile Pipeline"
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
+    prompt: "A beautiful young woman with long flowing auburn hair, wearing a stylish pink and orange blazer over a white shirt, dramatic sunset sky with colorful pink and purple clouds, vibrant pop art illustration style, sharp details, high quality digital art, clean lines, vivid saturated colors"
+    args:
+      num_inference_steps: 30
+      width: 1024
+      height: 1024
+      controlnet: "Tile"
+      control_image_path: "tile.jpg"
+      guidance_scale: 5.0
+      controlnet_conditioning_scale: 0.65
+      n_prompt: "blurry, low quality, distorted face, extra fingers, deformed, watermark, text"
+
+  sd3_controlnet_depth:
+    name: "SD3 ControlNet Depth Pipeline"
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
+    prompt: "A giant panda perched high in an ancient tree, dramatic fog rolling through a dense Chinese mountain forest, cinematic lighting, detailed fur and bark textures, award-winning nature photography"
+    args:
+      num_inference_steps: 30
+      width: 1024
+      height: 1024
+      controlnet: "Depth"
+      control_image_path: "depth.jpeg"
+      guidance_scale: 7.0
+      controlnet_conditioning_scale: 0.8
+      n_prompt: "blurry, low quality, distorted face, extra fingers, deformed, watermark, text"
+
+  sd3_controlnet_pose:
+    name: "SD3 ControlNet Pose Pipeline"
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
+    prompt: "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching"
+    args:
+      num_inference_steps: 30
+      width: 1024
+      height: 1024
+      controlnet: "Pose"
+      control_image_path: "pose.jpg"
+      guidance_scale: 5.0
+      controlnet_conditioning_scale: 0.7
+      n_prompt: "blurry, low quality, distorted face, extra fingers, deformed, watermark, text"
+  
+  
+  sd3_controlnet_canny:
+    name: "SD3 ControlNet Canny"
     script: "run_sd3.py"
-    model_ids:
-      - "amd/stable-diffusion-3-medium-amdnpu"
-    extra_args:
-      - "--num_inference_steps"
-      - "8"
-      - "--width"
-      - "512"
-      - "--height"
-      - "512"
-      - "--controlnet"
-      - "Tile"
-      - "--control_image_path"
-      - "tile.jpg"
-      - "--guidance_scale"
-      - "4.5"
- 
-  sd3_base_dyn:
-      name: "SD3 Dynamic Pipeline"
-      script: "run_sd3.py"
-      model_ids:
-        - "amd/stable-diffusion-3-medium-amdnpu"
-      extra_args:
-        - "--num_inference_steps"
-        - "8"
-        - "--controlnet"
-        - "None"
-        - "--guidance_scale"
-        - "4.5"
-        - "--dynamic_shape"
-        - "--dynamic_shape_file_path"
-        - "sd3_dynamic_shape.json"
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
+    prompt: "a colorful songbird perched on a wooden branch, iridescent blue and orange feathers, soft morning light, lush green garden background, nature wildlife photography, sharp focus, detailed plumage, bokeh background, National Geographic style"
+    args:
+      num_inference_steps: 30
+      width: 1024
+      height: 1024
+      controlnet: "Canny"
+      control_image_path: "control.png"
+      guidance_scale: 5.5
+      controlnet_conditioning_scale: 0.7
+      n_prompt: "blurry, low quality, distorted, ugly, watermark, text, deformed"
 
-  sd3_controlnet_pose_dyn:
-      name: "SD3 ControlNet Pose Dynamic Pipeline"
-      script: "run_sd3.py"
-      model_ids:
-        - "amd/stable-diffusion-3-medium-amdnpu"
-      extra_args:
-        - "--num_inference_steps"
-        - "8"
-        - "--controlnet"
-        - "Pose"
-        - "--control_image_path"
-        - "pose.jpg"
-        - "--controlnet_conditioning_scale"
-        - "0.2"
-        - "--guidance_scale"
-        - "4.5"
-        - "--dynamic_shape"
-        - "--dynamic_shape_file_path"
-        - "sd3_dynamic_shape.json"
+  sd3_controlnet_inpainting:
+    name: "SD3 ControlNet Inpainting"
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
+    prompt: "a beautiful arrangement of fresh white roses in a glass vase on a coffee table, elegant interior design, soft natural lighting, photorealistic, high detail"
+    args:
+      num_inference_steps: 30
+      width: 1024
+      height: 1024
+      controlnet: "InPainting"
+      control_image_path: "coffe_table.png"
+      control_mask_path: "precise_mask.png"
+      guidance_scale: 5.0
+      controlnet_conditioning_scale: 0.85
+      n_prompt: "blurry, low quality, distorted, ugly, watermark, text, out of place, floating"
 
-  sd3_controlnet_tile_dyn:
-      name: "SD3 ControlNet Tile Dynamic Pipeline"
-      script: "run_sd3.py"
-      model_ids:
-        - "amd/stable-diffusion-3-medium-amdnpu"
-      extra_args:
-        - "--num_inference_steps"
-        - "8"
-        - "--controlnet"
-        - "Tile"
-        - "--control_image_path"
-        - "tile.jpg"
-        - "--controlnet_conditioning_scale"
-        - "0.2"
-        - "--guidance_scale"
-        - "4.5"
-        - "--dynamic_shape"
-        - "--dynamic_shape_file_path"
-        - "sd3_dynamic_shape.json"
-
-# https://huggingface.co/amd/stable-diffusion-3.5-medium-amdnpu
-#  amd/stable-diffusion-3.5-medium-amdnpu
-### SD 3.5
   sd35_base:
     name: "SD3.5 Pipeline"
-    script: "run_sd3.py"
-    model_ids:
-      - "amd/stable-diffusion-3.5-medium-amdnpu"
-    extra_args:
-      - "--num_inference_steps"
-      - "8"
-      - "--width"
-      - "1024"
-      - "--height"
-      - "1024"
-      - "--controlnet"
-      - "None"
-      - "--guidance_scale"
-      - "4.5"
+    model_ids: ["amd/stable-diffusion-3.5-medium-amdnpu"]
+    prompt: "A grand fantasy library built inside an ancient tree, glowing lanterns hanging from branches, scholars reading books on floating platforms, intricate wood carvings, warm golden light, cinematic fantasy concept art, highly detailed."
+    args:
+      revision: "1.8.0"
+      num_inference_steps: 30
+      width: 1024
+      height: 1024
+      controlnet: "None"
+      guidance_scale: 4.5
 
-  sd35_base_dyn:    
-      name: "SD3.5 Dynamic Pipeline"
-      script: "run_sd3.py"
-      model_ids:
-        - "amd/stable-diffusion-3.5-medium-amdnpu"
-      extra_args:
-        - "--num_inference_steps"
-        - "8"
-        - "--controlnet"
-        - "None"
-        - "--dynamic_shape"
-        - "--dynamic_shape_file_path"
-        - "sd3_dynamic_shape.json"
+  flux1_schnell:
+    name: "FLUX.1 Schnell Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/FLUX.1-schnell-amdnpu"]
+    prompt: "A candid photograph of a father teaching his young son how to fish from a wooden dock at sunrise. Light fog rising from the lake, realistic skin texture, natural expressions, detailed clothing, professional photography."
+    args:
+      num_inference_steps: 4
+      guidance_scale: 0.0
 
+  flux2_klein:
+    name: "FLUX.2 Klein Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/FLUX.2-klein-4B-amdnpu"]
+    prompt: "A small bakery early in the morning. Fresh bread displayed behind glass. A baker wearing a white apron arranges pastries. Warm sunlight enters through the front window. Realistic photography."
+    args:
+      num_inference_steps: 4
+      guidance_scale: 0.0
 
-
-# Default pipelines to run (if no --pipelines specified)
-# You can specify which pipelines to run by their keys from the pipelines section above
-default_run:
-  - sd3_base
-  - sd3_controlnet_canny
-  - sd3_controlnet_pose
-  - sd3_controlnet_tile
-
-# Available pipeline groups for convenience
 pipeline_groups:
-  all_sd3_base:
-    - sd3_base
-    - sd35_base
-
-  sd3_dynamic:
-    - sd3_base_dyn
-    - sd3_controlnet_canny_dyn
-    - sd3_controlnet_pose_dyn
-    - sd3_controlnet_tile_dyn
-
-  all_sd15:
-    - sd_15
-  
-  all_sdxl:
-    - sdxl_base
-    - sdxl_turbo
-
-  sd_15:
-    - sd_15
-
-  txt2img:
-    - sd_15
-    - sd_turbo
-    - sdxl_base
-    - sdxl_turbo
-    - sd3_base
-    - sd35_base
-  
-  controlnet:
-    - sd3_controlnet_canny
-    - sd3_controlnet_pose
-    - sd3_controlnet_tile
-
-
-  turbo_models:
-    - sd_turbo
-    - sdxl_turbo
-    
   all:
     - sd_15
+    - sd_15_controlnet
     - sd_turbo
-    - sdxl_base
     - sdxl_turbo
+    - sdxl_base
+    - ssd_1b
     - segmind_vega
+    - segmind_vega_i2i
+    - playground_25
+    - dreamshaper_xl
     - sd3_base
-    - sd3_controlnet_canny
-    - sd3_controlnet_pose
     - sd3_controlnet_tile
+    - sd3_controlnet_depth
+    - sd3_controlnet_pose
+    - sd3_controlnet_canny
+    - sd3_controlnet_inpainting
     - sd35_base
-    - sd3_controlnet_pose_dyn
-    - sd3_controlnet_tile_dyn
-    - sd35_base_dyn
-    - sd35_base 
+    - flux1_schnell
+    - flux2_klein
+
+  fail:
+    - playground_25
+    - sd3_controlnet_depth
+    - sd_15_controlnet
+    - flux1_schnell

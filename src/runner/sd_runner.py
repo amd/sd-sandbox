@@ -1,0 +1,14 @@
+#
+# Copyright (C) 2026 Advanced Micro Devices, Inc.  All rights reserved.
+#
+
+from __future__ import annotations
+
+from src.trigger import StableDiffusionONNXPipelineAMDTrigger
+
+from .base_runner import BaseRunner
+
+
+class SDRunner(BaseRunner):
+    # pr-231: Trigger reads args directly — no getter boilerplate needed
+    trigger_cls = StableDiffusionONNXPipelineAMDTrigger
