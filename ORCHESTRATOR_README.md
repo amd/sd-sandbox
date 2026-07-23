@@ -63,6 +63,8 @@ Here is a list of currently supported SD models. Note that these models have had
 | SD 3.0 ControlNet (Canny, Depth, Tile, Pose) | amd/stable-diffusion-3-medium-amdnpu | 512x512, 20x DynRes | | ☑️ | 
 | SD 3.0 ControlNet (Inpainting) | amd/stable-diffusion-3-medium-amdnpu | 1024x1024 | | ☑️ | 
 | SD 3.5 Medium | amd/stable-diffusion-3.5-medium-amdnpu | 512x512, 20x DynRes | ✅ | | 
+| SD 3.5 ControlNet (Canny, Depth, Tile, Pose) | amd/stable-diffusion-3.5-medium-amdnpu | 512x512, 20x DynRes | | ☑️ | 
+| SD 3.5 ControlNet (Inpainting) | amd/stable-diffusion-3.5-medium-amdnpu | 1024x1024 | | ☑️ | 
 | FLUX.1 Schnell | amd/FLUX.1-schnell-amdnpu | 1024x1024, 20x DynRes | ✅ | | 
 | FLUX.2 Klein | amd/FLUX.2-klein-4B-amdnpu | 1024x1024 | ✅ | | 
 
