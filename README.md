@@ -48,29 +48,27 @@ The SD sandbox uses scripts to orchestrate GenAI-SD code distributed with Ryzen 
 
 ## 📜 Supported Models
 
-Here is a list of currently supported SD models. Note that these models have had nodes replaced with custom ops specifically designed for AMD NPUs. Models that aren't stored locally will be downloaded from HF on first use.
-**[Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps)**. 
+Here is a list of currently supported SD models. Note that these models have had nodes replaced with custom ops specifically designed for AMD NPUs. Models that aren't stored locally will be downloaded from Hugging Face on first use.
 
-| Model | Hugging Face Model ID | Default Resolution | Text-To-Image | Image-To-Image | 
-|-------|-------|---------------|----------------|------------|
-| SD 1.5 | amd/stable-diffusion-1.5-amdnpu | 512x512 | ✅ | | 
-| SD 1.5 ControlNet (Canny) | amd/sd1.5-controlnet-canny | 512x512 | | ☑️ | 
-| SD Turbo | amd/sd-turbo-amdnpu | 512x512 | ✅ | | 
-| SD XL Turbo | amd/sdxl-turbo-amdnpu | 512x512, 5x DynRes | ✅ | | 
-| SD XL Base | amd/sdxl-base-amdnpu | 1024x1024, 20x DynRes |  ✅ | | 
-| SSD-1B | amd/SSD-1B-amdnpu | 1024x1024, 20x DynRes | ✅ | | 
-| Segmind Vega | amd/segmind-vega-amdnpu | 1024x1024 | ✅ | ☑️ | 
-| Playground 2.5 | amd/playground-v2.5-1024px-aesthetic-amdnpu | 1024x1024, 20x DynRes | ✅ | | 
-| DreamShaper XL | amd/dreamshaper-xl-lightning-amdnpu | 1024x1024, 20x DynRes | ✅ | | 
-| SD 3.0 Medium | amd/stable-diffusion-3-medium-amdnpu | 512x512, 20x DynRes | ✅ | | 
-| SD 3.0 ControlNet (Canny, Depth, Tile, Pose) | amd/stable-diffusion-3-medium-amdnpu | 512x512, 20x DynRes | | ☑️ | 
-| SD 3.0 ControlNet (Inpainting) | amd/stable-diffusion-3-medium-amdnpu | 1024x1024 | | ☑️ | 
-| SD 3.5 Medium | amd/stable-diffusion-3.5-medium-amdnpu | 512x512, 20x DynRes | ✅ | | 
-| SD 3.5 ControlNet (Canny, Depth, Tile, Pose) | amd/stable-diffusion-3.5-medium-amdnpu | 512x512, 20x DynRes | | ☑️ | 
-| SD 3.5 ControlNet (Inpainting) | amd/stable-diffusion-3.5-medium-amdnpu | 1024x1024 | | ☑️ | 
-| FLUX.1 Schnell | amd/FLUX.1-schnell-amdnpu | 1024x1024, 20x DynRes | ✅ | | 
-| FLUX.2 Klein | amd/FLUX.2-klein-4B-amdnpu | 1024x1024 | ✅ | | 
+These are the same NPU-optimized pipelines featured in the **[Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps)**. That demo is AMD's official preview, shipped with Ryzen AI software, of Stable Diffusion image generation running on Ryzen AI hardware. It shows how to drive each model directly from the `GenAI-SD` code — covering Text-to-Image, Image-to-Image, and ControlNet (Canny, Depth, Tile, Pose) plus SD3 inpainting — by calling the unified `run.py` entry point with a `--model_id`. This sandbox wraps those same pipelines in a configurable, batch-friendly orchestrator so you can run and benchmark many of them without editing source code.
 
+| Model | Hugging Face Model ID | Default Resolution | Text-To-Image | Image-To-Image |
+|-------|-----------------------|--------------------|---------------|----------------|
+| SD 1.5 | [amd/stable-diffusion-1.5-amdnpu](https://huggingface.co/amd/stable-diffusion-1.5-amdnpu) | 512x512 | ✅ | |
+| SD 1.5 ControlNet (Canny) | [amd/sd1.5-controlnet-canny-amdnpu](https://huggingface.co/amd/sd1.5-controlnet-canny-amdnpu) | 512x512 | | ☑️ |
+| SD Turbo | [amd/sd-turbo-amdnpu](https://huggingface.co/amd/sd-turbo-amdnpu) | 512x512 | ✅ | |
+| SD XL Turbo | [amd/sdxl-turbo-amdnpu](https://huggingface.co/amd/sdxl-turbo-amdnpu) | 512x512, 5x DynRes | ✅ | |
+| SD XL Base | [amd/sdxl-base-amdnpu](https://huggingface.co/amd/sdxl-base-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
+| SSD-1B | [amd/SSD-1B-amdnpu](https://huggingface.co/amd/SSD-1B-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
+| Segmind Vega | [amd/segmind-vega-amdnpu](https://huggingface.co/amd/segmind-vega-amdnpu) | 1024x1024 | ✅ | ☑️ |
+| Playground 2.5 | [amd/playground-v2.5-1024px-aesthetic-amdnpu](https://huggingface.co/amd/playground-v2.5-1024px-aesthetic-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
+| DreamShaper XL | [amd/dreamshaper-xl-lightning-amdnpu](https://huggingface.co/amd/dreamshaper-xl-lightning-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
+| SD 3.0 Medium — Text-to-Image, ControlNet (Canny, Depth, Tile, Pose), Inpainting | [stabilityai/stable-diffusion-3-medium-amdnpu](https://huggingface.co/stabilityai/stable-diffusion-3-medium-amdnpu) | 512x512, 20x DynRes (Inpainting: 1024x1024) | ✅ | ☑️ |
+| SD 3.5 Medium — Text-to-Image, ControlNet (Canny, Depth, Tile, Pose), Inpainting | [stabilityai/stable-diffusion-3.5-medium-amdnpu](https://huggingface.co/stabilityai/stable-diffusion-3.5-medium-amdnpu) | 512x512, 20x DynRes (Inpainting: 1024x1024) | ✅ | ☑️ |
+| FLUX.1 Schnell | [amd/FLUX.1-schnell-amdnpu](https://huggingface.co/amd/FLUX.1-schnell-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
+| FLUX.2 Klein | [amd/FLUX.2-klein-4B-amdnpu](https://huggingface.co/amd/FLUX.2-klein-4B-amdnpu) | 1024x1024 | ✅ | |
+
+> **Grouped by download.** Where a single Hugging Face repo powers multiple modes, those modes are combined into one row keyed by that repo. For example, **SD 3.0** and **SD 3.5 Medium** each serve Text-to-Image, every ControlNet mode (Canny, Depth, Tile, Pose), and Inpainting from a **single** download — so instead of five near-identical rows per model you get one. The SD 3.0 / SD 3.5 NPU weights are published by Stability AI at `stabilityai/stable-diffusion-3-medium-amdnpu` and `stabilityai/stable-diffusion-3.5-medium-amdnpu`.
 
 **DynRes** indicates the number of dynamic-resolution presets a model supports (e.g. `5x`, `20x`) in addition to its default resolution. The exact width×height pairs for each preset are defined in the `config/dynamic_shape_*.json` files — the 20x grid spans 512x288 – 1024x1024 across 1:1, 3:4, 4:3, 9:16, and 16:9 aspect ratios.
 
@@ -150,20 +148,20 @@ More details on configurations can be found in the [Pipelines and Pipeline Group
 
 #### Step 4: Hugging Face Credentials
 
-In order to access some files from the Stability AI models, you may need to visit the Hugging Face website and request access. 
+Supported models are downloaded from the Hugging Face Hub on first use, so you need to authenticate your machine with a Hugging Face access token.
 
-1. For SD 3, you can visit https://huggingface.co/stabilityai/stable-diffusion-3-medium-diffusers and request access.
-2. Generate and copy your token from https://huggingface.co/settings/tokens. Select "Read access to contents of all repos under your personal namespace" and "Read access to contents of all public gated repos you can access" and then "Create token". 
-3. Authenticate on your machine with:
+1. Generate and copy a token from https://huggingface.co/settings/tokens. A token with **Read** access is sufficient to download the models. Some gated repos additionally require you to accept their license on the model page before the first download will succeed.
+2. Log in from your terminal using the Hugging Face CLI (`hf`), which ships with the `huggingface_hub` package:
 ```powershell
-huggingface-cli login
+hf auth login
 ```
-
-In your output, you should see among other things:
+Paste your token when prompted (or run it non-interactively with `hf auth login --token <YOUR_TOKEN>`). On success you should see, among other things:
 
 ```text
 Login successful.
 ```
+
+> **Note:** `hf auth login` is the current command and replaces the deprecated `huggingface-cli login`. For installation options (including running the CLI with `uv` via `uvx hf`, with no install), see the Hugging Face [CLI guide](https://huggingface.co/docs/huggingface_hub/en/guides/cli) and its [Using uv](https://huggingface.co/docs/huggingface_hub/en/guides/cli#using-uv) section.
 
 #### Step 5: Activate RAI Conda Env
 
@@ -513,8 +511,12 @@ SD 1.5 Pipeline,512x512,20,3.898902,3.899352,5.979673,5.978549,1527.36,4412.52
 ```
 
 [Back to Table of Contents](#-contents)
+
 ---
-### GenAI-SD Documentation
+
+## GenAI-SD Documentation
+
+These guides come from the `GenAI-SD` folder shipped with the **Ryzen AI 1.8 software installer** (`C:\Program Files\RyzenAI\1.8.0\GenAI-SD`, the same folder you copy in [Step 2](#step-2-copy-genai-sd-code)). They describe how to use the GenAI-SD code **directly** — without this sandbox's orchestrator — covering driver and conda setup, the per-model `run.py` commands, troubleshooting, and more. Once you've copied that folder locally you can follow these documents in it; the copies below are mirrored in this repository's [`docs/`](docs) directory for convenience.
 
 | Document | Contents |
 |----------|----------|
@@ -527,6 +529,7 @@ SD 1.5 Pipeline,512x512,20,3.898902,3.899352,5.979673,5.978549,1527.36,4412.52
 | [docs/07-developer-guide.md](docs/07-developer-guide.md) | Adding new pipelines to the codebase |
 | [docs/08-glossary.md](docs/08-glossary.md) | NPU, DD, ControlNet, InPainting, and more |
 
+[Back to Table of Contents](#-contents)
 
 ---
 
