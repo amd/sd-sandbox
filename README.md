@@ -68,8 +68,6 @@ These are the same NPU-optimized pipelines featured in the **[Ryzen AI Stable Di
 | FLUX.1 Schnell | [amd/FLUX.1-schnell-amdnpu](https://huggingface.co/amd/FLUX.1-schnell-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
 | FLUX.2 Klein | [amd/FLUX.2-klein-4B-amdnpu](https://huggingface.co/amd/FLUX.2-klein-4B-amdnpu) | 1024x1024 | ✅ | |
 
-> **Grouped by download.** Where a single Hugging Face repo powers multiple modes, those modes are combined into one row keyed by that repo. For example, **SD 3.0** and **SD 3.5 Medium** each serve Text-to-Image, every ControlNet mode (Canny, Depth, Tile, Pose), and Inpainting from a **single** download — so instead of five near-identical rows per model you get one. The SD 3.0 / SD 3.5 NPU weights are published by Stability AI at `stabilityai/stable-diffusion-3-medium-amdnpu` and `stabilityai/stable-diffusion-3.5-medium-amdnpu`.
-
 **DynRes** indicates the number of dynamic-resolution presets a model supports (e.g. `5x`, `20x`) in addition to its default resolution. The exact width×height pairs for each preset are defined in the `config/dynamic_shape_*.json` files — the 20x grid spans 512x288 – 1024x1024 across 1:1, 3:4, 4:3, 9:16, and 16:9 aspect ratios.
 
 [Back to Table of Contents](#-contents)
