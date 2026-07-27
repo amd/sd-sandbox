@@ -449,7 +449,7 @@ python scripts/run_pipelines.py --help
 | Option | Type | Default | Help |
 |--------|------|---------|------|
 | --benchmark | flag | False | Enable benchmark mode (10 profiling rounds). Default is quick mode (1 round). |
-| --image-only | flag | False | Generate images only without profiling (batch mode). Disables warmup and profiling rounds for fastest execution. |
+| --image-only | flag | True | Generate images only without profiling (batch mode). Disables warmup and profiling rounds for fastest execution. This is the default set in `config/pipeline_configs.yaml`; use `--benchmark` to enable profiling instead. |
 | --timeout | int | 600 | Timeout in seconds for each run (default: 600) |
 | --model_id | list |  | Run only these model IDs (e.g. --model_id amd/stable-diffusion-1.5-amdnpu) |
 | --pipelines | list |  | Run specific pipelines by name (e.g. --pipelines sd_15 sd3_base) |
@@ -459,7 +459,6 @@ python scripts/run_pipelines.py --help
 | --prompt_file | str |  | Path to JSON file containing list of prompts to run through each pipeline |
 | --sd3-controlnet-mode | str | controlnet | For SD3 ControlNet with prompt files: 'controlnet' uses custom prompts with ControlNet enabled (recommended), 'text2img' converts to text-to-image mode without ControlNet guidance (default: controlnet) |
 | --force-cpu | flag | False | Force CPU-only execution (disables DML and all accelerators). Overrides config setting. |
-| --custom-op-path | str |  | Path to onnx_custom_ops.dll (Windows) or libonnx_custom_ops.so (Linux). If not specified, default locations are used. |
 | --no-summary | flag | False | Skip printing the detailed summary report and skip saving results to disk |
 | --config | str | config/pipeline_configs.yaml | Path to custom YAML configuration file (default: config/pipeline_configs.yaml) |
 | --clean-images | flag | False | Remove all existing images and Excel files from generated_images folder before running pipelines |

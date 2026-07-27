@@ -84,13 +84,20 @@ def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, P
             custom_op_path = config_item.get('custom_op_path')
         if not custom_op_path:
             custom_op_path = config_defaults.get('custom_op_path')
-        
+
+        # Determine image_only: command-line > per-pipeline config > global defaults > False
+        image_only = args.image_only
+        if not image_only:
+            image_only = config_item.get('image_only', False)
+        if not image_only:
+            image_only = config_defaults.get('image_only', False)
+
         for model_id in config_item["model_ids"]:
             result = run_pipeline(config_item, model_id, paths['test_path'], paths['source_path'],
                                 args.benchmark, args.timeout, args.prompt, 
                                 args.prompt_file, getattr(args, 'sd3_controlnet_mode', 'text2img'), 
                                 config.get('defaults', {}), log_buffer, determine_prompt_source,
-                                args.image_only, args.traceback, custom_op_path, 
+                                image_only, args.traceback, custom_op_path, 
                                 paths.get('control_images_path'), paths.get('config_files_path'))
             
             # Print immediate feedback

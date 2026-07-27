@@ -90,7 +90,7 @@ VALID_ARGS: Dict[str, Dict[str, Any]] = {
 VALID_PIPELINE_KEYS: Set[str] = {
     "name", "model_ids", "args", "extra_args", "script",
     "prompt", "width", "height", "custom_op_path",
-    "execution", "streaming_output",
+    "execution", "streaming_output", "image_only",
 }
 
 # Valid top-level keys in the YAML config root
