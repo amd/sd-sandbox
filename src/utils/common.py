@@ -10,12 +10,9 @@ import os
 import re
 import sys
 import time
-import logging as Logger
 from dataclasses import dataclass
-import re
 import warnings
 import psutil
-import ctypes
 from pathlib import Path
 try:
     import winreg
@@ -23,11 +20,9 @@ try:
 except ImportError:
     _WINREG_AVAILABLE = False
 import pandas as pd
-import psutil
 import torch
 import onnxruntime
 from huggingface_hub import snapshot_download
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 process = psutil.Process()
@@ -46,6 +41,10 @@ def _configure_external_loggers():
         "huggingface_hub",
         "huggingface_hub.file_download",
         "transformers.modeling_utils",
+        "filelock",
+        "urllib3",
+        "urllib3.connectionpool",
+        "requests",
     )
     for logger_name in warning_loggers:
         Logger.getLogger(logger_name).setLevel(Logger.WARNING)
@@ -110,7 +109,7 @@ def download_model_from_huggingface(model_id: str, force_download: bool = False,
         if models_root is not None:
             cache_dir = Path(models_root)
         else:
-            cache_dir = Path(get_absolute_path("models"))
+            cache_dir = Path(resolve_project_path("models"))
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         # Target path where the model will be downloaded

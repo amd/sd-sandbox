@@ -131,7 +131,7 @@ pipelines:
 
   sd3_base:
     name: "SD3 Pipeline"
-    model_ids: ["stabilityai/stable-diffusion-3-medium-amdnpu"]
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
     prompt: "a colorful songbird perched on a wooden branch, iridescent blue and orange feathers, soft morning light, lush green garden background, nature wildlife photography, sharp focus, detailed plumage, bokeh background, National Geographic style"
     args:
       num_inference_steps: 30
@@ -143,7 +143,7 @@ pipelines:
 
   sd3_controlnet_tile:
     name: "SD3 ControlNet Tile Pipeline"
-    model_ids: ["stabilityai/stable-diffusion-3-medium-amdnpu"]
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
     prompt: "A beautiful young woman with long flowing auburn hair, wearing a stylish pink and orange blazer over a white shirt, dramatic sunset sky with colorful pink and purple clouds, vibrant pop art illustration style, sharp details, high quality digital art, clean lines, vivid saturated colors"
     args:
       num_inference_steps: 30
@@ -157,7 +157,7 @@ pipelines:
 
   sd3_controlnet_depth:
     name: "SD3 ControlNet Depth Pipeline"
-    model_ids: ["stabilityai/stable-diffusion-3-medium-amdnpu"]
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
     prompt: "A giant panda perched high in an ancient tree, dramatic fog rolling through a dense Chinese mountain forest, cinematic lighting, detailed fur and bark textures, award-winning nature photography"
     args:
       num_inference_steps: 30
@@ -171,7 +171,7 @@ pipelines:
 
   sd3_controlnet_pose:
     name: "SD3 ControlNet Pose Pipeline"
-    model_ids: ["stabilityai/stable-diffusion-3-medium-amdnpu"]
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
     prompt: "Anime style illustration of a girl wearing a suit. A moon in sky. In the background we see a big rain approaching"
     args:
       num_inference_steps: 30
@@ -187,7 +187,7 @@ pipelines:
   sd3_controlnet_canny:
     name: "SD3 ControlNet Canny"
     script: "run_sd3.py"
-    model_ids: ["stabilityai/stable-diffusion-3-medium-amdnpu"]
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
     prompt: "a colorful songbird perched on a wooden branch, iridescent blue and orange feathers, soft morning light, lush green garden background, nature wildlife photography, sharp focus, detailed plumage, bokeh background, National Geographic style"
     args:
       num_inference_steps: 30
@@ -201,7 +201,7 @@ pipelines:
 
   sd3_controlnet_inpainting:
     name: "SD3 ControlNet Inpainting"
-    model_ids: ["stabilityai/stable-diffusion-3-medium-amdnpu"]
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
     prompt: "a beautiful arrangement of fresh white roses in a glass vase on a coffee table, elegant interior design, soft natural lighting, photorealistic, high detail"
     args:
       num_inference_steps: 30
@@ -266,9 +266,3 @@ pipeline_groups:
     - sd35_base
     - flux1_schnell
     - flux2_klein
-
-  fail:
-    - playground_25
-    - sd3_controlnet_depth
-    - sd_15_controlnet
-    - flux1_schnell

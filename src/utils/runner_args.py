@@ -7,8 +7,19 @@ import os
 import sys
 import logging as Logger
 import platform
-from .common import get_absolute_path, resolve_project_path, resolve_root_model_path
+from .common import resolve_project_path, resolve_root_model_path
 from .model_config import InferenceConfig, detect_model_spec
+
+# pr-231: shown when the 'lib' directory (or one of its subfolders) is missing
+# from the project root -- it isn't shipped in git and must be copied in from
+# the Ryzen AI installation.
+_LIB_DIR_HINT = (
+    "The 'lib' directory is missing from the sd-sandbox project root.\n"
+    "Copy it from your Ryzen AI installation, e.g.:\n"
+    r'  Copy-Item "C:\Program Files\RyzenAI\1.8.0\GenAI-SD\lib" "<sd-sandbox_dir>\lib" -Recurse' "\n"
+    "If Ryzen AI was installed to a different location, copy the 'lib' directory "
+    "from '<RyzenAI_install_dir>\\GenAI-SD\\lib' instead."
+)
 
 parser = argparse.ArgumentParser(description="Pipeline Config")
 # Env related args
@@ -427,7 +438,7 @@ def check_args(args):
     if not args.custom_op_path or not os.path.exists(args.custom_op_path):
         raise EnvironmentError(
             f"Can't find onnx custom op plugin: {share_obj_name}\n"
-            f"Searched paths:\n  " + "\n  ".join(candidates)
+            f"Searched paths:\n  " + "\n  ".join(candidates) + "\n" + _LIB_DIR_HINT
         )
 
     mid = args.model_id.lower()
@@ -440,18 +451,18 @@ def check_args(args):
     is_flux_model = "flux" in mid
     if is_sd3_model or is_flux_model:
         if not os.environ.get("DD_PLUGINS_ROOT"):
-            os.environ["DD_PLUGINS_ROOT"] = get_absolute_path("lib/transaction/stx")
+            os.environ["DD_PLUGINS_ROOT"] = resolve_project_path("lib/transaction/stx")
         dd_plugins_path = os.environ["DD_PLUGINS_ROOT"]
         Logger.debug(f"DD_PLUGINS_ROOT set to: {dd_plugins_path}")
         if not os.path.exists(dd_plugins_path):
             raise EnvironmentError(
-                f"invalid DD_PLUGINS_ROOT {os.environ['DD_PLUGINS_ROOT']}"
+                f"invalid DD_PLUGINS_ROOT {os.environ['DD_PLUGINS_ROOT']}\n" + _LIB_DIR_HINT
             )
 
     if "DD_ROOT" not in os.environ:
-        os.environ["DD_ROOT"] = get_absolute_path("lib")
+        os.environ["DD_ROOT"] = resolve_project_path("lib")
     if not os.path.exists(os.environ["DD_ROOT"]):
-        raise EnvironmentError(f"invalid DD_ROOT {os.environ['DD_ROOT']}")
+        raise EnvironmentError(f"invalid DD_ROOT {os.environ['DD_ROOT']}\n" + _LIB_DIR_HINT)
 
     if args.enable_profile:
         if args.profiling_rounds <= 0:

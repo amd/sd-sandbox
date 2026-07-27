@@ -200,8 +200,11 @@ class CLIPTokenizerLoader:
         logger.info("Loading CLIPTokenizer %s ... ", model_name)
         try:
             tokenizer = CLIPTokenizer.from_pretrained(tokenizer_path)
-        except OSError:
-            raise ValueError("Don't find the model file for %s", tokenizer_path)
+        except OSError as exc:
+            raise ValueError(
+                f"Can't find CLIPTokenizer files in '{tokenizer_path}'. "
+                f"Check that --model_path points to a complete model export, or re-download the model."
+            ) from exc
         return tokenizer
 
 
@@ -212,8 +215,11 @@ class CLIPTextModelLoader:
         logger.info("Loading CLIPTextModel %s ... ", model_name)
         try:
             text_encoder = CLIPTextModel.from_pretrained(text_model_path)
-        except OSError:
-            raise ValueError("Don't find the model file for %s", text_model_path)
+        except OSError as exc:
+            raise ValueError(
+                f"Can't find CLIPTextModel files in '{text_model_path}'. "
+                f"Check that --model_path points to a complete model export, or re-download the model."
+            ) from exc
         return text_encoder
 
 
@@ -224,8 +230,11 @@ class CLIPTextModelWithProjectionLoader:
         logger.info("Loading CLIPTextModelWithProjection %s ... ", model_name)
         try:
             text_encoder = CLIPTextModelWithProjection.from_pretrained(text_model_path)
-        except OSError:
-            raise ValueError("Don't find the model file for %s", text_model_path)
+        except OSError as exc:
+            raise ValueError(
+                f"Can't find CLIPTextModelWithProjection files in '{text_model_path}'. "
+                f"Check that --model_path points to a complete model export, or re-download the model."
+            ) from exc
         return text_encoder
 
 
@@ -236,8 +245,11 @@ class T5TokenizerFastLoader:
         logger.info("Loading T5TokenizerFast %s ... ", model_name)
         try:
             tokenizer = T5TokenizerFast.from_pretrained(tokenizer_path)
-        except OSError:
-            raise ValueError("Don't find the model file for %s", tokenizer_path)
+        except OSError as exc:
+            raise ValueError(
+                f"Can't find T5TokenizerFast files in '{tokenizer_path}'. "
+                f"Check that --model_path points to a complete model export, or re-download the model."
+            ) from exc
         return tokenizer
 
 
@@ -248,8 +260,11 @@ class AutoTokenizerLoader:
         logger.info("Loading AutoTokenizer %s ... ", model_name)
         try:
             tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-        except OSError:
-            raise ValueError("Don't find the model file for %s", tokenizer_path)
+        except OSError as exc:
+            raise ValueError(
+                f"Can't find AutoTokenizer files in '{tokenizer_path}'. "
+                f"Check that --model_path points to a complete model export, or re-download the model."
+            ) from exc
         return tokenizer
 
 
@@ -260,8 +275,11 @@ class Qwen2TokenizerFastLoader:
         logger.info("Loading Qwen2TokenizerFast %s ... ", model_name)
         try:
             tokenizer = Qwen2TokenizerFast.from_pretrained(tokenizer_path)
-        except OSError:
-            raise ValueError("Don't find the model file for %s", tokenizer_path)
+        except OSError as exc:
+            raise ValueError(
+                f"Can't find Qwen2TokenizerFast files in '{tokenizer_path}'. "
+                f"Check that --model_path points to a complete model export, or re-download the model."
+            ) from exc
         return tokenizer
 
 
@@ -272,8 +290,11 @@ class CLIPImageProcessorLoader:
         logger.info("Loading CLIPImageProcessor %s ... ", model_name)
         try:
             image_processor = CLIPImageProcessor.from_pretrained(image_processor_path)
-        except OSError:
-            raise ValueError("Don't find the model file for %s", image_processor_path)
+        except OSError as exc:
+            raise ValueError(
+                f"Can't find CLIPImageProcessor files in '{image_processor_path}'. "
+                f"Check that --model_path points to a complete model export, or re-download the model."
+            ) from exc
         return image_processor
 
 
@@ -285,8 +306,11 @@ class SchedulerLoader:
         try:
             with open(config_path, "r") as f:
                 scheduler_name = json.load(f).get("_class_name")
-        except OSError:
-            raise ValueError("Don't find the config file for %s", config_path)
+        except OSError as exc:
+            raise ValueError(
+                f"Can't find scheduler config file '{config_path}'. "
+                f"Check that --model_path points to a complete model export, or re-download the model."
+            ) from exc
 
         scheduler_cls = getattr(
             importlib.import_module("diffusers.schedulers"),
