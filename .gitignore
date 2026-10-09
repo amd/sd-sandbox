@@ -14,6 +14,7 @@
 !/models/LICENSE
 *.png
 !/test/assets/*.png
+!/test/ref/**/*.png
 pipeline_results*.txt
 *.csv
 lib/
