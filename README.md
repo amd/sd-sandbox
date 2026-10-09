@@ -19,7 +19,7 @@
 - **[🎯 What is This?](#-what-is-this)** - Overview and introduction
 - **[📜 Supported Models](#-supported-models)** - List of supported SD models
 - **[🏞️ Image Generation Methods](#️-image-generation-methods)** - Description of text-to-image, image-to-image, inpainting, removal, outpainting
-- **[📐 Hardware Prerequisites](#-hardware-prerequisites)** - AMD hardware requirements
+- **[📐 Hardware Prerequisites](#-hardware-prerequisites)** - AMD hardware requirements (Strix and Medusa)
 - **[🚀 Quick Start](#-quick-start)** - Installation process: get up and running
 - **[🧩 Pipelines and Pipeline Groups Configuration](#-pipelines-and-pipeline-groups-configuration)** - Configure YAML and JSON files
 - **[▶️ Running Pipelines](#️-running-pipelines)** - How to execute pipelines and pipeline groups
@@ -30,7 +30,7 @@
 
 ## 🎯 What is This?
 
-**AMD SD Sandbox** is a framework for running Stable Diffusion (SD) models accelerated by **AMD Ryzen AI hardware**. It provides an easy-to-use interface for evaluating, comparing, and deploying multiple SD pipelines. When developing AI-powered applications with SD, developers face several challenges:
+**AMD SD Sandbox** is a framework for running Stable Diffusion (SD) models accelerated by **AMD Ryzen AI hardware**. It supports two NPU platforms, **Strix (STX)** and **Medusa (MDS)**, from a single codebase and this single README; wherever the two differ, the section is labeled by platform. **Medusa is a limited engagement and is not publicly available.** It provides an easy-to-use interface for evaluating, comparing, and deploying multiple SD pipelines. When developing AI-powered applications with SD, developers face several challenges:
 
 | 🚫 Problem | ✅ Solution |
 |-----------|------------|
@@ -50,25 +50,31 @@ The SD sandbox uses scripts to orchestrate GenAI-SD code distributed with Ryzen 
 
 Here is a list of currently supported SD models. Note that these models have had nodes replaced with custom ops specifically designed for AMD NPUs. Models that aren't stored locally will be downloaded from Hugging Face on first use.
 
-These are the same NPU-optimized pipelines featured in the **[Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps)**. That demo is AMD's official preview, shipped with Ryzen AI software, of Stable Diffusion image generation running on Ryzen AI hardware. It shows how to drive each model directly from the `GenAI-SD` code — covering Text-to-Image, Image-to-Image, and ControlNet (Canny, Depth, Tile, Pose) plus SD3 inpainting — by calling the unified `run.py` entry point with a `--model_id`. This sandbox wraps those same pipelines in a configurable, batch-friendly orchestrator so you can run and benchmark many of them without editing source code.
+Models are published separately for each platform. Medusa models use a `-medusa` suffix on the Hugging Face model ID (e.g. `amd/sdxl-turbo-amdnpu-medusa`). The platform is detected automatically from the NPU hardware, and can be forced with the `NPU_PLATFORM` environment variable (`stx` or `mds`). If detection fails, a `-medusa` model ID selects Medusa; any other ID selects Strix.
 
-| Model | Hugging Face Model ID | Default Resolution | Text-To-Image | Image-To-Image |
-|-------|-----------------------|--------------------|---------------|----------------|
-| SD 1.5 | [amd/stable-diffusion-1.5-amdnpu](https://huggingface.co/amd/stable-diffusion-1.5-amdnpu) | 512x512 | ✅ | |
-| SD 1.5 ControlNet (Canny) | [amd/sd1.5-controlnet-canny-amdnpu](https://huggingface.co/amd/sd1.5-controlnet-canny-amdnpu) | 512x512 | | ☑️ |
-| SD Turbo | [amd/sd-turbo-amdnpu](https://huggingface.co/amd/sd-turbo-amdnpu) | 512x512 | ✅ | |
-| SD XL Turbo | [amd/sdxl-turbo-amdnpu](https://huggingface.co/amd/sdxl-turbo-amdnpu) | 512x512, 5x DynRes | ✅ | |
-| SD XL Base | [amd/sdxl-base-amdnpu](https://huggingface.co/amd/sdxl-base-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
-| SSD-1B | [amd/SSD-1B-amdnpu](https://huggingface.co/amd/SSD-1B-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
-| Segmind Vega | [amd/segmind-vega-amdnpu](https://huggingface.co/amd/segmind-vega-amdnpu) | 1024x1024 | ✅ | ☑️ |
-| Playground 2.5 | [amd/playground-v2.5-1024px-aesthetic-amdnpu](https://huggingface.co/amd/playground-v2.5-1024px-aesthetic-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
-| DreamShaper XL | [amd/dreamshaper-xl-lightning-amdnpu](https://huggingface.co/amd/dreamshaper-xl-lightning-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
-| SD 3.0 Medium — Text-to-Image, ControlNet (Canny, Depth, Tile, Pose), Inpainting | [stabilityai/stable-diffusion-3-medium-amdnpu](https://huggingface.co/stabilityai/stable-diffusion-3-medium-amdnpu) | 512x512, 20x DynRes (Inpainting: 1024x1024) | ✅ | ☑️ |
-| SD 3.5 Medium — Text-to-Image, ControlNet (Canny, Depth, Tile, Pose), Inpainting | [stabilityai/stable-diffusion-3.5-medium-amdnpu](https://huggingface.co/stabilityai/stable-diffusion-3.5-medium-amdnpu) | 512x512, 20x DynRes (Inpainting: 1024x1024) | ✅ | ☑️ |
-| FLUX.1 Schnell | [amd/FLUX.1-schnell-amdnpu](https://huggingface.co/amd/FLUX.1-schnell-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
-| FLUX.2 Klein | [amd/FLUX.2-klein-4B-amdnpu](https://huggingface.co/amd/FLUX.2-klein-4B-amdnpu) | 1024x1024 | ✅ | |
+These are the same NPU-optimized pipelines featured in the **[Ryzen AI Stable Diffusion Demo](https://ryzenai.docs.amd.com/en/latest/sd_demo.html#installation-steps)**. That demo is AMD's official preview, shipped with Ryzen AI software, of Stable Diffusion image generation running on Ryzen AI hardware. It shows how to drive each model directly from the `GenAI-SD` code — covering Text-to-Image, Image-to-Image, and ControlNet (Canny, Depth, Tile, Pose) plus SD3 inpainting (Strix only) — by calling the unified `run.py` entry point with a `--model_id`. This sandbox wraps those same pipelines in a configurable, batch-friendly orchestrator so you can run and benchmark many of them without editing source code.
+
+The table below lists every model, with the Strix (RAI 1.8) and Medusa (MDS) Hugging Face model IDs side by side. Resolution and the Text-To-Image / Image-To-Image columns describe Strix (RAI 1.8). Anything that is different or unavailable on Medusa is called out in the last column and marked with ❌ (not available on MDS) or ⚠️ (limited on MDS).
+
+| Model | Strix (RAI 1.8) Hugging Face Model ID | Medusa (MDS) Hugging Face Model ID | Default Resolution | Text-To-Image | Image-To-Image | Differences on MDS |
+|-------|---------------------------------------|------------------------------------|--------------------|---------------|----------------|--------------------|
+| SD 1.5 | [amd/stable-diffusion-1.5-amdnpu](https://huggingface.co/amd/stable-diffusion-1.5-amdnpu) | [amd/stable-diffusion-1.5-amdnpu-medusa](https://huggingface.co/amd/stable-diffusion-1.5-amdnpu-medusa) | 512x512 | ✅ | | |
+| SD 1.5 ControlNet (Canny) | [amd/sd1.5-controlnet-canny-amdnpu](https://huggingface.co/amd/sd1.5-controlnet-canny-amdnpu) | ❌ | 512x512 | | ☑️ | ❌ **Not available on MDS** |
+| SD Turbo | [amd/sd-turbo-amdnpu](https://huggingface.co/amd/sd-turbo-amdnpu) | ❌ | 512x512 | ✅ | | ❌ **Not available on MDS** |
+| SD XL Turbo | [amd/sdxl-turbo-amdnpu](https://huggingface.co/amd/sdxl-turbo-amdnpu) | [amd/sdxl-turbo-amdnpu-medusa](https://huggingface.co/amd/sdxl-turbo-amdnpu-medusa) | 512x512, 5x DynRes | ✅ | | ⚠️ No DynRes in the shipped config (fixed 512x512) |
+| SD XL Base | [amd/sdxl-base-amdnpu](https://huggingface.co/amd/sdxl-base-amdnpu) | [amd/sdxl-base-amdnpu-medusa](https://huggingface.co/amd/sdxl-base-amdnpu-medusa) | 1024x1024, 20x DynRes | ✅ | | ⚠️ No DynRes in the shipped config (fixed 1024x1024) |
+| SSD-1B | [amd/SSD-1B-amdnpu](https://huggingface.co/amd/SSD-1B-amdnpu) | [amd/SSD-1B-amdnpu-medusa](https://huggingface.co/amd/SSD-1B-amdnpu-medusa) | 1024x1024, 20x DynRes | ✅ | | ⚠️ No DynRes in the shipped config (fixed 1024x1024) |
+| Segmind Vega | [amd/segmind-vega-amdnpu](https://huggingface.co/amd/segmind-vega-amdnpu) | [amd/segmind-vega-amdnpu-medusa](https://huggingface.co/amd/segmind-vega-amdnpu-medusa) | 1024x1024 | ✅ | ☑️ | |
+| Playground 2.5 | [amd/playground-v2.5-1024px-aesthetic-amdnpu](https://huggingface.co/amd/playground-v2.5-1024px-aesthetic-amdnpu) | [amd/playground-v2.5-1024px-aesthetic-amdnpu-medusa](https://huggingface.co/amd/playground-v2.5-1024px-aesthetic-amdnpu-medusa) | 1024x1024, 20x DynRes | ✅ | | ⚠️ No DynRes in the shipped config (fixed 1024x1024) |
+| DreamShaper XL | [amd/dreamshaper-xl-lightning-amdnpu](https://huggingface.co/amd/dreamshaper-xl-lightning-amdnpu) | [amd/dreamshaper-xl-lightning-amdnpu-medusa](https://huggingface.co/amd/dreamshaper-xl-lightning-amdnpu-medusa) | 1024x1024, 20x DynRes | ✅ | | ⚠️ No DynRes in the shipped config (fixed 1024x1024) |
+| SD 3.0 Medium — Text-to-Image, ControlNet (Canny, Depth, Tile, Pose), Inpainting | [stabilityai/stable-diffusion-3-medium-amdnpu](https://huggingface.co/stabilityai/stable-diffusion-3-medium-amdnpu) | ❌ | 512x512, 20x DynRes (Inpainting: 1024x1024) | ✅ | ☑️ | ❌ **Not available on MDS** |
+| SD 3.5 Medium — Text-to-Image, ControlNet (Canny, Depth, Tile, Pose), Inpainting | [stabilityai/stable-diffusion-3.5-medium-amdnpu](https://huggingface.co/stabilityai/stable-diffusion-3.5-medium-amdnpu) | [amd/stable-diffusion-3.5-medium-amdnpu-medusa](https://huggingface.co/amd/stable-diffusion-3.5-medium-amdnpu-medusa) | 512x512, 20x DynRes (Inpainting: 1024x1024) | ✅ | ☑️ | ⚠️ Text-to-Image only (no ControlNet or Inpainting); fixed 1024x1024 unless `dynamic_shape: true` is set |
+| FLUX.1 Schnell | [amd/FLUX.1-schnell-amdnpu](https://huggingface.co/amd/FLUX.1-schnell-amdnpu) | [amd/FLUX.1-schnell-amdnpu-medusa](https://huggingface.co/amd/FLUX.1-schnell-amdnpu-medusa) | 1024x1024, 20x DynRes | ✅ | | ⚠️ No DynRes in the shipped config (fixed 1024x1024) |
+| FLUX.2 Klein | [amd/FLUX.2-klein-4B-amdnpu](https://huggingface.co/amd/FLUX.2-klein-4B-amdnpu) | [amd/FLUX.2-klein-4B-amdnpu-medusa](https://huggingface.co/amd/FLUX.2-klein-4B-amdnpu-medusa) | 1024x1024 | ✅ | | ➕ **MDS only:** Image-To-Image reference-image editing via `--edit_image_path` |
 
 **DynRes** indicates the number of dynamic-resolution presets a model supports (e.g. `5x`, `20x`) in addition to its default resolution. The exact width×height pairs for each preset are defined in the `config/dynamic_shape_*.json` files — the 20x grid spans 512x288 – 1024x1024 across 1:1, 3:4, 4:3, 9:16, and 16:9 aspect ratios.
+
+**Which config file?** Strix uses `config/pipeline_configs_strx.yaml` (the default). Medusa uses `config/pipeline_configs_medusa.yaml`, passed with `--config`. See [Pipelines and Pipeline Groups Configuration](#-pipelines-and-pipeline-groups-configuration).
 
 [Back to Table of Contents](#-contents)
 
@@ -91,6 +97,8 @@ Here are some explanations of each of the SD methods. Note that pre- and post-pr
 **🔄 Image-To-Image (I2I)** — Transform an existing image based on a text prompt while preserving certain structural or compositional elements. You provide both a reference image and a prompt, and the model generates a new image that follows the guidance of the input image while incorporating your text description.
 *Example use cases: style transfer, image variations, artistic reinterpretation, photo enhancement*
 
+> **FLUX.2 Klein image editing (Medusa only).** On Medusa, FLUX.2 Klein performs I2I as prompt-guided *image editing*: pass one or more reference images with `--edit_image_path`. With a single reference image you can restyle or alter it (e.g. *"Change the dress to red"*); with two reference images you can combine them (e.g. *"Replace the astronaut in image 1 with the girl in image 2"*). The `flux2_klein_i2i` pipeline in `config/pipeline_configs_medusa.yaml` is an example.
+
 ![Image-to-Image ControlNet Process](test/assets/2025_Bousetouane_image_to_image_controlnet.png)
 
 
@@ -98,7 +106,11 @@ Here are some explanations of each of the SD methods. Note that pre- and post-pr
 
 ## 📐 Hardware Prerequisites
 
-Before getting started, make sure you meet the minimum hardware and OS requirements:
+Before getting started, make sure you meet the minimum hardware and OS requirements. **The requirements in the table below are for Strix (STX) only.**
+
+> **Medusa (MDS) products are preview only.** Medusa is the new-generation Ryzen AI NPU platform, available only as a limited engagement and not publicly available. These Strix requirements do not apply to Medusa. Medusa uses the `-medusa` model variants and its own transaction plugins, and is selected automatically when a Medusa NPU is detected.
+
+**Strix (STX) hardware requirements:**
 
 | Series | Codename | Abbreviation | Graphics Model | Launch Year | Windows 11 | Linux |
 |--------|----------|--------------|----------------|-------------------|-------------|---------|
@@ -117,16 +129,23 @@ Before getting started, make sure you meet the minimum hardware and OS requireme
 
 Follow the instructions here to download necessary NPU drivers and Ryzen AI SW: [Ryzen AI SW Installation Instructions](https://ryzenai.docs.amd.com/en/latest/inst.html). Please allow for around **30 minutes** to install all of the necessary components of Ryzen AI SW.
 
+**Medusa:** install the MDS Software instead of the Ryzen AI SW. The default install path is `C:\Program Files\RyzenAI\ng-1.8.0` and the default conda environment is `ryzen-ai-ng-1.8.0`.
+
 
 #### Step 2: Copy GenAI-SD Code
 
 The code found in `GenAI-SD` within the RAI installation directory is the only code needed to run the pipelines. Copy
-the directory from `C:\Program Files\RyzenAI\1.8.0\GenAI-SD` to a local directory of your choice. 
+the directory for your platform to a local directory of your choice:
+
+| Platform | Source directory |
+|----------|------------------|
+| Strix | `C:\Program Files\RyzenAI\1.8.0\GenAI-SD` |
+| Medusa | `C:\Program Files\RyzenAI\ng-1.8.0\GenAI-SD` | 
 
 
 #### Step 3: Configure Paths
 
-Now that you have the models, you need to configure paths by editing [config/pipeline_configs.yaml](config/pipeline_configs.yaml). The bare minimum that you need to change in order to run a pipeline is:
+Now that you have the models, you need to configure paths by editing [config/pipeline_configs_strx.yaml](config/pipeline_configs_strx.yaml) on Strix, or [config/pipeline_configs_medusa.yaml](config/pipeline_configs_medusa.yaml) on Medusa. The bare minimum that you need to change in order to run a pipeline is:
 
 1. `test_path` : the location of the `test` directory in the  in the `GenAI-SD` directory copied in Step 2
 
@@ -163,20 +182,28 @@ Login successful.
 
 #### Step 5: Activate RAI Conda Env
 
-Activate the conda environment created during the Ryzen AI SW installation
+Activate the conda environment created during the Ryzen AI SW installation (Strix) or the MDS Software installation (Medusa)
 
 ```powershell
+# Strix
 conda activate ryzen-ai-1.8.0
+
+# Medusa
+conda activate ryzen-ai-ng-1.8.0
 ```
 #### Step 6: Verify Installation
 
 Verify that the main run script shows the possible pipelines and pipeline groups: 
 
 ```bash
+# Strix (uses config/pipeline_configs_strx.yaml by default)
 python scripts/run_pipelines.py --list
+
+# Medusa
+python scripts/run_pipelines.py --config config/pipeline_configs_medusa.yaml --list
 ```
 
-You should see a list of all available pipelines and groups of pipelines similar to this:
+You should see a list of all available pipelines and groups of pipelines for your platform, similar to this (Strix output shown; Medusa lists its own set of pipelines):
 ```text
 ⚡ Automatic provider selection enabled
    • Will use best available: GPU > NPU > CPU
@@ -198,7 +225,7 @@ Available Pipeline Groups
 ...
 ```
 
-You should now be able to run a pipeline with:
+You should now be able to run a pipeline with (on Medusa, add `--config config/pipeline_configs_medusa.yaml`):
 
 ```powershell
 python scripts/run_pipelines.py --pipelines sd_15
@@ -244,11 +271,11 @@ Results saved to: C:\Users\User\bconsolv\sd-sandbox\results\pipeline_results_qui
 
 ## 🧩 Pipelines and Pipeline Groups Configuration
 
-Now that everything is installed, you are ready to configure and run SD pipelines. Pipelines are defined in the [config/pipeline_configs.yaml](config/pipeline_configs.yaml) configuration file and can be run via the main [scripts/run_pipelines.py](scripts/run_pipelines.py) script.
+Now that everything is installed, you are ready to configure and run SD pipelines. Pipelines are defined in a per-platform YAML configuration file, [config/pipeline_configs_strx.yaml](config/pipeline_configs_strx.yaml) for Strix and [config/pipeline_configs_medusa.yaml](config/pipeline_configs_medusa.yaml) for Medusa, and can be run via the main [scripts/run_pipelines.py](scripts/run_pipelines.py) script.
 
 A pipeline is a complete SD workflow configuration that includes a specific model (e.g., SD 1.5, SDXL, SD 3.0), execution script, and parameters (resolution, inference steps, guidance scale). Each pipeline represents a single configured image generation setup, from text/image input to final image output.
 
-Pipelines can be arranged into **groups** for common workflows (e.g., all SDXL models, all ControlNet models, etc.) to simplify running multiple pipelines at once. To create a pipeline group, simply list the desired pipelines under a group name in the [config/pipeline_configs.yaml](config/pipeline_configs.yaml) file.
+Pipelines can be arranged into **groups** for common workflows (e.g., all SDXL models, all ControlNet models, etc.) to simplify running multiple pipelines at once. To create a pipeline group, simply list the desired pipelines under a group name in your platform's YAML configuration file.
 
 ### 📁 Config Directory
 
@@ -256,14 +283,62 @@ An overview of the directory structure that contains pipeline files and configur
 
 #### YAML Files
 YAML files define pipeline configurations, parameters, and execution settings. Here are the important YAML files:
-- [config/pipeline_configs.yaml](config/pipeline_configs.yaml) - Default configuration file used by the framework
-- [config/pipeline_configs_debug.yaml](config/pipeline_configs_debug.yaml) - Debug configuration with specialized settings
+- [config/pipeline_configs_strx.yaml](config/pipeline_configs_strx.yaml) - Strix configuration; used by default when `--config` is not given
+- [config/pipeline_configs_medusa.yaml](config/pipeline_configs_medusa.yaml) - Medusa configuration; select it with `--config`
 - `pipeline_custom_config.yaml` - If not using the default, custom YAML files can be used with the `--config` argument as below:
 ```powershell
 python scripts/run_pipelines.py --pipelines sd_15 --config pipeline_custom_config.yaml
 ```
 
-The [config/pipeline_configs.yaml](config/pipeline_configs.yaml) file has 3 main sections:
+**Choosing the configuration for your hardware.** Both configuration files use the same format. Pick the one that matches your hardware with the `--config` argument:
+
+```powershell
+# Strix (default)
+python scripts/run_pipelines.py --pipelines sd_15
+
+# Medusa
+python scripts/run_pipelines.py --config config/pipeline_configs_medusa.yaml --pipelines sd_15
+```
+
+The Strix configuration defines every pipeline; the Medusa configuration defines a subset, plus one pipeline of its own. Pipelines marked ❌ are not available on MDS:
+
+| Pipeline | Strix (`pipeline_configs_strx.yaml`) | Medusa (`pipeline_configs_medusa.yaml`) |
+|---|---|---|
+| `sd_15` | ✅ | ✅ |
+| `sd_15_controlnet` | ✅ | ❌ **Not available on MDS** |
+| `sd_turbo` | ✅ | ❌ **Not available on MDS** |
+| `sdxl_turbo`, `sdxl_base`, `ssd_1b`, `playground_25`, `dreamshaper_xl` | ✅ | ✅ |
+| `segmind_vega`, `segmind_vega_i2i` | ✅ | ✅ |
+| `sd3_base` | ✅ | ❌ **Not available on MDS** |
+| `sd3_controlnet_tile`, `sd3_controlnet_depth`, `sd3_controlnet_pose`, `sd3_controlnet_canny`, `sd3_controlnet_inpainting` | ✅ | ❌ **Not available on MDS** |
+| `sd35_base` | ✅ | ⚠️ Text-to-Image only |
+| `flux1_schnell`, `flux2_klein` | ✅ | ✅ |
+| `flux2_klein_i2i` | ❌ | ➕ **MDS only** |
+
+Other differences between the two files:
+
+| | Strix | Medusa |
+|---|---|---|
+| Model IDs | `amd/<model>-amdnpu` | `amd/<model>-amdnpu-medusa` |
+| Pipeline groups | `all` | `all`, `i2i` |
+| Default execution mode | Image-only (`image_only: true`) | Profiling (no `image_only` default; pass `--image-only` for image-only runs) |
+
+The `flux2_klein_i2i` pipeline exists only in the Medusa configuration. It uses `edit_image_path` to pass one or more reference images to FLUX.2 Klein:
+
+```yaml
+  flux2_klein_i2i:
+    name: "Flux2_i2i"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/FLUX.2-klein-4B-amdnpu-medusa"]
+    prompt: "Put the main from img3 on the horse in img1"
+    args:
+      edit_image_path: ["flux2_img3.png", "flux2_img1.png"]
+      num_inference_steps: 4
+      guidance_scale: 0.0
+```
+
+Each configuration file has 3 main sections:
 1. Global Pipeline Defaults
 2. Pipeline Definitions
 3. Pipeline Groups
@@ -316,7 +391,7 @@ Pipeline parameters are now set using an `args` dictionary of `key: value` pairs
 | boolean `false` | `dynamic_shape: false` | *(omitted)* |
 | list | `image_pads: [0, 64, 0, 64]` | `--image_pads 0 64 0 64` |
 
-For example, a fully configured SD3 pipeline:
+For example, a fully configured SD3 pipeline (Strix only; SD 3.0 is not available on Medusa, which defines `sd35_base` instead):
 
 ```yaml
   sd3_base:
@@ -335,9 +410,11 @@ For example, a fully configured SD3 pipeline:
 
 Pipeline configurations are validated against the known set of runner arguments before each run, so unknown keys and out-of-range values are caught early with a clear warning rather than failing mid-run.
 
-The **best** way to become familiar with the available parameters is to examine the [config/pipeline_configs.yaml](config/pipeline_configs.yaml) file. 
+The **best** way to become familiar with the available parameters is to examine the [Strix](config/pipeline_configs_strx.yaml) or [Medusa](config/pipeline_configs_medusa.yaml) configuration file. 
 
-**SD3/SD3.5 Dynamic Shape Support**: All SD3 and SD3.5 pipelines support dynamic shapes, allowing a single model to handle multiple resolutions without recompilation. This is enabled by default for these models The available resolutions are: 512x512, 512x768, 768x512, 576x1024, 1024x576, 768x1024, 1024x768, and 1024x1024.
+**SD3/SD3.5 Dynamic Shape Support (Strix)**: All SD3 and SD3.5 pipelines support dynamic shapes, allowing a single model to handle multiple resolutions without recompilation. This is enabled by default for these models The available resolutions are: 512x512, 512x768, 768x512, 576x1024, 1024x576, 768x1024, 1024x768, and 1024x1024.
+
+**SD3.5 Dynamic Shape Support (Medusa)**: The shipped Medusa configuration runs SD3.5 at a fixed 1024x1024. To run it at the resolutions listed above without recompilation, add `dynamic_shape: true` to the pipeline's `args`.
 
 **3. Pipeline Groups**
 
@@ -369,8 +446,7 @@ pipeline_groups:
 
 #### JSON Files
 Each JSON file contains an array of text prompts passed sequentially to pipelines for batch testing. The example JSON files can be found here:
-- [config/artistic_prompts.json](config/artistic_prompts.json), [config/anime_prompts.json](config/artistic_prompts.json), [config/alt_prompts.json](config/alt_prompts.json) - Themed prompt collections
-<!---- [config/debug_prompt.json](config/debug_prompt.json) - Single prompt for testing -->
+- [config/artistic_prompts.json](config/artistic_prompts.json), [config/anime_prompts.json](config/anime_prompts.json), [config/alt_prompts.json](config/alt_prompts.json) - Themed prompt collections
 - `custom_prompts.json` - Your own custom prompt file
 You can pass your own list of prompts with the `--prompt_file` argument. For example:
 
@@ -417,7 +493,7 @@ python scripts/run_pipelines.py --pipelines sdxl_turbo --prompt "a serene mounta
 2. Image-Only Mode (`--image-only`) - Fastest execution for batch image generation with zero warmup and one generation pass, producing a single image per prompt without any profiling overhead.
 
 ```powershell
-# Generate 5 images from artistic_prompts.json using SD3, no profiling
+# Generate 5 images from anime_prompts.json using SD3 (Strix; on Medusa use sd35_base), no profiling
 python scripts/run_pipelines.py --image-only --pipelines sd3_base --prompt_file config/anime_prompts.json
 ```
 *Output: 5 images total (the anime_prompts.json file contains 5 prompts), 0 warmup rounds, no performance metrics*
@@ -425,7 +501,7 @@ python scripts/run_pipelines.py --image-only --pipelines sd3_base --prompt_file 
 3. Benchmark Mode (`--benchmark`) - Comprehensive profiling with one warmup iteration followed by ten profiled generations, producing eleven images total with detailed timing statistics for thorough performance analysis.
 
 ```powershell
-# Benchmark SD3 with detailed profiling across all SD3 models
+# Benchmark SD3 with detailed profiling across all SD3 models (Strix; on Medusa use --pipeline_groups all)
 python scripts/run_pipelines.py --benchmark --pipeline_groups all_sd3
 ```
 *Output: 11 images per pipeline (1 warmup + 10 profiled), detailed performance report with timing averages and standard deviations*
@@ -449,7 +525,7 @@ python scripts/run_pipelines.py --help
 | Option | Type | Default | Help |
 |--------|------|---------|------|
 | --benchmark | flag | False | Enable benchmark mode (10 profiling rounds). Default is quick mode (1 round). |
-| --image-only | flag | True | Generate images only without profiling (batch mode). Disables warmup and profiling rounds for fastest execution. This is the default set in `config/pipeline_configs.yaml`; use `--benchmark` to enable profiling instead. |
+| --image-only | flag | True | Generate images only without profiling (batch mode). Disables warmup and profiling rounds for fastest execution. Enabled by default in `config/pipeline_configs_strx.yaml`; the Medusa config does not set it, so pass `--image-only` explicitly. Use `--benchmark` to enable profiling instead. |
 | --timeout | int | 600 | Timeout in seconds for each run (default: 600) |
 | --model_id | list |  | Run only these model IDs (e.g. --model_id amd/stable-diffusion-1.5-amdnpu) |
 | --pipelines | list |  | Run specific pipelines by name (e.g. --pipelines sd_15 sd3_base) |
@@ -460,7 +536,7 @@ python scripts/run_pipelines.py --help
 | --sd3-controlnet-mode | str | controlnet | For SD3 ControlNet with prompt files: 'controlnet' uses custom prompts with ControlNet enabled (recommended), 'text2img' converts to text-to-image mode without ControlNet guidance (default: controlnet) |
 | --force-cpu | flag | False | Force CPU-only execution (disables DML and all accelerators). Overrides config setting. |
 | --no-summary | flag | False | Skip printing the detailed summary report and skip saving results to disk |
-| --config | str | config/pipeline_configs.yaml | Path to custom YAML configuration file (default: config/pipeline_configs.yaml) |
+| --config | str | config/pipeline_configs_strx.yaml | Path to custom YAML configuration file (default: config/pipeline_configs_strx.yaml; use config/pipeline_configs_medusa.yaml for Medusa) |
 | --clean-images | flag | False | Remove all existing images and Excel files from generated_images folder before running pipelines |
 | --clean-results | flag | False | Remove all existing result files from results folder before running pipelines |
 | --save-log | flag | False | Save complete log output to a text file when any pipeline has streaming output enabled |
@@ -513,7 +589,7 @@ SD 1.5 Pipeline,512x512,20,3.898902,3.899352,5.979673,5.978549,1527.36,4412.52
 
 ## GenAI-SD Documentation
 
-These guides come from the `GenAI-SD` folder shipped with the **Ryzen AI 1.8 software installer** (`C:\Program Files\RyzenAI\1.8.0\GenAI-SD`, the same folder you copy in [Step 2](#step-2-copy-genai-sd-code)). They describe how to use the GenAI-SD code **directly** — without this sandbox's orchestrator — covering driver and conda setup, the per-model `run.py` commands, troubleshooting, and more. Once you've copied that folder locally you can follow these documents in it; the copies below are mirrored in this repository's [`docs/`](docs) directory for convenience.
+These guides come from the `GenAI-SD` folder shipped with the **Ryzen AI 1.8 software installer** (`C:\Program Files\RyzenAI\1.8.0\GenAI-SD`) for Strix, or the MDS software installer (`C:\Program Files\RyzenAI\ng-1.8.0\GenAI-SD`) for Medusa — the same folder you copy in [Step 2](#step-2-copy-genai-sd-code). They describe how to use the GenAI-SD code **directly** — without this sandbox's orchestrator — covering driver and conda setup, the per-model `run.py` commands, troubleshooting, and more. Once you've copied that folder locally you can follow these documents in it; the copies below are mirrored in this repository's [`docs/`](docs) directory for convenience.
 
 | Document | Contents |
 |----------|----------|

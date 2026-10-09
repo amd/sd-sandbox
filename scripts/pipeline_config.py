@@ -18,7 +18,7 @@ def load_config(config_file: Optional[str] = None, config_dir: Optional[Path] = 
     
     Args:
         config_file (str, optional): Path to custom configuration file. 
-                                   If None, uses default 'pipeline_configs.yaml'
+                                   If None, uses default 'pipeline_configs_strx.yaml'
         config_dir (Path): Path to config directory
         workspace_root (Path): Path to workspace root
     
@@ -36,7 +36,7 @@ def load_config(config_file: Optional[str] = None, config_dir: Optional[Path] = 
     else:
         if not config_dir:
             raise ValueError("config_dir must be provided")
-        config_path = config_dir / "pipeline_configs.yaml"
+        config_path = config_dir / "pipeline_configs_strx.yaml"
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
     

@@ -86,7 +86,7 @@ VALID_ARGS: Dict[str, Dict[str, Any]] = {
     "--tea_caching_coef":   {"type": "float_list"},
 }
 
-# Valid top-level keys in a pipeline definition (within pipeline_configs.yaml)
+# Valid top-level keys in a pipeline definition (within pipeline_configs_<platform>.yaml)
 VALID_PIPELINE_KEYS: Set[str] = {
     "name", "model_ids", "args", "extra_args", "script",
     "prompt", "width", "height",
@@ -137,7 +137,7 @@ class ValidationResult:
 # ============================================================================
 
 def validate_config_structure(config: Dict[str, Any]) -> ValidationResult:
-    """Validate the top-level structure of pipeline_configs.yaml.
+    """Validate the top-level structure of a pipeline_configs_<platform>.yaml file.
 
     Checks:
       - Required keys are present

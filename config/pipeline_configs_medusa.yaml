@@ -1,0 +1,170 @@
+# Pipeline Configuration File
+# This file defines all available pipeline configurations and settings
+
+# Project paths configuration
+paths:
+  # Path to models directory (relative to workspace root if not absolute)
+  # models_path: "C:/Users/amd87/Desktop/GenAI-SD-v0224/models/"
+  
+  # Path to test scripts directory (relative to workspace root if not absolute)
+  test_path: "./test"
+  
+  # Path to control images directory (for ControlNet pipelines)
+  # Allows using relative paths in --control_image_path arguments
+  control_images_path: "./test/assets"
+  
+  # Path to configuration files directory (for dynamic shape configs, etc.)
+  # Allows using relative paths in --dynamic_shape_file_path arguments
+  config_files_path: "./config"
+
+# Default settings
+defaults:
+  width: 512
+  height: 512
+  # Streaming display settings
+  streaming_output: true # Enable real-time output by default
+  # Execution provider settings
+  execution:
+    force_cpu: false  # Set to true to force CPU-only execution (disables DML)
+  # pr-231: script defaults to run.py -- unified entry point for all pipelines
+  script: "run.py"
+  prompt: "A red sports car parked beside a yellow fire hydrant on a cobblestone street. Behind the car is a blue storefront with a sign that reads \"OPEN\". A green bicycle is leaning against the building. Bright sunny day, realistic photography, sharp focus, detailed textures"
+
+# default 4 iters, 5x resolutions 
+pipelines:
+  
+  sd_15:
+    name: "SD 1.5 Pipeline"
+    model_ids: [ "amd/stable-diffusion-1.5-amdnpu-medusa"]
+    prompt: "A cozy cabin by a mountain lake in autumn, colorful fall foliage, mirror-like water reflections, misty mountains, golden hour lighting, landscape photography, high detail, 4k"
+    args:
+      num_inference_steps: 20
+
+  sdxl_turbo:
+    name: "SDXL Turbo Pipeline"
+    width: 512
+    height: 512
+    model_ids: ["amd/sdxl-turbo-amdnpu-medusa"]
+    args:
+      num_inference_steps: 4
+      guidance_scale: 0.0
+
+  sdxl_base:
+    name: "SDXL Base Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/sdxl-base-amdnpu-medusa"]
+    args:
+      num_inference_steps: 30
+
+  ssd_1b:
+    name: "SSD-1B Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/SSD-1B-amdnpu-medusa"]
+    prompt: "A red sports car parked beside a mountain lake at sunrise, realistic reflections, detailed photography, clear sky, high quality."
+    args:
+      num_inference_steps: 30
+
+  playground_25:
+    name: "Playground 2.5 Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/playground-v2.5-1024px-aesthetic-amdnpu-medusa"]
+    prompt: "A young woman sitting at a Paris café during golden hour, soft sunlight, shallow depth of field, natural skin texture, stylish clothing, candid photography, award-winning lifestyle photograph."
+    args:
+      num_inference_steps: 30
+
+  dreamshaper_xl:
+    name: "DreamShaper XL Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/dreamshaper-xl-lightning-amdnpu-medusa"]
+    prompt: "A majestic dragon flying above snow-covered mountains at sunset, dramatic clouds, volumetric lighting, fantasy artwork, highly detailed."
+    args:
+      num_inference_steps: 6
+
+  segmind_vega:
+    name: "Segmind-Vega Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/segmind-vega-amdnpu-medusa"]
+    prompt: "a cozy European café terrace on a rainy evening, warm amber lights, wet cobblestone street, reflections in puddles, outdoor tables with candles, lush potted plants, charming old buildings, photorealistic, cinematic lighting, high detail"
+    args:
+      num_inference_steps: 50
+
+# Use of control image forces i2i
+  segmind_vega_i2i:
+    name: "Segmind-Vega I2I Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/segmind-vega-amdnpu-medusa"]
+    prompt: "a sailing ship in a fierce storm at night near rocky cliffs, massive waves crashing against rocks, lightning illuminating dark clouds, dramatic cinematic atmosphere, dark fantasy art, highly detailed"
+    args:
+      num_inference_steps: 50
+      n_prompt: "blurry, low quality, distorted, ugly, watermark, text"
+      control_image_path: "outpainting_output_1024x1024.png"
+      strength: 0.45
+      guidance_scale: 7.0
+
+# Colorize line art via ControlNet (generates color from scratch, uses lines as structure only)
+  
+  sd35_base:
+    name: "SD3.5 Pipeline"
+    model_ids: ["amd/stable-diffusion-3.5-medium-amdnpu-medusa"]
+    prompt: "A grand fantasy library built inside an ancient tree, glowing lanterns hanging from branches, scholars reading books on floating platforms, intricate wood carvings, warm golden light, cinematic fantasy concept art, highly detailed."
+    args:
+      num_inference_steps: 30
+      width: 1024
+      height: 1024
+      controlnet: "None"
+      guidance_scale: 4.5
+
+  flux1_schnell:
+    name: "FLUX.1 Schnell Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/FLUX.1-schnell-amdnpu-medusa"]
+    prompt: "A candid photograph of a father teaching his young son how to fish from a wooden dock at sunrise. Light fog rising from the lake, realistic skin texture, natural expressions, detailed clothing, professional photography."
+    args:
+      num_inference_steps: 4
+      guidance_scale: 0.0
+      
+
+  flux2_klein:
+    name: "FLUX.2 Klein Pipeline"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/FLUX.2-klein-4B-amdnpu-medusa"]
+    prompt: "A small bakery early in the morning. Fresh bread displayed behind glass. A baker wearing a white apron arranges pastries. Warm sunlight enters through the front window. Realistic photography."
+    args:
+      num_inference_steps: 4
+      guidance_scale: 0.0
+
+  flux2_klein_i2i:
+    name: "Flux2_i2i"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/FLUX.2-klein-4B-amdnpu-medusa"]
+    prompt: "Put the main from img3 on the horse in img1"
+    args:
+      edit_image_path: ["flux2_img3.png", "flux2_img1.png"]
+      num_inference_steps: 4
+      guidance_scale: 0.0
+
+pipeline_groups:
+  i2i:
+    - flux2_klein_i2i
+
+  all:
+    - sd_15
+    - sdxl_turbo
+    - sdxl_base
+    - ssd_1b
+    - segmind_vega
+    - segmind_vega_i2i
+    - playground_25
+    - dreamshaper_xl
+    - sd35_base
+    - flux1_schnell
+    - flux2_klein
