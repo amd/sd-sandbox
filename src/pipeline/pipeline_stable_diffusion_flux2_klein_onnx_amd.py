@@ -41,6 +41,7 @@ except:
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.utils import BaseOutput
 from src.flux2.image_processor import Flux2ImageProcessor
+from src.pipeline.base_amd_pipeline import AMDPipelineMixin
 
 if is_torch_xla_available():
     import torch_xla.core.xla_model as xm
@@ -150,7 +151,7 @@ def retrieve_timesteps(
     return timesteps, num_inference_steps
 
 
-class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline):
+class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
     r"""
     The Flux2 Klein pipeline for text-to-image generation.
 
@@ -221,18 +222,6 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline):
         self.tokenizer_max_length = 256
         self.default_sample_size = 128
 
-        self.perf_time_dict = {
-            "vae_decoder": [],
-            "transformer": [],
-            "tokenizer": [],
-            "text_encoder": [],
-        }
-
-        self.perf_time_gpu_model = {
-            "tokenizer": [],
-            "text_encoder": [],
-        }
-
     @staticmethod
     def _onnx_type_str_to_numpy_type(onnx_type_str: str):
         onnx_to_numpy_dtype = {
@@ -292,8 +281,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline):
                 max_length=max_sequence_length,
             )
             tokenizer_time = time.perf_counter() - t0
-            pipeline.perf_time_gpu_model["tokenizer"].append(tokenizer_time)
-            pipeline.perf_time_dict["tokenizer"].append(tokenizer_time)
+            pipeline._record_timing(pipeline.tokenizer, tokenizer_time)
 
             all_input_ids.append(inputs["input_ids"])
             all_attention_masks.append(inputs["attention_mask"])
@@ -306,19 +294,25 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline):
             text_encoder.model.get_inputs()[0].type
         )
         seq_len = input_ids.shape[1]
-        position_ids = torch.arange(seq_len, dtype=torch.int64).unsqueeze(0).expand(
-            input_ids.shape[0], -1
-        )
+        input_names = {inp.name for inp in text_encoder.model.get_inputs()}
         onnx_inputs = {
             "input_ids": input_ids.numpy().astype(int_dtype),
-            "attention_mask": attention_mask.numpy().astype(int_dtype),
-            "position_ids": position_ids.numpy().astype(int_dtype),
         }
-        prompt_embeds = text_encoder(**onnx_inputs)[0]
-        prompt_embeds = torch.from_numpy(prompt_embeds).to(device=device, dtype=dtype)
+        if "attention_mask" in input_names:
+            onnx_inputs["attention_mask"] = attention_mask.numpy().astype(int_dtype)
+        if "position_ids" in input_names:
+            position_ids = torch.arange(seq_len, dtype=torch.int64).unsqueeze(0).expand(
+                input_ids.shape[0], -1
+            )
+            onnx_inputs["position_ids"] = position_ids.numpy().astype(int_dtype)
+        prompt_embeds = np.asarray(text_encoder(**onnx_inputs)[0])
+        if prompt_embeds.dtype not in (np.float16, np.float32, np.float64):
+            prompt_embeds = prompt_embeds.astype(np.float32, copy=False)
+        prompt_embeds = torch.from_numpy(np.ascontiguousarray(prompt_embeds)).to(
+            device=device, dtype=dtype
+        )
         text_encoder_time = time.perf_counter() - t0
-        pipeline.perf_time_gpu_model["text_encoder"].append(text_encoder_time)
-        pipeline.perf_time_dict["text_encoder"].append(text_encoder_time)
+        pipeline._record_timing(pipeline.text_encoder, text_encoder_time)
 
         return prompt_embeds
 
@@ -484,15 +478,6 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline):
             x_list.append(out)
 
         return torch.stack(x_list, dim=0)
-    def _clear_time_dict(
-        self,
-    ):
-        for key in self.perf_time_dict:
-            self.perf_time_dict[key] = []
-
-        for key in self.perf_time_gpu_model:
-            self.perf_time_gpu_model[key] = []
-
     def encode_prompt(
         self,
         prompt: str | list[str],
@@ -871,6 +856,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline):
         image_latents = None
         image_latent_ids = None
         if condition_images is not None:
+            _t0_vae_enc = time.perf_counter()
             image_latents, image_latent_ids = self.prepare_image_latents(
                 images=condition_images,
                 batch_size=batch_size * num_images_per_prompt,
@@ -878,6 +864,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline):
                 device=device,
                 dtype=vae_dtype,
             )
+            self._record_timing(self.vae_encoder, time.perf_counter() - _t0_vae_enc)
 
         # 6. Prepare timesteps
         sigmas = np.linspace(1.0, 1 / num_inference_steps, num_inference_steps) if sigmas is None else sigmas
@@ -925,7 +912,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline):
                     img_ids=latent_image_ids,  # B, image_seq_len, 4
                 )[0]
                 transformer_time = time.perf_counter() - transformer_start_time
-                self.perf_time_dict["transformer"].append(transformer_time)
+                self._record_timing(self.transformer, transformer_time)
 
                 noise_pred = noise_pred[:, : latents.size(1) :]
 
@@ -986,7 +973,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline):
         else:
             t0 = time.perf_counter()
             image = self.vae_decoder(latents=latents.cpu().numpy())[0]
-            self.perf_time_dict["vae_decoder"].append(time.perf_counter() - t0)
+            self._record_timing(self.vae_decoder, time.perf_counter() - t0)
 
             image = torch.tensor(image)
             image = self.image_processor.postprocess(image, output_type=output_type)

@@ -15,6 +15,8 @@ from .base_runner import (
 )
 from .flux_runner import FluxRunner
 from .flux2_klein_runner import Flux2KleinRunner
+from .kolors_runner import KolorsRunner
+from .nitro_runner import NitroERunner
 from .runner_registry import detect_runner_class, list_runner_names
 from .sd_runner import SDRunner
 from .sd15_controlnet_runner import SD15ControlnetRunner
@@ -26,6 +28,8 @@ __all__ = [
     "BaseRunner",
     "FluxRunner",
     "Flux2KleinRunner",
+    "KolorsRunner",
+    "NitroERunner",
     "SD15ControlnetRunner",
     "SD3xOutpaintingRunner",
     "SD3xRunner",

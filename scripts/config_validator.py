@@ -89,7 +89,7 @@ VALID_ARGS: Dict[str, Dict[str, Any]] = {
 # Valid top-level keys in a pipeline definition (within pipeline_configs.yaml)
 VALID_PIPELINE_KEYS: Set[str] = {
     "name", "model_ids", "args", "extra_args", "script",
-    "prompt", "width", "height", "custom_op_path",
+    "prompt", "width", "height",
     "execution", "streaming_output", "image_only",
 }
 
@@ -275,15 +275,23 @@ def validate_extra_args(extra_args: List[str],
             i += 1
             continue
 
-        # Non-boolean flags require a value
+        # Non-boolean flags require at least one value
         if i + 1 >= len(extra_args) or _is_flag(extra_args[i + 1]):
             result.add_error(f"Argument '{token}' requires a value")
             i += 1
             continue
 
-        value_str = extra_args[i + 1]
-        _validate_str_value(value_str, spec, token, result)
-        i += 2
+        # List-valued flags (argparse nargs="+") consume every consecutive
+        # value token, e.g. "--edit_image_path img1 img2".
+        if str(spec["type"]).endswith("_list"):
+            i += 1
+            while i < len(extra_args) and not _is_flag(extra_args[i]):
+                _validate_str_value(extra_args[i], spec, token, result)
+                i += 1
+        else:
+            value_str = extra_args[i + 1]
+            _validate_str_value(value_str, spec, token, result)
+            i += 2
 
     return result
 

@@ -47,21 +47,45 @@ class StableDiffusionXLONNXPipelineAMDTrigger(BaseOnnxPipelineTrigger):
             self.load_metrics_collector,
         )
 
-        self.text_encoder = load_model(
-            ModelLoadConfig(
-                model_path=os.path.join(root_model_path, "text_encoder"),
-                model_type=ModelType.CLIP_TEXT_MODEL,
-            ),
-            self.load_metrics_collector,
-        )
+        # Prefer the fp16 ONNX text encoders (model.onnx); fall back to the
+        # fp32 PyTorch safetensors versions when they are missing / fail to load.
+        try:
+            self.text_encoder = load_model(
+                ModelLoadConfig(
+                    model_path=os.path.join(root_model_path, "text_encoder"),
+                    model_type=ModelType.ONNX_TEXT_ENCODER,
+                    execution_providers=["DmlExecutionProvider", "CPUExecutionProvider"],
+                ),
+                self.load_metrics_collector,
+            )
+        except Exception as e:
+            logger.warning("ONNX text_encoder unavailable (%s); using PyTorch.", e)
+            self.text_encoder = load_model(
+                ModelLoadConfig(
+                    model_path=os.path.join(root_model_path, "text_encoder"),
+                    model_type=ModelType.CLIP_TEXT_MODEL,
+                ),
+                self.load_metrics_collector,
+            )
 
-        self.text_encoder_2 = load_model(
-            ModelLoadConfig(
-                model_path=os.path.join(root_model_path, "text_encoder_2"),
-                model_type=ModelType.CLIP_TEXT_WITH_PROJECTION,
-            ),
-            self.load_metrics_collector,
-        )
+        try:
+            self.text_encoder_2 = load_model(
+                ModelLoadConfig(
+                    model_path=os.path.join(root_model_path, "text_encoder_2"),
+                    model_type=ModelType.ONNX_TEXT_ENCODER_WITH_PROJECTION,
+                    execution_providers=["DmlExecutionProvider", "CPUExecutionProvider"],
+                ),
+                self.load_metrics_collector,
+            )
+        except Exception as e:
+            logger.warning("ONNX text_encoder_2 unavailable (%s); using PyTorch.", e)
+            self.text_encoder_2 = load_model(
+                ModelLoadConfig(
+                    model_path=os.path.join(root_model_path, "text_encoder_2"),
+                    model_type=ModelType.CLIP_TEXT_WITH_PROJECTION,
+                ),
+                self.load_metrics_collector,
+            )
 
         self.scheduler = load_model(
             ModelLoadConfig(

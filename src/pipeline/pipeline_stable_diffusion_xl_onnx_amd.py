@@ -220,18 +220,7 @@ class StableDiffusionXLPipelineAMD(
         else:
             self.watermark = None
 
-        self.perf_time_dict = {
-            "vae_encoder": [],
-            "vae_decoder": [],
-            "unet": [],
-        }
-
-        self.perf_time_gpu_model = {
-            "tokenizer": [],
-            "text_encoder": [],
-            "tokenizer_negative": [],
-            "text_encoder_negative": [],
-        }
+    @AMDPipelineMixin.merge_perf_timings
     def encode_prompt(
         self,
         prompt: str,
@@ -356,7 +345,7 @@ class StableDiffusionXLPipelineAMD(
                     truncation=True,
                     return_tensors="pt",
                 )
-                self.perf_time_gpu_model["tokenizer"].append(time.perf_counter() - t0)
+                self._record_timing(self.tokenizer, time.perf_counter() - t0)
 
                 text_input_ids = text_inputs.input_ids
                 untruncated_ids = tokenizer(
@@ -377,9 +366,7 @@ class StableDiffusionXLPipelineAMD(
                 prompt_embeds = text_encoder(
                     text_input_ids.to(device), output_hidden_states=True
                 )
-                self.perf_time_gpu_model["text_encoder"].append(
-                    time.perf_counter() - t0
-                )
+                self._record_timing(self.text_encoder, time.perf_counter() - t0)
 
                 # We are only ALWAYS interested in the pooled output of the final text encoder
                 pooled_prompt_embeds = prompt_embeds[0]
@@ -453,18 +440,14 @@ class StableDiffusionXLPipelineAMD(
                     truncation=True,
                     return_tensors="pt",
                 )
-                self.perf_time_gpu_model["tokenizer_negative"].append(
-                    time.perf_counter() - t0
-                )
+                self._record_timing(self.tokenizer, time.perf_counter() - t0)
 
                 t0 = time.perf_counter()
                 negative_prompt_embeds = text_encoder(
                     uncond_input.input_ids.to(device),
                     output_hidden_states=True,
                 )
-                self.perf_time_gpu_model["tokenizer_negative"].append(
-                    time.perf_counter() - t0
-                )
+                self._record_timing(self.text_encoder, time.perf_counter() - t0)
 
                 # We are only ALWAYS interested in the pooled output of the final text encoder
                 negative_pooled_prompt_embeds = negative_prompt_embeds[0]
@@ -769,7 +752,7 @@ class StableDiffusionXLPipelineAMD(
         else:
             init_latents = self.vae_decoder.config["scaling_factor"] * init_latents
         end = time.time_ns()
-        self.perf_time_dict["vae_encoder"].append((end - start) * 1e-9)
+        self._record_timing(self.vae_encoder, (end - start) * 1e-9)
 
         if batch_size > init_latents.shape[0] and batch_size % init_latents.shape[0] == 0:
             # expand init_latents for batch_size
@@ -1416,7 +1399,7 @@ class StableDiffusionXLPipelineAMD(
                 )[0]
                 end = time.time_ns()
                 noise_pred = torch.tensor(noise_pred)
-                self.perf_time_dict["unet"].append((end - start) * 1e-9)
+                self._record_timing(self.unet, (end - start) * 1e-9)
 
                 # perform guidance
                 if self.do_classifier_free_guidance:
@@ -1538,7 +1521,7 @@ class StableDiffusionXLPipelineAMD(
             image = torch.tensor(image)
 
             end = time.time_ns()
-            self.perf_time_dict["vae_decoder"].append((end - start) * 1e-9)
+            self._record_timing(self.vae_decoder, (end - start) * 1e-9)
             # cast back to fp16 if needed
             # if needs_upcasting:
             #     self.vae.to(dtype=torch.float16)

@@ -6,15 +6,18 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Protocol, Tuple, Union
 import ctypes
+import numpy as np
 import onnxruntime
 import torch
-from diffusers.pipelines.onnx_utils import OnnxRuntimeModel
+from diffusers.pipelines.onnx_utils import OnnxRuntimeModel, ORT_TO_NP_TYPE
 from transformers import (
     AutoTokenizer,
     CLIPTokenizer,
@@ -27,6 +30,9 @@ from transformers import (
 
 from enum import Enum
 
+from src.kolors.modeling_chatglm import ChatGLMModel
+from src.kolors.tokenization_chatglm import ChatGLMTokenizer
+
 from src.utils import common
 import importlib
 
@@ -38,12 +44,17 @@ class ModelType(str, Enum):
     T5_NPU_MODEL = "t5_npu_model"
     CLIP_TEXT_MODEL = "clip_text_model"
     CLIP_TEXT_WITH_PROJECTION = "clip_text_with_projection"
+    ONNX_TEXT_ENCODER = "onnx_text_encoder"
+    ONNX_TEXT_ENCODER_WITH_PROJECTION = "onnx_text_encoder_with_projection"
     CLIP_TOKENIZER = "clip_tokenizer"
     T5_TOKENIZER = "t5_tokenizer"
     SCHEDULER = "scheduler"
     CLIP_IMAGE_PROCESSOR = "clip_image_processor"
+    CHATGLM_MODEL = "chatglm_model"
+    CHATGLM_TOKENIZER = "chatglm_tokenizer"
     AUTO_TOKENIZER = "auto_tokenizer"
     QWEN2_TOKENIZER = "qwen2_tokenizer"
+    QWEN3_NPU_TEXT_ENCODER = "qwen3_npu_text_encoder"
 
 
 @dataclass
@@ -320,6 +331,30 @@ class SchedulerLoader:
         return scheduler_cls.from_pretrained(scheduler_path)
 
 
+class ChatGLMModelLoader:
+    @staticmethod
+    def load(glm_model_path: str) -> Any:
+        model_name = os.path.basename(os.path.normpath(glm_model_path))
+        logger.info("Loading ChatGLMModel %s ... ", model_name)
+        try:
+            model = ChatGLMModel.from_pretrained(glm_model_path, dtype=torch.float16)
+        except OSError:
+            raise ValueError("Don't find the model file for %s", glm_model_path)
+        return model
+
+
+class ChatGLMTokenizerLoader:
+    @staticmethod
+    def load(tokenizer_path: str) -> Any:
+        model_name = os.path.basename(os.path.normpath(tokenizer_path))
+        logger.info("Loading ChatGLMTokenizer %s ... ", model_name)
+        try:
+            tokenizer = ChatGLMTokenizer.from_pretrained(tokenizer_path)
+        except OSError:
+            raise ValueError("Don't find the model file for %s", tokenizer_path)
+        return tokenizer
+
+
 class OnnxModelLoader:
     @staticmethod
     def load(model_file_path: str,
@@ -356,7 +391,248 @@ class OnnxModelLoader:
         except OSError:
             logger.warning("Don't find the config file for %s", config_file_path)
             model.config = {}
+        return model
 
+
+class TextEncoderOutput(tuple):
+    """Tuple subclass that mimics a HuggingFace CLIP text-encoder ModelOutput.
+
+    It supports both positional access (``out[0]`` / ``out[-1]``) and the
+    attribute access used by the pipelines (``out.hidden_states``,
+    ``out.last_hidden_state``, ``out.text_embeds``).
+    """
+
+    def __new__(
+        cls,
+        fields,
+        *,
+        last_hidden_state=None,
+        pooler_output=None,
+        text_embeds=None,
+        hidden_states=None,
+    ):
+        obj = super().__new__(cls, tuple(fields))
+        obj.last_hidden_state = last_hidden_state
+        obj.pooler_output = pooler_output
+        obj.text_embeds = text_embeds
+        obj.hidden_states = hidden_states
+        return obj
+
+
+class OnnxTextEncoder:
+    """Wrap an ONNX CLIP text-encoder session to look like a PyTorch CLIP model.
+
+    The ONNX graph runs in fp16 internally (the exported ``model.onnx`` is an
+    fp16 model), but every tensor returned here is up-cast to **fp32**. This is
+    deliberate: the pipelines were written for the all-fp32 PyTorch encoders and
+    perform ``torch.concat`` across encoders plus ``.to(dtype=text_encoder.dtype)``
+    juggling. Presenting fp32 outputs (and a fp32 ``.dtype``) makes this wrapper a
+    drop-in replacement that stays numerically/shape compatible even when mixed
+    with a PyTorch (safetensors) encoder in the same pipeline.
+    """
+
+    _HIDDEN_STATE_RE = re.compile(r"hidden_states\.?(\d+)$")
+
+    @classmethod
+    def load(cls, model_path: str, with_projection: bool, execution_providers: Optional[List[str]] = None):
+        """Build an :class:`OnnxTextEncoder` from ``<model_path>/model.onnx``.
+
+        Raises ``FileNotFoundError`` when the ONNX file is missing so the caller
+        can ``try/except`` and fall back to the PyTorch weights.
+        """
+        onnx_file = os.path.join(model_path, "model.onnx")
+        if not os.path.exists(onnx_file):
+            raise FileNotFoundError(f"ONNX text encoder not found: {onnx_file}")
+
+        model_name = os.path.basename(os.path.normpath(model_path))
+        logger.info("Loading ONNX text encoder %s (fp16) ... ", model_name)
+        session = onnxruntime.InferenceSession(
+            onnx_file, providers=execution_providers or ["CPUExecutionProvider"]
+        )
+
+        config = {}
+        config_file = os.path.join(model_path, "config.json")
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+            except OSError:
+                logger.warning("Failed to read config for %s", config_file)
+
+        return cls(session, config, with_projection)
+
+    def __init__(self, session: onnxruntime.InferenceSession, config: dict, with_projection: bool):
+        self.session = session
+        self._with_projection = with_projection
+        # Attribute-style config so pipeline code such as
+        # ``text_encoder_2.config.projection_dim`` and
+        # ``hasattr(text_encoder.config, "use_attention_mask")`` keeps working.
+        self.config = SimpleNamespace(**(config or {}))
+        self._input_names = [i.name for i in session.get_inputs()]
+        self._output_names = [o.name for o in session.get_outputs()]
+        self._id_np_dtype = ORT_TO_NP_TYPE.get(session.get_inputs()[0].type, np.int64)
+        self._hidden_state_names = self._sorted_hidden_state_names()
+
+    @property
+    def dtype(self):
+        # Present as fp32 to match the PyTorch encoders this class replaces.
+        return torch.float32
+
+    def to(self, *args, **kwargs):
+        # ONNX precision/device is fixed at export/load time; ignore .to() calls
+        # (e.g. the pipeline's ``enc.to(torch.float32)``).
+        return self
+
+    def eval(self):
+        return self
+
+    def _sorted_hidden_state_names(self) -> List[str]:
+        pairs = []
+        for name in self._output_names:
+            m = self._HIDDEN_STATE_RE.search(name)
+            if m:
+                pairs.append((int(m.group(1)), name))
+        pairs.sort(key=lambda x: x[0])
+        return [n for _, n in pairs]
+
+    @staticmethod
+    def _pick(out_map: Dict[str, Any], *candidates: str):
+        for c in candidates:
+            if c in out_map:
+                return out_map[c]
+        return None
+
+    @staticmethod
+    def _to_f32(arr):
+        return None if arr is None else torch.from_numpy(np.asarray(arr)).to(torch.float32)
+
+    def __call__(self, input_ids, attention_mask=None, output_hidden_states=False, **kwargs):
+        ids = input_ids.cpu().numpy() if torch.is_tensor(input_ids) else np.asarray(input_ids)
+        feed = {self._input_names[0]: ids.astype(self._id_np_dtype)}
+        if attention_mask is not None and "attention_mask" in self._input_names:
+            am = (
+                attention_mask.cpu().numpy()
+                if torch.is_tensor(attention_mask)
+                else np.asarray(attention_mask)
+            )
+            feed["attention_mask"] = am.astype(self._id_np_dtype)
+
+        raw = self.session.run(None, feed)
+        out_map = dict(zip(self._output_names, raw))
+
+        last_hidden_state = self._to_f32(self._pick(out_map, "last_hidden_state", "hidden_states"))
+        pooled = self._to_f32(self._pick(out_map, "text_embeds", "pooler_output", "pooled_output"))
+
+        hidden_states = None
+        if self._hidden_state_names:
+            hidden_states = tuple(self._to_f32(out_map[n]) for n in self._hidden_state_names)
+        if output_hidden_states and hidden_states is None:
+            raise RuntimeError(
+                "ONNX text encoder was called with output_hidden_states=True but the exported "
+                "graph exposes no per-layer 'hidden_states.*' outputs. Re-export the text encoder "
+                "with hidden states, or provide the PyTorch (safetensors) version instead."
+            )
+
+        # HF field ordering:
+        #   CLIPTextModelWithProjection -> (text_embeds, last_hidden_state, hidden_states, ...)
+        #   CLIPTextModel               -> (last_hidden_state, pooler_output, hidden_states, ...)
+        if self._with_projection:
+            first = pooled if pooled is not None else last_hidden_state
+            fields = [first, last_hidden_state, hidden_states]
+        else:
+            fields = [last_hidden_state, pooled, hidden_states]
+
+        return TextEncoderOutput(
+            fields,
+            last_hidden_state=last_hidden_state,
+            pooler_output=pooled,
+            text_embeds=pooled,
+            hidden_states=hidden_states,
+        )
+
+
+class Qwen3NpuTextEncoderLoader:
+    """Load DD-compiled Qwen3 text encoder with RyzenAILight hybrid-LLM EP options.
+
+    Graph signature is ``input_ids`` only (see ``text_encoder/dd/model.onnx``).
+    Session options match the hybrid-LLM NPU path (``hybrid_opt_*`` + ``dd_cache``),
+    which is distinct from the SD fusion-compile ``config_session_options`` path.
+    """
+
+    @staticmethod
+    def load(
+        model_path: str,
+        custom_op_path: Optional[str] = None,
+        max_seq_length: Optional[int] = None,
+    ):
+        if not custom_op_path or not os.path.exists(custom_op_path):
+            raise FileNotFoundError(
+                f"custom_op_path is required for NPU Qwen3 text encoder, got: {custom_op_path!r}"
+            )
+
+        root = Path(model_path).resolve()
+        dd_path = (
+            root
+            if root.name == "dd"
+            else Path(common.resolve_dd_model_path(root, device="NPU"))
+        )
+        model_file = dd_path / "model.onnx"
+        if not model_file.exists():
+            raise FileNotFoundError(f"NPU Qwen3 text encoder not found: {model_file}")
+
+        pb_bin = model_file.with_suffix(".pb.bin")
+        if not pb_bin.exists():
+            pb_bin.write_bytes(b"")
+
+        seq_len = 256 if max_seq_length is None else int(max_seq_length)
+        ep_dll = Path(custom_op_path)
+        ctypes.CDLL(str(ep_dll))
+        common.register_ep(ep_dll)
+
+        so = onnxruntime.SessionOptions()
+        so.enable_cpu_mem_arena = False
+        so.enable_mem_pattern = False
+        so.add_session_config_entry("session.use_device_allocator_for_initializers", "1")
+        so.add_session_config_entry("session.inter_op.allow_spinning", "0")
+        so.add_session_config_entry("session.intra_op.allow_spinning", "0")
+        so.add_session_config_entry("model_root", str(dd_path))
+        so.register_custom_ops_library(str(ep_dll))
+
+        npu_devices = [
+            d
+            for d in onnxruntime.get_ep_devices()
+            if d.ep_name == common.EP_NAME
+            and d.device.type == onnxruntime.OrtHardwareDeviceType.NPU
+        ]
+        if not npu_devices:
+            raise RuntimeError(
+                f"No NPU devices found for {common.EP_NAME}; cannot load Qwen3 text encoder"
+            )
+
+        so.add_provider_for_devices(
+            npu_devices,
+            {
+                "custom_allocator": "RMM",
+                "hybrid_opt_token_backend": "npu",
+                "hybrid_opt_max_seq_length": str(seq_len),
+                "hybrid_opt_npu_pdi_name": "DPU_1",
+                "hybrid_opt_continue_on_exception": "0",
+                "hybrid_opt_npu_read_ahead": "-1",
+                "dd_cache": str(dd_path / "cache"),
+                "external_data_file": pb_bin.name,
+            },
+        )
+
+        logger.info("Loading NPU Qwen3 text encoder from %s ...", model_file)
+        session = onnxruntime.InferenceSession(str(model_file), sess_options=so)
+        model = OnnxRuntimeModel(session)
+        for config_path in (dd_path / "config.json", dd_path.parent / "config.json"):
+            if config_path.exists():
+                with open(config_path, "r", encoding="utf-8") as file:
+                    model.config = json.load(file)
+                break
+        else:
+            model.config = {}
         return model
 
 
@@ -390,7 +666,6 @@ class T5NpuModelLoader:
         model.load_state_dict(
             load_file(safetensors_path, device="cpu"), strict=False, assign=True
         )
-        model.model_name = "t5"
         AIEGEMM.load_npu(model, meta)
         return model
 
@@ -431,8 +706,24 @@ def load_model(cfg: ModelLoadConfig, metrics_collector: LoadMetricsCollector):
         return_model = SchedulerLoader.load(cfg.model_path)
     elif cfg.model_type == ModelType.CLIP_IMAGE_PROCESSOR:
         return_model = CLIPImageProcessorLoader.load(cfg.model_path)
+    elif cfg.model_type == ModelType.CHATGLM_MODEL:
+        return_model = ChatGLMModelLoader.load(cfg.model_path)
+    elif cfg.model_type == ModelType.CHATGLM_TOKENIZER:
+        return_model = ChatGLMTokenizerLoader.load(cfg.model_path)
+    elif cfg.model_type in (
+        ModelType.ONNX_TEXT_ENCODER,
+        ModelType.ONNX_TEXT_ENCODER_WITH_PROJECTION,
+    ):
+        with_projection = cfg.model_type == ModelType.ONNX_TEXT_ENCODER_WITH_PROJECTION
+        return_model = OnnxTextEncoder.load(
+            cfg.model_path, with_projection, cfg.execution_providers
+        )
     elif cfg.model_type == ModelType.T5_NPU_MODEL and device == "NPU":
         return_model = T5NpuModelLoader.load(cfg.model_path, cfg.model_file, cfg.bin_file)
+    elif cfg.model_type == ModelType.QWEN3_NPU_TEXT_ENCODER:
+        return_model = Qwen3NpuTextEncoderLoader.load(
+            cfg.model_path, cfg.custom_op_path, cfg.t5_sequence_len
+        )
     elif cfg.model_type == ModelType.ONNX_MODEL:
         device = detect_device(cfg.execution_providers)
         config_file_path = os.path.join(cfg.model_path, "config.json")
@@ -458,11 +749,30 @@ def load_model(cfg: ModelLoadConfig, metrics_collector: LoadMetricsCollector):
                 enable_dd_fusion_compile=cfg.enable_compile,
                 low_memory_threshold_gb=cfg.low_memory_threshold_gb,
                 execution_providers=cfg.execution_providers,
+                model_name=model_name,
             )
             eps = None
+        elif common.ort_profiling_enabled():
+            session_options = common.create_ort_session_options(model_name)
         return_model = OnnxModelLoader.load(model_file_path, config_file_path, eps, session_options)
     else:
         raise ValueError(f"Model type {cfg.model_type} is not supported for device {device}")
+
+    try:
+        return_model.model_name = model_name
+    except (AttributeError, TypeError):
+        pass
+
+    try:
+        # Refine device from actual session providers to capture EP fallback (e.g. ORT_DISABLE_GPU=1)
+        device = detect_device(list(return_model.model.get_providers()))
+    except (AttributeError, TypeError):
+        pass
+
+    try:
+        return_model.perf_device = device
+    except (AttributeError, TypeError):
+        pass
 
     metrics_collector.record(model_name, device, time.perf_counter() - start_time, common.measure_mem() - start_mem)
     return return_model

@@ -231,23 +231,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             if hasattr(self, "transformer") and self.transformer is not None
             else 2
         )
-        self.perf_time_dict = {
-            "vae_encoder": [],
-            "vae_decoder": [],
-            "t5": [],
-            "ctrlnet": [],
-            "dit": [],
-            "tea_caching": [],
-        }
 
-        self.perf_time_gpu_model = {
-            "tokenizer": [],
-            "text_encoder": [],
-            "tokenizer_2": [],
-            "text_encoder_2": [],
-            "tokenizer_3": [],
-            "tea_caching": [],
-        }
     def _onnx_type_str_to_numpy_type(self, onnx_type_str: str):
         onnx_to_numpy_dtype = {
             "tensor(bool)": np.bool_,
@@ -301,7 +285,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             add_special_tokens=True,
             return_tensors="pt",
         )
-        self.perf_time_gpu_model["tokenizer_3"].append(time.perf_counter() - t0)
+        self._record_timing(self.tokenizer_3, time.perf_counter() - t0)
         logger.debug(f"tokenizer_3 inference time = {time.perf_counter() - t0:.5f}s")
 
         text_input_ids = text_inputs.input_ids
@@ -327,7 +311,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             )
             text_input_ids = text_input_ids.numpy().astype(input_type)
             prompt_embeds = self.text_encoder_3(input_ids=text_input_ids)
-            self.perf_time_dict["t5"].append(time.perf_counter() - t0)
+            self._record_timing(self.text_encoder_3, time.perf_counter() - t0)
             prompt_embeds = torch.from_numpy(prompt_embeds[0]).to(
                 device=device, dtype=torch.float16
             )
@@ -335,8 +319,8 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             prompt_embeds = self.text_encoder_3(
                 input_ids=text_inputs["input_ids"],
             )["last_hidden_state"].to(device=device, dtype=torch.float16)
-            
-            self.perf_time_dict["t5"].append(time.perf_counter() - t0)
+
+            self._record_timing(self.text_encoder_3, time.perf_counter() - t0)
 
         _, seq_len, _ = prompt_embeds.shape
 
@@ -378,8 +362,9 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             return_tensors="pt",
         )
         tokenizer_name = "tokenizer" if clip_model_index == 0 else "tokenizer_2"
+        tokenizer_ref = self.tokenizer if clip_model_index == 0 else self.tokenizer_2
         t1 = time.perf_counter()
-        self.perf_time_gpu_model[tokenizer_name].append(t1 - t0)
+        self._record_timing(tokenizer_ref, t1 - t0)
         logger.debug(f"{tokenizer_name} inference time = {t1 - t0:.5f}s")
 
         text_input_ids = text_inputs.input_ids
@@ -388,7 +373,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             prompt, padding="longest", return_tensors="pt"
         ).input_ids
         t1 = time.perf_counter()
-        self.perf_time_gpu_model[tokenizer_name].append(t1 - t0)
+        self._record_timing(tokenizer_ref, t1 - t0)
         logger.debug(f"{tokenizer_name} inference time = {t1 - t0:.5f}s")
         if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not torch.equal(
             text_input_ids, untruncated_ids
@@ -425,7 +410,8 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
         text_encoder_name = (
             "text_encoder" if clip_model_index == 0 else "text_encoder_2"
         )
-        self.perf_time_gpu_model[text_encoder_name].append(time.perf_counter() - t0)
+        text_encoder_ref = self.text_encoder if clip_model_index == 0 else self.text_encoder_2
+        self._record_timing(text_encoder_ref, time.perf_counter() - t0)
         logger.debug(
             f"{text_encoder_name} inference time = {time.perf_counter() - t0:.3f}s"
         )
@@ -836,9 +822,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
         vae_en_start_time = time.perf_counter()
         image_latents = self.vae_encoder(sample=masked_image)[0]
         logger.debug(f"vae encoder time {time.perf_counter() - vae_en_start_time}")
-        self.perf_time_dict["vae_encoder"].append(
-            time.perf_counter() - vae_en_start_time
-        )
+        self._record_timing(self.vae_encoder, time.perf_counter() - vae_en_start_time)
         image_latents = DiagonalGaussianDistribution(
             torch.from_numpy(image_latents).to(device)
         ).sample()
@@ -1267,7 +1251,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             width = latent_width * self.vae_scale_factor
             # control_image = DiagonalGaussianDistribution(control_image).sample()
         elif isinstance(self.controlnet, SD3MultiControlNetModel):
-            self.perf_time_dict["vae_encoder"].append(0)
+            self._record_timing(self.vae_encoder, 0)
             raise NotImplementedError(
                 "MultiControlNetModel is not supported for SD3ControlNetInpaintingPipeline."
             )
@@ -1420,7 +1404,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
                     }
                     control_block_samples = self.controlnet.model.run(None, model_input)
                     ctrlnet_time = time.perf_counter() - ctrlnet_start_time
-                    self.perf_time_dict["ctrlnet"].append(ctrlnet_time)
+                    self._record_timing(self.controlnet, ctrlnet_time)
                     transformer_start_time = time.perf_counter()
 
                     # Transformer expects a fixed number of block_controlnet inputs (23 for inpainting, 12 for normal).
@@ -1444,13 +1428,13 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
                     }
                     noise_pred_np = self.transformer.model.run(None, model_input)[0]
                     transformer_time = time.perf_counter() - transformer_start_time
-                    self.perf_time_dict["dit"].append(transformer_time)
+                    self._record_timing(self.transformer, transformer_time)
                     if enable_tea_caching:
                         cache_state.cached_residual = noise_pred_np - latent_model_input
 
                 if enable_tea_caching and tea_start_time is not None:
                     tea_time = time.perf_counter() - tea_start_time
-                    self.perf_time_dict["tea_caching"].append(tea_time)
+                    self._record_timing(self.tea_caching_model, tea_time)
 
                 noise_pred = torch.from_numpy(noise_pred_np).to(device)
                 # perform guidance
@@ -1496,11 +1480,11 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
                     xm.mark_step()
 
         if enable_tea_caching:
-            cache_miss = len(self.perf_time_dict["dit"])
+            cache_miss = len(self.perf_time_dict[self.transformer.model_name]["time"])
             cache_hit = num_inference_steps - cache_miss
             model_names = "controlnet + transformer"
-            mmdit_time = sum(self.perf_time_dict["dit"])
-            conctrl_time = sum(self.perf_time_dict["ctrlnet"])
+            mmdit_time = sum(self.perf_time_dict[self.transformer.model_name]["time"])
+            conctrl_time = sum(self.perf_time_dict[self.controlnet.model_name]["time"])
             model_time = mmdit_time + conctrl_time
             logger.info(f"tea caching cache hit {cache_hit} times(s). {model_names} actually inferenced {cache_miss} steps.")
             logger.info(f"{model_names} average latency = {(model_time) / cache_miss:.3f} s.")
@@ -1513,15 +1497,15 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
         ) + self.vae_decoder.config["shift_factor"]
 
         image = self.vae_decoder(latent_sample=latents.cpu().numpy())[0]
+        t_vae_decoder = time.perf_counter() - vae_decoder_start_time
         logger.debug(
-            f"vae_decoder inference time = {time.perf_counter() - vae_decoder_start_time:.3f}s"
+            f"vae_decoder inference time = {t_vae_decoder:.3f}s"
         )
-        self.perf_time_dict["vae_decoder"].append(
-            time.perf_counter() - vae_decoder_start_time
-        )
+        self._record_timing(self.vae_decoder, t_vae_decoder)
         image = torch.from_numpy(image)
         image = self.image_processor.postprocess(image, output_type=output_type)
-        for k, v in self.perf_time_dict.items():
+        for k, entry in self.perf_time_dict.items():
+            v = entry["time"]
             if len(v) != 0:
                 logger.debug(f"==> {k} : exec time {len(v)}, avg time {sum(v)/len(v)}")
             else:

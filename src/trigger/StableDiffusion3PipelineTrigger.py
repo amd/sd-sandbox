@@ -102,40 +102,38 @@ class StableDiffusion3PipelineTrigger(BaseOnnxPipelineTrigger):
             self.load_metrics_collector,
         )
 
-        try:
+        npu_platform = getattr(args, "npu_platform", "unknown")
+        if npu_platform == "mds":
             self.text_encoder_3 = load_model(
                 ModelLoadConfig(
-                    model_path=os.path.join(abs_common_model_path, "text_encoder_3_gptq_v2"),
-                    model_type=ModelType.T5_NPU_MODEL,
-                    execution_providers=self.execution_providers,
-                ),
-                self.load_metrics_collector,
-            )
-        except Exception as e:
-            Logger.warning(f"Failed to load text_encoder_3_gptq_v2, using text_encoder_3 instead: {e}")
-            self.text_encoder_3 = load_model(
-                ModelLoadConfig(
-                    model_path=os.path.join(abs_common_model_path, "text_encoder_3"),
+                    model_path=os.path.join(abs_common_model_path, "text_encoder_3_int4"),
                     model_type=ModelType.ONNX_MODEL,
-                    execution_providers=self.execution_providers,
+                    execution_providers=["DmlExecutionProvider", "CPUExecutionProvider"],
                 ),
                 self.load_metrics_collector,
             )
-
-        self.vae_decoder = load_model(
-            ModelLoadConfig(
-                model_path=os.path.join(abs_common_model_path, "vae_decoder"),
-                model_type=ModelType.ONNX_MODEL,
-                custom_op_path=custom_op_path,
-                enable_compile=enable_compile,
-                execution_providers=self.execution_providers,
-                disable_dd_env="DISABLE_VAE_DD",
-                width=width,
-                t5_sequence_len=t5_sequence_len,
-                is_dynamic=is_dynamic,
-            ),
-            self.load_metrics_collector,
-        )
+        else:
+            try:
+                self.text_encoder_3 = load_model(
+                    ModelLoadConfig(
+                        model_path=os.path.join(abs_common_model_path, "text_encoder_3_gptq_v2"),
+                        model_type=ModelType.T5_NPU_MODEL,
+                        execution_providers=self.execution_providers,
+                    ),
+                    self.load_metrics_collector,
+                )
+            except Exception as e:
+                Logger.warning(
+                    f"Failed to load text_encoder_3_gptq_v2, using text_encoder_3 instead: {e}"
+                )
+                self.text_encoder_3 = load_model(
+                    ModelLoadConfig(
+                        model_path=os.path.join(abs_common_model_path, "text_encoder_3"),
+                        model_type=ModelType.ONNX_MODEL,
+                        execution_providers=self.execution_providers,
+                    ),
+                    self.load_metrics_collector,
+                )
 
         if controlnet_str is not None and controlnet_str.lower() != "none":
             controlnet_model_name = common.get_controlnet_model_name(controlnet_str)
@@ -170,21 +168,66 @@ class StableDiffusion3PipelineTrigger(BaseOnnxPipelineTrigger):
         else:
             self.vae_encoder = None
             self.controlnet = None
-
-        self.transformer = load_model(
-            ModelLoadConfig(
-                model_path=os.path.join(abs_sub_model_path, "transformer"),
-                model_type=ModelType.ONNX_MODEL,
-                execution_providers=self.execution_providers,
-                disable_dd_env="DISABLE_MMDIT_DD",
-                width=width,
-                t5_sequence_len=t5_sequence_len,
-                custom_op_path=custom_op_path,
-                enable_compile=enable_compile,
-                is_dynamic=is_dynamic,
-            ),
-            self.load_metrics_collector,
-        )
+        if npu_platform == "mds":
+            self.transformer = load_model(
+                ModelLoadConfig(
+                    model_path=os.path.join(abs_sub_model_path, "transformer"),
+                    model_type=ModelType.ONNX_MODEL,
+                    # Ryzen first: NPU takes fused ops; CPU last is fallback for unassigned nodes.
+                    execution_providers=self.execution_providers,
+                    disable_dd_env="DISABLE_MMDIT_DD",
+                    width=width,
+                    t5_sequence_len=t5_sequence_len,
+                    custom_op_path=custom_op_path,
+                    enable_compile=enable_compile,
+                    is_dynamic=is_dynamic,
+                ),
+                self.load_metrics_collector,
+            )
+            self.vae_decoder = load_model(
+                ModelLoadConfig(
+                    model_path=os.path.join(abs_common_model_path, "vae_decoder"),
+                    model_type=ModelType.ONNX_MODEL,
+                    custom_op_path=custom_op_path,
+                    enable_compile=enable_compile,
+                    execution_providers=self.execution_providers,
+                    disable_dd_env="DISABLE_VAE_DD",
+                    width=width,
+                    t5_sequence_len=t5_sequence_len,
+                    is_dynamic=is_dynamic,
+                ),
+                self.load_metrics_collector,
+            )
+        else:
+            self.vae_decoder = load_model(
+                ModelLoadConfig(
+                    model_path=os.path.join(abs_common_model_path, "vae_decoder"),
+                    model_type=ModelType.ONNX_MODEL,
+                    custom_op_path=custom_op_path,
+                    enable_compile=enable_compile,
+                    execution_providers=self.execution_providers,
+                    disable_dd_env="DISABLE_VAE_DD",
+                    width=width,
+                    t5_sequence_len=t5_sequence_len,
+                    is_dynamic=is_dynamic,
+                ),
+                self.load_metrics_collector,
+            )
+            self.transformer = load_model(
+                ModelLoadConfig(
+                    model_path=os.path.join(abs_sub_model_path, "transformer"),
+                    model_type=ModelType.ONNX_MODEL,
+                    # Ryzen first: NPU takes fused ops; CPU last is fallback for unassigned nodes.
+                    execution_providers=self.execution_providers,
+                    disable_dd_env="DISABLE_MMDIT_DD",
+                    width=width,
+                    t5_sequence_len=t5_sequence_len,
+                    custom_op_path=custom_op_path,
+                    enable_compile=enable_compile,
+                    is_dynamic=is_dynamic,
+                ),
+                self.load_metrics_collector,
+            )
 
         if tea_caching:
             self.tea_caching_model = load_model(

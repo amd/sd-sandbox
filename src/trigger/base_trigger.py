@@ -37,11 +37,28 @@ class ProfilingResult:
     t_total: float
     total_mem: float
     profiling_rounds: int
-    perf_time_dict_warmup: Dict[str, list] = field(default_factory=dict)
-    perf_gpu_time_warmup: Dict[str, list] = field(default_factory=dict)
-    perf_time_dict: Dict[str, list] = field(default_factory=dict)
-    perf_gpu_time: Dict[str, list] = field(default_factory=dict)
+    # Unified perf dicts: {name: {"time": [...], "device": "NPU"|"CPU"}}
+    perf_time_dict_warmup: Dict[str, dict] = field(default_factory=dict)
+    perf_time_dict: Dict[str, dict] = field(default_factory=dict)
     load_metrics_collector: Optional[LoadMetricsCollector] = None
+
+    @staticmethod
+    def _entry_times(perf_dict: Optional[dict], name: str) -> Optional[list]:
+        """Extract the timing list for *name* from a unified perf dict.
+
+        Tolerates the legacy shape where the value was a plain list of times.
+        """
+        entry = (perf_dict or {}).get(name)
+        if isinstance(entry, dict):
+            return entry.get("time")
+        return entry
+
+    @staticmethod
+    def _entry_device(perf_dict: Optional[dict], name: str) -> Optional[str]:
+        entry = (perf_dict or {}).get(name)
+        if isinstance(entry, dict):
+            return entry.get("device")
+        return None
 
     def save_to_excel(self, save_path: str) -> None:
         """Save this ProfilingResult to *save_path* as an Excel file."""
@@ -69,9 +86,10 @@ class ProfilingResult:
             "Pipeline Time (1st Gen, warm-up) (s)":  fmt(self.warmup_time_s),
             "Pipeline Time (Excl. 1st) (s)":         fmt(self.t_total / rounds),
         }
-        for model_name, val in (self.perf_time_dict or {}).items():
-            if isinstance(val, list) and len(val) > 0:
-                averaged = sum(val) / len(val)
+        for model_name in (self.perf_time_dict or {}):
+            times = self._entry_times(self.perf_time_dict, model_name)
+            if isinstance(times, list) and len(times) > 0:
+                averaged = sum(times) / len(times)
                 row[f"{model_name} (s)"] = fmt(averaged)
         row["Total NPU Memory Usage (GB)"] = fmt(npu_mem_mb / 1024)
         row["Total Memory Usage (GB)"] = fmt(self.total_mem / rounds / 1024)
@@ -94,22 +112,19 @@ class ProfilingResult:
             return 0.0
 
         rows: List[Tuple[str, str, float, float]] = []
-        npu_names = set((self.perf_time_dict or {}).keys()) | set(
+        all_names = set((self.perf_time_dict or {}).keys()) | set(
             (self.perf_time_dict_warmup or {}).keys()
         )
-        for name in sorted(npu_names):
-            warmup_time = round(_avg((self.perf_time_dict_warmup or {}).get(name)), 6)
-            avg_time = round(_avg((self.perf_time_dict or {}).get(name)), 6)
+        for name in sorted(all_names):
+            warmup_time = round(_avg(self._entry_times(self.perf_time_dict_warmup, name)), 6)
+            avg_time = round(_avg(self._entry_times(self.perf_time_dict, name)), 6)
+            device = str(
+                self._entry_device(self.perf_time_dict, name)
+                or self._entry_device(self.perf_time_dict_warmup, name)
+                or "CPU"
+            )
             if warmup_time > 0.0 or avg_time > 0.0:
-                rows.append((name, "NPU", warmup_time, avg_time))
-        cpu_names = set((self.perf_gpu_time or {}).keys()) | set(
-            (self.perf_gpu_time_warmup or {}).keys()
-        )
-        for name in sorted(cpu_names):
-            warmup_time = round(_avg((self.perf_gpu_time_warmup or {}).get(name)), 6)
-            avg_time = round(_avg((self.perf_gpu_time or {}).get(name)), 6)
-            if warmup_time > 0.0 or avg_time > 0.0:
-                rows.append((name, "CPU", warmup_time, avg_time))
+                rows.append((name, device, warmup_time, avg_time))
         rows.sort(key=lambda r: ({"CPU": 0, "NPU": 1}.get(r[1], 2), r[0]))
 
         warm_col = "WARM_UP_TIME(s)"
@@ -229,7 +244,6 @@ class BaseOnnxPipelineTrigger(ABC):
         warmup_time = time.perf_counter() - t_warmup
         log.debug("Warm-up mem: %.2fMB", common.measure_mem())
 
-        perf_gpu_time_warmup = copy.deepcopy(getattr(pipe_obj, "perf_time_gpu_model", {}))
         perf_time_dict_warmup = copy.deepcopy(getattr(pipe_obj, "perf_time_dict", {}))
         if hasattr(pipe_obj, "_clear_time_dict"):
             pipe_obj._clear_time_dict()
@@ -262,9 +276,7 @@ class BaseOnnxPipelineTrigger(ABC):
             total_mem=total_mem,
             profiling_rounds=self.profiling_rounds,
             perf_time_dict_warmup=perf_time_dict_warmup,
-            perf_gpu_time_warmup=perf_gpu_time_warmup,
-            perf_time_dict=getattr(pipe_obj, "perf_time_dict", {}),
-            perf_gpu_time=getattr(pipe_obj, "perf_time_gpu_model", {}),
+            perf_time_dict=copy.deepcopy(getattr(pipe_obj, "perf_time_dict", {})),
             load_metrics_collector=self.load_metrics_collector,
         )
         self.pipeline_metrics[metrics_key].print_summary()

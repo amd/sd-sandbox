@@ -2,6 +2,7 @@
 # Copyright (C) 2026 Advanced Micro Devices, Inc.  All rights reserved.
 #
 
+import logging as Logger
 import os
 from typing import List, Optional
 
@@ -48,15 +49,36 @@ class StableDiffusionFlux2KleinONNXPipelineTrigger(BaseOnnxPipelineTrigger):
             self.load_metrics_collector,
         )
 
-        self.text_encoder = load_model(
-            ModelLoadConfig(
-                model_path=os.path.join(root_model_path, "text_encoder"),
-                model_type=ModelType.ONNX_MODEL,
-                model_file="qwen3_text_encoder_prompt_embeds_matmulnbits.onnx",
-                execution_providers=["DmlExecutionProvider", "CPUExecutionProvider"],
-            ),
-            self.load_metrics_collector,
+        gpu_text_encoder_cfg = ModelLoadConfig(
+            model_path=os.path.join(root_model_path, "text_encoder"),
+            model_type=ModelType.ONNX_MODEL,
+            model_file="qwen3_text_encoder_prompt_embeds_matmulnbits.onnx",
+            execution_providers=["DmlExecutionProvider", "CPUExecutionProvider"],
         )
+        npu_platform = getattr(args, "npu_platform", "unknown")
+        if npu_platform == "mds" and False:
+            try:
+                self.text_encoder = load_model(
+                    ModelLoadConfig(
+                        model_path=os.path.join(root_model_path, "text_encoder"),
+                        model_type=ModelType.QWEN3_NPU_TEXT_ENCODER,
+                        custom_op_path=custom_op_path,
+                        t5_sequence_len=256,
+                    ),
+                    self.load_metrics_collector,
+                )
+            except Exception as e:
+                Logger.warning(
+                    "Failed to load NPU Qwen3 text encoder, falling back to GPU/DML: %s",
+                    e,
+                )
+                self.text_encoder = load_model(
+                    gpu_text_encoder_cfg, self.load_metrics_collector
+                )
+        else:
+            self.text_encoder = load_model(
+                gpu_text_encoder_cfg, self.load_metrics_collector
+            )
 
         tensor_path = os.path.join(
             root_model_path, "vae_decoder", "bn.running_x.safetensors"
@@ -94,19 +116,22 @@ class StableDiffusionFlux2KleinONNXPipelineTrigger(BaseOnnxPipelineTrigger):
 
         self.vae_encoder = None
         if (
-            detect_device(self.execution_providers) != "NPU"
-            and edit_image_path is not None
+            # detect_device(self.execution_providers) != "NPU"
+            edit_image_path is not None
             and len(edit_image_path) > 0
         ):
             self.vae_encoder = load_model(
-                ModelLoadConfig(
-                    model_path=os.path.join(root_model_path, "vae_encoder"),
-                    model_type=ModelType.ONNX_MODEL,
-                    model_file="optimized.onnx",
-                    execution_providers=["DmlExecutionProvider", "CPUExecutionProvider"],
-                ),
-                self.load_metrics_collector,
-            )
+            ModelLoadConfig(
+                model_path=os.path.join(root_model_path, "vae_encoder"),
+                model_type=ModelType.ONNX_MODEL,
+                custom_op_path=custom_op_path,
+                enable_compile=enable_compile,
+                execution_providers=self.execution_providers,
+                disable_dd_env="DISABLE_VAE_DD",
+                is_dynamic=is_dynamic,
+            ),
+            self.load_metrics_collector,
+        )
 
     def __enter__(self):
         return self

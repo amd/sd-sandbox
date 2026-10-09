@@ -31,6 +31,54 @@ from diffusers.pipelines.onnx_utils import OnnxRuntimeModel
 
 _EP_REGISTERED = False
 EP_NAME = "RyzenAILightExecutionProvider"
+_ORT_ENABLE_PROFILING = False
+_ORT_MODEL_ID = "model"
+
+
+def configure_ort_runtime(enable_profile: bool = False, model_id: Optional[str] = None) -> None:
+    """Configure ORT runtime: always suppress logs; enable session profiling when requested."""
+    global _ORT_ENABLE_PROFILING, _ORT_MODEL_ID
+    _ORT_ENABLE_PROFILING = enable_profile
+    if model_id:
+        _ORT_MODEL_ID = model_id
+    onnxruntime.set_default_logger_severity(4)
+
+
+def ort_profiling_enabled() -> bool:
+    return _ORT_ENABLE_PROFILING
+
+
+def _sanitize_profile_prefix_component(name: str) -> str:
+    sanitized = re.sub(r'[<>:"/\\|?*\s]+', "_", name.strip())
+    return sanitized.strip("._") or "model"
+
+
+def ort_profile_file_prefix(model_name: str) -> str:
+    model_id = _sanitize_profile_prefix_component(_ORT_MODEL_ID)
+    component = _sanitize_profile_prefix_component(model_name)
+    return f"{model_id}_{component}_"
+
+
+def _apply_ort_logging(session_options: onnxruntime.SessionOptions) -> None:
+    session_options.log_severity_level = 4
+
+
+def _apply_ort_profiling(
+    session_options: onnxruntime.SessionOptions,
+    model_name: Optional[str] = None,
+) -> None:
+    if not _ORT_ENABLE_PROFILING:
+        return
+    # session_options.enable_profiling = True
+    # if model_name:
+    #     session_options.profile_file_prefix = ort_profile_file_prefix(model_name)
+
+
+def create_ort_session_options(model_name: Optional[str] = None) -> onnxruntime.SessionOptions:
+    session_options = onnxruntime.SessionOptions()
+    _apply_ort_logging(session_options)
+    _apply_ort_profiling(session_options, model_name)
+    return session_options
 
 
 def _configure_external_loggers():
@@ -371,11 +419,15 @@ def config_session_options(
     enable_dd_fusion_compile,
     low_memory_threshold_gb: float = -1.0,
     execution_providers: List[str] = ["CPUExecutionProvider"],
+    model_name: Optional[str] = None,
 ):
+    onnxruntime.set_default_logger_severity(4)
     session_options = onnxruntime.SessionOptions()
     session_options.graph_optimization_level = (
         onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     )
+    _apply_ort_logging(session_options)
+    _apply_ort_profiling(session_options, model_name)
     low_memory_optimized = apply_low_memory_optimization(session_options, threshold_gb=low_memory_threshold_gb)
     if custom_op_path and os.path.exists(custom_op_path):
         # CHANGED: Check if custom_op_path exists before loading to prevent errors when path is None/invalid
@@ -510,130 +562,6 @@ def print_config(config):
 
 def measure_mem():
     return process.memory_info().vms / (1024 * 1024)
-
-
-def log_pipeline_metrics(pipeline_metrics):
-    model_id = pipeline_metrics["model_id"]
-    execution_time = pipeline_metrics["execution_time"]
-    MODEL_PATH = pipeline_metrics["MODEL_PATH"]
-    mem_dict = pipeline_metrics["mem_dict"]
-    perf_time_dict_warm_up = pipeline_metrics["perf_time_dict_warm_up"]
-    perf_gpu_time_warm_up = pipeline_metrics["perf_gpu_time_warm_up"]
-    perf_time_dict = pipeline_metrics["perf_time_dict"]
-    perf_gpu_time = pipeline_metrics["perf_gpu_time"]
-    t_total = pipeline_metrics["t_total"]
-    total_mem = pipeline_metrics["total_mem"]
-    profiling_rounds = pipeline_metrics["profiling_rounds"]
-    load_time_dict = pipeline_metrics["load_time_dict"]
-
-    Logger.info("------------------------------")
-    Logger.info(f"Model path = {MODEL_PATH}")
-
-    Logger.info(
-        f"Pipeline execution time of 1st Gen in performance mode = {execution_time:.6f}s"
-    )
-    for k, v in perf_time_dict_warm_up.items():
-        if len(v):
-            avg_time = sum(v) / len(v)
-            # CHANGE MODIFIED: Dynamic provider label instead of hardcoded "(NPU)"
-            Logger.info(
-                f"==> {k}({_get_provider_label()}): avg time of 1st Gen in performance mode {avg_time:.6f}s"
-            )
-    for k, v in perf_gpu_time_warm_up.items():
-        if len(v):
-            avg_time = sum(v) / len(v)
-            Logger.info(
-                f"==> {k}(CPU): avg time of 1st Gen in performance mode {avg_time:.6f}s"
-            )
-    Logger.info("------------------------------")
-    Logger.info(
-        f"Average pipeline execution time (excluding first iter) in performance mode =  {t_total / profiling_rounds:.6f}s"
-    )
-    for k, v in perf_time_dict.items():
-        if len(v):
-            avg_time = sum(v) / len(v)
-            # CHANGE MODIFIED: Dynamic provider label instead of hardcoded "(NPU)"
-            Logger.info(
-                f"==> {k}({_get_provider_label()}): avg time (excluding first iter) in performance mode {avg_time:.6f}s"
-            )
-    for k, v in perf_gpu_time.items():
-        if len(v):
-            avg_time = sum(v) / len(v)
-            Logger.info(
-                f"==> {k}(CPU): avg time (excluding first iter) in performance mode {avg_time:.6f}s"
-            )
-
-    Logger.info("Memory usage by model:")
-    Logger.info("------------------------------")
-    for model, mem in mem_dict.items():
-        Logger.info(f"==> {model}: {mem:.2f}MB")
-    Logger.info("Profile data in performance mode:")
-    Logger.info("------------------------------")
-    # Detect execution provider based on environment
-    provider_name = "CPU" if os.environ.get("ORT_DISABLE_GPU", "0") == "1" else "NPU"
-    Logger.info(f"{', '.join(perf_time_dict.keys())} are on {provider_name}, others are on CPU")
-    Logger.info(f"Load time of all {provider_name} models: {load_time_dict['all_npu_models']:.6f}s")
-    Logger.info(f"Load time of all models: {load_time_dict['all_models']:.6f}s")
-    Logger.info(f"Load time of all models: {load_time_dict['all_models']:.6f}s")
-    Logger.info(f"Pipeline time for 1st Gen : {execution_time:.6f}s")
-    Logger.info(
-        f"Average pipeline time(excluding first iter) : {t_total / profiling_rounds:.6f}s"
-    )
-    Logger.info(
-        f"Total memory usage : {total_mem / profiling_rounds:.2f}MB ({(total_mem / profiling_rounds / 1024):.2f}GB)"
-    )
-    mem_sum = sum(mem_dict.values())
-    Logger.info(f"Total NPU memory usage: {mem_sum:.2f}MB ({(mem_sum / 1024):.2f}GB)")
-
-
-def save_pipeline_metrics_to_excel(save_path, data):
-    def format_float(val):
-        try:
-            return round(val, 4)
-        except:
-            return ""
-
-    def parse_hw_from_key(key):
-        try:
-            parts = key.split('_')
-            return int(parts[1]), int(parts[3])
-        except:
-            return None, None
-
-    def average_list_values(pipeline_metrics):
-        for model_info in pipeline_metrics.values():
-            for subkey, items in model_info.items():
-                if isinstance(items, dict) and all(isinstance(i, list) for i in items.values()):
-                    for k, v in items.items():
-                        items[k] = sum(v) / len(v) if len(v) else 0.0
-
-    average_list_values(data)
-
-    rows = []
-    for key, item in data.items():
-        height, width = parse_hw_from_key(key)
-
-        perf_dict = item.get("perf_time_dict", {})
-        mem_dict = item.get("mem_dict", {})
-        profiling_rounds = item.get("profiling_rounds", 1)
-
-        row = {}
-        row["model_id"] = item.get("model_id", "")
-        row["Height"] = height
-        row["Width"] = width
-        row["Load time of NPU models (s)"] = format_float(item.get("load_time_dict", {}).get("all_npu_models"))
-        row["Pipeline Time (1st Gen, warm-up) (s)"] = format_float(item.get("execution_time"))
-        row["Pipeline Time (Excl. 1st) (s)"] = format_float(item.get("t_total") / profiling_rounds)
-        for model_name in list(perf_dict.keys()):
-            row["{} (s)".format(model_name)] = format_float(perf_dict.get("{}".format(model_name)))
-        row["Total NPU Memory Usage (GB)"] = format_float(sum(mem_dict.values()) / 1024)
-        row["Total Memory Usage (GB)"] = format_float(item.get("total_mem", 0) / profiling_rounds / 1024)
-
-        rows.append(row)
-
-    df = pd.DataFrame(rows)
-    df.to_excel(save_path, index=False)
-    print(f"Pipeline metrics Excel file saved to: {save_path}")
 
 
 def str2bool(value):

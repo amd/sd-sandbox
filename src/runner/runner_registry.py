@@ -97,6 +97,8 @@ def list_runner_names() -> List[str]:
 def _register_builtin_runners() -> None:
     from .flux2_klein_runner import Flux2KleinRunner
     from .flux_runner import FluxRunner
+    from .kolors_runner import KolorsRunner
+    from .nitro_runner import NitroERunner
     from .sd_runner import SDRunner
     from .sd15_controlnet_runner import SD15ControlnetRunner
     from .sd3x_runner import SD3xRunner
@@ -156,6 +158,16 @@ def _register_builtin_runners() -> None:
         name="flux",
         runner_cls=FluxRunner,
         model_ids=["flux.1-schnell", "flux.1-dev", "flux.1"],
+    ))
+    register(RunnerSpec(
+        name="kolors",
+        runner_cls=KolorsRunner,
+        model_ids=["kolors"],
+    ))
+    register(RunnerSpec(
+        name="nitro",
+        runner_cls=NitroERunner,
+        model_ids=["nitro-e"],
     ))
     register(RunnerSpec(
         name="sdxl",

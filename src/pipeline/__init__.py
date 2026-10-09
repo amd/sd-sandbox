@@ -11,6 +11,8 @@ from .pipeline_stable_diffusion_3_controlnet_outpainting_onnx_amd import (
 )
 from .pipeline_stable_diffusion_xl_onnx_amd import StableDiffusionXLPipelineAMD
 from .pipeline_stable_diffusion_onnx_amd import StableDiffusionONNXPipelineAMD
+from .pipeline_stable_diffusion_Kolors_onnx_amd import StableDiffusionKolorsPipelineAMD
+from .pipeline_stable_diffusion_NitroE_onnx_amd import StableDiffusionNitroEONNXPipelineAMD
 from .pipeline_stable_diffusion_flux2_klein_onnx_amd import (
     StableDiffusionFlux2KleinPipelineAMD,
 )
@@ -22,5 +24,7 @@ __all__ = [
     "StableDiffusion3ControlNetOutpaintingPipeline",
     "StableDiffusionXLPipelineAMD",
     "StableDiffusionONNXPipelineAMD",
+    "StableDiffusionKolorsPipelineAMD",
+    "StableDiffusionNitroEONNXPipelineAMD",
     "StableDiffusionFlux2KleinPipelineAMD",
 ]

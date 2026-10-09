@@ -235,17 +235,6 @@ class StableDiffusionONNXPipelineAMD(
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
         self.register_to_config(requires_safety_checker=requires_safety_checker)
 
-        self.perf_time_dict = {
-            "vae_decoder": [],
-            "unet": [],
-        }
-
-        self.perf_time_gpu_model = {
-            "tokenizer": [],
-            "text_encoder": [],
-            "tokenizer_negative": [],
-            "text_encoder_negative": [],
-        }
     def _encode_prompt(
         self,
         prompt,
@@ -278,6 +267,7 @@ class StableDiffusionONNXPipelineAMD(
 
         return prompt_embeds
 
+    @AMDPipelineMixin.merge_perf_timings
     def encode_prompt(
         self,
         prompt,
@@ -353,7 +343,7 @@ class StableDiffusionONNXPipelineAMD(
             untruncated_ids = self.tokenizer(
                 prompt, padding="longest", return_tensors="pt"
             ).input_ids
-            self.perf_time_gpu_model["tokenizer"].append(time.perf_counter() - t0)
+            self._record_timing(self.tokenizer, time.perf_counter() - t0)
 
             if untruncated_ids.shape[-1] >= text_input_ids.shape[
                 -1
@@ -396,7 +386,7 @@ class StableDiffusionONNXPipelineAMD(
                 prompt_embeds = self.text_encoder.text_model.final_layer_norm(
                     prompt_embeds
                 )
-            self.perf_time_gpu_model["text_encoder"].append(time.perf_counter() - t0)
+            self._record_timing(self.text_encoder, time.perf_counter() - t0)
 
         if self.text_encoder is not None:
             prompt_embeds_dtype = self.text_encoder.dtype
@@ -448,9 +438,7 @@ class StableDiffusionONNXPipelineAMD(
                 truncation=True,
                 return_tensors="pt",
             )
-            self.perf_time_gpu_model["tokenizer_negative"].append(
-                time.perf_counter() - t0
-            )
+            self._record_timing(self.tokenizer, time.perf_counter() - t0)
 
             if (
                 hasattr(self.text_encoder.config, "use_attention_mask")
@@ -466,9 +454,7 @@ class StableDiffusionONNXPipelineAMD(
                 attention_mask=attention_mask,
             )
             negative_prompt_embeds = negative_prompt_embeds[0]
-            self.perf_time_gpu_model["text_encoder_negative"].append(
-                time.perf_counter() - t0
-            )
+            self._record_timing(self.text_encoder, time.perf_counter() - t0)
 
         if do_classifier_free_guidance:
             # duplicate unconditional embeddings for each generation per prompt, using mps friendly method
@@ -1025,7 +1011,7 @@ class StableDiffusionONNXPipelineAMD(
                     end = time.time_ns()
                     noise_pred = torch.tensor(noise_pred)
 
-                self.perf_time_dict["unet"].append((end - start) * 1e-9)
+                self._record_timing(self.unet, (end - start) * 1e-9)
 
                 # perform guidance
                 if target_batch_size == 2:
@@ -1078,7 +1064,7 @@ class StableDiffusionONNXPipelineAMD(
         end = time.time_ns()
         image = torch.tensor(image)
 
-        self.perf_time_dict["vae_decoder"].append((end - start) * 1e-9)
+        self._record_timing(self.vae, (end - start) * 1e-9)
 
         image, has_nsfw_concept = self.run_safety_checker(
             image, device, prompt_embeds.dtype

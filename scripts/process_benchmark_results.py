@@ -91,8 +91,19 @@ def parse_benchmark_file(filepath: Path) -> List[Dict[str, Any]]:
         
         # Parse timing lines
         elif in_timing_section and current_pipeline:
-            # NPU models load time - pattern: "Load time of all NPU models: 2.447241s"
-            if "load time of all npu models" in line.lower():
+            # Load-time totals (new format):
+            #   "TOTAL TIME: 0.57s (NPU: 0.45s | CPU: 0.12s)"
+            if line.lower().startswith("total time:"):
+                match = re.search(
+                    r'total time:\s*([\d.]+)s\s*\(\s*npu:\s*([\d.]+)s',
+                    line, re.IGNORECASE,
+                )
+                if match:
+                    current_pipeline['all_models_load_time'] = float(match.group(1))
+                    current_pipeline['npu_load_time'] = float(match.group(2))
+
+            # NPU models load time (legacy): "Load time of all NPU models: 2.447241s"
+            elif "load time of all npu models" in line.lower():
                 match = re.search(r':\s*([\d.]+)s\s*$', line)
                 if match:
                     current_pipeline['npu_load_time'] = float(match.group(1))

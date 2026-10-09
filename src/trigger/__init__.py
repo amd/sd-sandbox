@@ -2,7 +2,9 @@
 from .base_trigger import BaseOnnxPipelineTrigger
 from .StableDiffusionONNXPipelineTrigger import StableDiffusionONNXPipelineAMDTrigger
 from .StableDiffusionXLONNXPipelineTrigger import StableDiffusionXLONNXPipelineAMDTrigger
+from .StableDiffusionNitroEONNXPipelineTrigger import StableDiffusionNitroEONNXPipelineTrigger
 from .StableDiffusionControlnetONNXPipelineTrigger import StableDiffusionControlnetONNXPipelineTrigger
+from .StableDiffusionKolorsONNXPipelineTrigger import StableDiffusionKolorsONNXPipelineAMDTrigger
 from .StableDiffusion3PipelineTrigger import StableDiffusion3PipelineTrigger
 from .StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger import StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger
 from .FluxPipelineTrigger import FluxPipelineTrigger
@@ -14,7 +16,9 @@ __all__ = [
     "BaseOnnxPipelineTrigger",
     "StableDiffusionONNXPipelineAMDTrigger",
     "StableDiffusionXLONNXPipelineAMDTrigger",
+    "StableDiffusionNitroEONNXPipelineTrigger",
     "StableDiffusionControlnetONNXPipelineTrigger",
+    "StableDiffusionKolorsONNXPipelineAMDTrigger",
     "StableDiffusion3PipelineTrigger",
     "StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger",
     "FluxPipelineTrigger",

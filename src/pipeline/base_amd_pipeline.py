@@ -1,6 +1,7 @@
 # Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
 # pr-231: new file -- mixin providing properties and utility methods shared across all AMD ONNX pipelines
 
+import functools
 import inspect
 from typing import List, Optional, Union
 
@@ -43,11 +44,92 @@ class AMDPipelineMixin:
 
     # ---- performance tracking (was identical in 6/8 files) ----
 
+    @staticmethod
+    def _detect_module_device(module) -> str:
+        if module is None:
+            return "CPU"
+        perf_device = getattr(module, "perf_device", None)
+        if perf_device is not None and isinstance(perf_device, str):
+            return perf_device
+        if hasattr(module, "model") and hasattr(module.model, "get_providers"):
+            if "RyzenAILightExecutionProvider" in module.model.get_providers():
+                return "NPU"
+        return "CPU"
+
+    @property
+    def perf_time_dict(self) -> dict:
+        d = self.__dict__.get("_perf_time_dict")
+        if d is None:
+            d = {}
+            self.__dict__["_perf_time_dict"] = d
+        return d
+
+    @perf_time_dict.setter
+    def perf_time_dict(self, value: dict) -> None:
+        self.__dict__["_perf_time_dict"] = value
+
+    @staticmethod
+    def merge_perf_timings(func):
+        """Decorate a method so repeated ``_record_timing`` calls for the same
+        component during that call fold into a single slot.
+
+        Use on ``encode_prompt``-style methods where a component runs several
+        times per generation (positive + negative prompt, or multiple CLIP
+        encoders sharing one key) but should be reported as one combined time.
+        Calls made outside such a method (e.g. per denoise step) are unaffected
+        and remain one slot each, preserving per-step statistics.
+        """
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            prev = getattr(self, "_perf_merge_seen", None)
+            self._perf_merge_seen = set()
+            try:
+                return func(self, *args, **kwargs)
+            finally:
+                self._perf_merge_seen = prev
+        return wrapper
+
+    def _record_timing(self, module_ref, elapsed: float) -> None:
+        if module_ref is None:
+            return
+        model_name = getattr(module_ref, "model_name", None) or type(module_ref).__name__
+        entry = self.perf_time_dict.get(model_name)
+        if entry is None:
+            entry = {"time": [], "device": self._detect_module_device(module_ref)}
+            self.perf_time_dict[model_name] = entry
+        # Inside a ``merge_perf_timings`` scope, fold repeated calls for the same
+        # component into one slot; otherwise every call is its own slot.
+        seen = getattr(self, "_perf_merge_seen", None)
+        if seen is not None and model_name in seen:
+            entry["time"][-1] += elapsed
+        else:
+            entry["time"].append(elapsed)
+            if seen is not None:
+                seen.add(model_name)
+
     def _clear_time_dict(self):
-        for key in self.perf_time_dict:
-            self.perf_time_dict[key] = []
-        for key in self.perf_time_gpu_model:
-            self.perf_time_gpu_model[key] = []
+        for entry in self.perf_time_dict.values():
+            entry["time"] = []
+
+    # ---- perf dict read helpers ----
+
+    def perf_times(self, name: str) -> list:
+        """Return the timing list recorded for *name* (empty list if absent)."""
+        entry = self.perf_time_dict.get(name)
+        return entry["time"] if entry else []
+
+    def perf_device(self, name: str) -> str:
+        """Return the runtime device recorded for *name* ('CPU' if absent)."""
+        entry = self.perf_time_dict.get(name)
+        return entry["device"] if entry else "CPU"
+
+    def perf_times_by_device(self, device: str) -> dict:
+        """Return ``{name: time_list}`` for components on *device*."""
+        return {
+            name: entry["time"]
+            for name, entry in self.perf_time_dict.items()
+            if entry.get("device") == device
+        }
 
     # ---- latent preparation (was identical in 6/8 files) ----
 

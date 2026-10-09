@@ -70,18 +70,25 @@ def setup_pipeline_execution_provider(config_item: Dict[str, Any],
 
 def resolve_relative_path_args(extra_args: List[str], arg_names: List[str],
                                base_path: Path) -> List[str]:
-    """Resolve relative path args to absolute paths."""
+    """Resolve relative path value(s) for the given flags to absolute paths.
+
+    Supports multi-value flags (argparse ``nargs="+"``), e.g.
+    ``--edit_image_path img1 img2``: every consecutive value token following a
+    matched flag -- up to the next ``-``-prefixed flag or the end of the list --
+    is resolved against ``base_path``. Single-value flags are the natural
+    one-token special case.
+    """
     result = []
     i = 0
-    while i < len(extra_args):
+    n = len(extra_args)
+    while i < n:
         arg = extra_args[i]
-        if arg in arg_names and i + 1 < len(extra_args):
-            result.append(arg)
-            result.append(str((base_path / extra_args[i + 1]).resolve()))
-            i += 2
-        else:
-            result.append(arg)
-            i += 1
+        result.append(arg)
+        i += 1
+        if arg in arg_names:
+            while i < n and not extra_args[i].startswith("-"):
+                result.append(str((base_path / extra_args[i]).resolve()))
+                i += 1
     return result
 
 
@@ -99,7 +106,8 @@ def setup_pipeline_args(config_item: Dict[str, Any], benchmark_mode: bool,
 
     if control_images_path:
         extra_args = resolve_relative_path_args(
-            extra_args, ['--control_image_path', '--control_mask_path'],
+            extra_args,
+            ['--control_image_path', '--control_mask_path', '--edit_image_path'],
             control_images_path)
     if config_files_path:
         extra_args = resolve_relative_path_args(
@@ -138,8 +146,7 @@ def has_streaming_output(pipeline_configs: List[Dict[str, Any]],
 # ============================================================================
 
 def _build_runner_arg_list(model_id: str, extra_args: List[str],
-                           profiling_rounds: int, image_only: bool = False,
-                           custom_op_path: Optional[str] = None) -> List[str]:
+                           profiling_rounds: int, image_only: bool = False) -> List[str]:
     # pr-231: builds args for test/run.py subprocess
     """Build a string arg list for the test/run.py subprocess command."""
     args = ["--model_id", model_id, "--verbose", "--no_excel",
@@ -156,9 +163,6 @@ def _build_runner_arg_list(model_id: str, extra_args: List[str],
         else:
             args.append(extra_args[i])
             i += 1
-
-    if custom_op_path:
-        args.extend(["--custom_op_path", custom_op_path])
 
     return args
 
@@ -178,7 +182,6 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str,
                  determine_prompt_source_func: Optional[Callable] = None,
                  image_only: bool = False,
                  traceback_enabled: bool = False,
-                 custom_op_path: Optional[str] = None,
                  control_images_path: Optional[Path] = None,
                  config_files_path: Optional[Path] = None) -> Dict[str, Any]:
     # pr-231: subprocess execution via unified test/run.py entry point
@@ -228,7 +231,7 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str,
 
     # --- Build arg list for subprocess ----------------------------------
     arg_list = _build_runner_arg_list(
-        model_id, extra_args, profiling_rounds, image_only, custom_op_path)
+        model_id, extra_args, profiling_rounds, image_only)
 
     if prompt_description:
         print(f"  {prompt_description}")
@@ -258,12 +261,23 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str,
 
         # Stream output line by line
         timing_lines = []
+        in_summary = False
         for line in process.stdout:
             line = line.rstrip('\n')
             print(f"  {line}")
             if log_buffer is not None:
                 log_buffer.append(line)
-            # Capture timing/performance lines for results
+            # Capture the per-component summary tables and their totals in full.
+            # A summary block starts at its banner and ends on a pure '=' rule line.
+            stripped = line.strip()
+            if "MODEL LOAD SUMMARY" in stripped or "Pipeline Performance Summary" in stripped:
+                in_summary = True
+            if in_summary:
+                timing_lines.append(line)
+                if stripped and set(stripped) == {"="}:
+                    in_summary = False
+                continue
+            # Fallback: standalone metric lines emitted outside the tables.
             if any(kw in line for kw in ["execution time", "Pipeline", "Memory Usage"]):
                 timing_lines.append(line)
 

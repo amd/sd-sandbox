@@ -149,19 +149,7 @@ class OnnxFluxPipelineAMD(DiffusionPipeline,
             self.tokenizer.model_max_length if hasattr(self, "tokenizer") and self.tokenizer is not None else 77
         )
         self.default_sample_size = 128
-        
-        # Performance tracking
-        self.perf_time_dict = {
-            "text_encoder": [],
-            "text_encoder_2": [],
-            "transformer": [],
-            "vae_decoder": [],
-        }
-        
-        self.perf_time_gpu_model = {
-            "tokenizer": [],
-            "tokenizer_2": [],
-        }
+
     def _onnx_type_str_to_numpy_type(self, onnx_type_str: str):
         onnx_to_numpy_dtype = {
             "tensor(int64)": np.int64,
@@ -205,7 +193,7 @@ class OnnxFluxPipelineAMD(DiffusionPipeline,
             truncation=True,
             return_tensors="pt",
         )
-        self.perf_time_gpu_model["tokenizer_2"].append(time.perf_counter() - t0)
+        self._record_timing(self.tokenizer_2, time.perf_counter() - t0)
         
         text_input_ids = text_inputs.input_ids
         untruncated_ids = self.tokenizer_2(prompt, padding="longest", return_tensors="pt").input_ids
@@ -232,7 +220,7 @@ class OnnxFluxPipelineAMD(DiffusionPipeline,
         else:
             prompt_embeds = self.text_encoder_2(**text_inputs)["last_hidden_state"]
             prompt_embeds = prompt_embeds.to(device=device, dtype=torch.float16)
-        self.perf_time_dict["text_encoder_2"].append(time.perf_counter() - t0)
+        self._record_timing(self.text_encoder_2, time.perf_counter() - t0)
         
         
         # Duplicate for multiple images per prompt
@@ -276,7 +264,7 @@ class OnnxFluxPipelineAMD(DiffusionPipeline,
             truncation=True,
             return_tensors="pt",
         )
-        self.perf_time_gpu_model["tokenizer"].append(time.perf_counter() - t0)
+        self._record_timing(self.tokenizer, time.perf_counter() - t0)
         
         text_input_ids = text_inputs.input_ids
         untruncated_ids = self.tokenizer(prompt, padding="longest", return_tensors="pt").input_ids
@@ -291,7 +279,7 @@ class OnnxFluxPipelineAMD(DiffusionPipeline,
         t0 = time.perf_counter()
         # Convert input_ids to int32 as expected by ONNX model
         clip_outputs = self.text_encoder.model.run(None, {"input_ids": text_input_ids.cpu().numpy().astype(np.int32)})
-        self.perf_time_dict["text_encoder"].append(time.perf_counter() - t0)
+        self._record_timing(self.text_encoder, time.perf_counter() - t0)
         
         # CLIP returns pooled output (use the second output if available, otherwise first)
         # CLIP model outputs: [last_hidden_state, pooler_output] or just [pooler_output]
@@ -887,7 +875,7 @@ class OnnxFluxPipelineAMD(DiffusionPipeline,
                     }
                 )
                 noise_pred = noise_pred[0]
-                self.perf_time_dict["transformer"].append(time.perf_counter() - t0)
+                self._record_timing(self.transformer, time.perf_counter() - t0)
                 if do_true_cfg:
                     if negative_image_embeds is not None:
                         self._joint_attention_kwargs["ip_adapter_image_embeds"] = negative_image_embeds
@@ -945,7 +933,7 @@ class OnnxFluxPipelineAMD(DiffusionPipeline,
             latents = (latents / self.vae_decoder.config["scaling_factor"]) + self.vae_decoder.config["shift_factor"]
             t0 = time.perf_counter()
             image = self.vae_decoder.model.run(None, {"latent_sample": latents.cpu().numpy().astype(np.float16)})[0]
-            self.perf_time_dict["vae_decoder"].append(time.perf_counter() - t0)
+            self._record_timing(self.vae_decoder, time.perf_counter() - t0)
             
             # Convert ONNX output (numpy) to tensor
             image = torch.from_numpy(image)

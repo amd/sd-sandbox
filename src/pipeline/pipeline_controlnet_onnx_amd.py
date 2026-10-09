@@ -191,18 +191,6 @@ class StableDiffusionControlNetONNXPipelineAMD(
                 0.18215  # default value in AutoencoderKL
             )
 
-        self.perf_time_dict = {
-            "vae_decoder": [],
-            "controlnet": [],
-            "unet": [],
-        }
-
-        self.perf_time_gpu_model = {
-            "tokenizer": [],
-            "text_encoder": [],
-            "tokenizer_negative": [],
-            "text_encoder_negative": [],
-        }
     # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline._encode_prompt
     def _encode_prompt(
         self,
@@ -240,6 +228,7 @@ class StableDiffusionControlNetONNXPipelineAMD(
         return tqdm(total=total)
 
     # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.encode_prompt
+    @AMDPipelineMixin.merge_perf_timings
     def encode_prompt(
         self,
         prompt,
@@ -315,7 +304,7 @@ class StableDiffusionControlNetONNXPipelineAMD(
             untruncated_ids = self.tokenizer(
                 prompt, padding="longest", return_tensors="pt"
             ).input_ids
-            self.perf_time_gpu_model["tokenizer"].append(time.perf_counter() - t0)
+            self._record_timing(self.tokenizer, time.perf_counter() - t0)
 
             if untruncated_ids.shape[-1] >= text_input_ids.shape[
                 -1
@@ -359,7 +348,7 @@ class StableDiffusionControlNetONNXPipelineAMD(
                 prompt_embeds = self.text_encoder.text_model.final_layer_norm(
                     prompt_embeds
                 )
-            self.perf_time_gpu_model["text_encoder"].append(time.perf_counter() - t0)
+            self._record_timing(self.text_encoder, time.perf_counter() - t0)
 
         if self.text_encoder is not None:
             prompt_embeds_dtype = self.text_encoder.dtype
@@ -411,9 +400,7 @@ class StableDiffusionControlNetONNXPipelineAMD(
                 truncation=True,
                 return_tensors="pt",
             )
-            self.perf_time_gpu_model["tokenizer_negative"].append(
-                time.perf_counter() - t0
-            )
+            self._record_timing(self.tokenizer, time.perf_counter() - t0)
 
             if (
                 hasattr(self.text_encoder.config, "use_attention_mask")
@@ -429,9 +416,7 @@ class StableDiffusionControlNetONNXPipelineAMD(
                 attention_mask=attention_mask,
             )
             negative_prompt_embeds = negative_prompt_embeds[0]
-            self.perf_time_gpu_model["text_encoder_negative"].append(
-                time.perf_counter() - t0
-            )
+            self._record_timing(self.text_encoder, time.perf_counter() - t0)
 
         if do_classifier_free_guidance:
             # duplicate unconditional embeddings for each generation per prompt, using mps friendly method
@@ -999,7 +984,7 @@ class StableDiffusionControlNetONNXPipelineAMD(
                 down_block_res_samples = [torch.tensor(d) for d in control_result[0:-1]]
                 mid_block_res_sample = torch.tensor(control_result[-1])
                 # del control_onnx
-                self.perf_time_dict["controlnet"].append((end - start) * 1e-9)
+                self._record_timing(self.control_onnx, (end - start) * 1e-9)
 
                 if guess_mode and self.do_classifier_free_guidance:
                     # Inferred ControlNet only for the conditional batch.
@@ -1039,7 +1024,7 @@ class StableDiffusionControlNetONNXPipelineAMD(
                 noise_pred = torch.tensor(noise_pred)
                 # del unet
 
-                self.perf_time_dict["unet"].append((end - start) * 1e-9)
+                self._record_timing(self.unet, (end - start) * 1e-9)
 
                 # perform guidance
                 if self.do_classifier_free_guidance:
@@ -1076,7 +1061,7 @@ class StableDiffusionControlNetONNXPipelineAMD(
             image, has_nsfw_concept = self.run_safety_checker(
                 image, device, prompt_embeds.dtype
             )
-            self.perf_time_dict["vae_decoder"].append((end - start) * 1e-9)
+            self._record_timing(self.vae_onnx, (end - start) * 1e-9)
         else:
             image = latents
             has_nsfw_concept = None

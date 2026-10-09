@@ -65,14 +65,25 @@ class FluxPipelineTrigger(BaseOnnxPipelineTrigger):
             self.load_metrics_collector,
         )
 
-        self.text_encoder_2 = load_model(
-            ModelLoadConfig(
-                model_path=os.path.join(root_model_path, "text_encoder_3_gptq_v2"),
-                model_type=ModelType.T5_NPU_MODEL,
-                execution_providers=self.execution_providers,
-            ),
-            self.load_metrics_collector,
-        )
+        npu_platform = getattr(args, "npu_platform", "unknown")
+        if npu_platform == "mds":
+            self.text_encoder_2 = load_model(
+                ModelLoadConfig(
+                    model_path=os.path.join(root_model_path, "text_encoder_3_int4"),
+                    model_type=ModelType.ONNX_MODEL,
+                    execution_providers=["DmlExecutionProvider", "CPUExecutionProvider"],
+                ),
+                self.load_metrics_collector,
+            )
+        else:
+            self.text_encoder_2 = load_model(
+                ModelLoadConfig(
+                    model_path=os.path.join(root_model_path, "text_encoder_3_gptq_v2"),
+                    model_type=ModelType.T5_NPU_MODEL,
+                    execution_providers=self.execution_providers,
+                ),
+                self.load_metrics_collector,
+            )
 
         self.vae_decoder = load_model(
             ModelLoadConfig(

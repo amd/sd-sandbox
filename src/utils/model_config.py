@@ -632,7 +632,60 @@ register(ModelSpec(
     ),
 ))
 
+# ── Kolors ────────────────────────────────────────────────────────────────────
+
+register(ModelSpec(
+    model_ids=["kolors"],
+    controlnet_filter="canny",
+    defaults=InferenceConfig(
+        height=1024, width=1024,
+        num_inference_steps=50, guidance_scale=6.0,
+        prompt="全景，一只可爱的白色小狗坐在杯子里，看向镜头，动漫风格，3d渲染，辛烷值渲染。",
+        n_prompt="nsfw，脸部阴影，低分辨率，jpeg伪影、模糊、糟糕，黑脸，霓虹灯",
+        controlnet="canny", controlnet_conditioning_scale=0.7,
+        control_image_path=_get_project_path("test/ref/Canny_dog_condition.jpg"),
+        seed=66, strength=1.0,
+    ),
+))
+
+register(ModelSpec(
+    model_ids=["kolors"],
+    controlnet_filter="inpainting",
+    defaults=InferenceConfig(
+        height=1024, width=1024,
+        num_inference_steps=25, guidance_scale=6.0,
+        prompt=(
+            "穿着钢铁侠的衣服，高科技盔甲，主要颜色为红色和金色，并且有一些银色装饰。"
+            "胸前有一个亮起的圆形反应堆装置，充满了未来科技感。超清晰，高质量，超逼真，高分辨率，最好的质量，超级细节，景深"
+        ),
+        n_prompt="残缺的手指，畸形的手指，畸形的手，残肢，模糊，低质量",
+        controlnet="inpainting",
+        control_mask_path=_get_project_path("test/ref/inpainting/kolors_mask.png"),
+        control_image_path=_get_project_path("test/ref/inpainting/kolors_origin.png"),
+        seed=603, strength=0.999,
+    ),
+))
+
+register(ModelSpec(
+    model_ids=["kolors"],
+    defaults=InferenceConfig(
+        height=1024, width=1024,
+        num_inference_steps=50, guidance_scale=5.0,
+        prompt="一张瓢虫的照片，微距，变焦，高质量，电影，拿着一个牌子，写着“可图”",
+    ),
+))
+
 # ── Others ────────────────────────────────────────────────────────────────────
+
+register(ModelSpec(
+    model_ids=["nitro-e"],
+    defaults=InferenceConfig(
+        height=512, width=512,
+        num_inference_steps=20, guidance_scale=4.5,
+        prompt="A hot air balloon in the shape of a heart grand canyon.",
+        seed=0,
+    ),
+))
 
 register(ModelSpec(
     model_ids=["segmind-vega"],

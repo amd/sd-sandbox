@@ -366,23 +366,6 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
             else 128
         )
 
-        self.perf_time_dict = {
-            "vae_encoder": [],
-            "vae_decoder": [],
-            "t5": [],
-            "ctrlnet": [],
-            "dit": [],
-            "tea_caching": [],
-        }
-
-        self.perf_time_gpu_model = {
-            "tokenizer": [],
-            "text_encoder": [],
-            "tokenizer_2": [],
-            "text_encoder_2": [],
-            "tokenizer_3": [],
-            "tea_caching": [],
-        }
     def _load_text_encoders_precomputed_values(
         self, prompt, text_encoder, device, dtype, max_sequence_length=0
     ):
@@ -467,7 +450,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
             add_special_tokens=True,
             return_tensors="pt",
         )
-        self.perf_time_gpu_model["tokenizer_3"].append(time.perf_counter() - t0)
+        self._record_timing(self.tokenizer_3, time.perf_counter() - t0)
         sd3Logger.debug(f"tokenizer_3 inference time = {time.perf_counter() - t0:.5f}s")
         text_input_ids = text_inputs.input_ids
         untruncated_ids = self.tokenizer_3(
@@ -500,7 +483,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
                 input_ids=text_inputs["input_ids"],
             )["last_hidden_state"].to(device=device, dtype=torch.float16)
 
-        self.perf_time_dict["t5"].append(time.perf_counter() - t0)
+        self._record_timing(self.text_encoder_3, time.perf_counter() - t0)
 
         _, seq_len, _ = prompt_embeds.shape
 
@@ -542,8 +525,9 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
             return_tensors="pt",
         )
         tokenizer_name = "tokenizer" if clip_model_index == 0 else "tokenizer_2"
+        tokenizer_ref = self.tokenizer if clip_model_index == 0 else self.tokenizer_2
         t1 = time.perf_counter()
-        self.perf_time_gpu_model[tokenizer_name].append(t1 - t0)
+        self._record_timing(tokenizer_ref, t1 - t0)
         sd3Logger.debug(f"{tokenizer_name} inference time = {t1 - t0:.5f}s")
 
         text_input_ids = text_inputs.input_ids
@@ -552,7 +536,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
             prompt, padding="longest", return_tensors="pt"
         ).input_ids
         t1 = time.perf_counter()
-        self.perf_time_gpu_model[tokenizer_name].append(t1 - t0)
+        self._record_timing(tokenizer_ref, t1 - t0)
         sd3Logger.debug(f"{tokenizer_name} inference time = {t1 - t0:.5f}s")
         if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not torch.equal(
             text_input_ids, untruncated_ids
@@ -589,7 +573,8 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
         text_encoder_name = (
             "text_encoder" if clip_model_index == 0 else "text_encoder_2"
         )
-        self.perf_time_gpu_model[text_encoder_name].append(time.perf_counter() - t0)
+        text_encoder_ref = self.text_encoder if clip_model_index == 0 else self.text_encoder_2
+        self._record_timing(text_encoder_ref, time.perf_counter() - t0)
         sd3Logger.debug(
             f"{text_encoder_name} inference time = {time.perf_counter() - t0:.3f}s"
         )
@@ -950,6 +935,13 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
         return image
 
     def create_zero_control_blocks(self, height, width, batch_size):
+        # Shape-invariant across denoising steps, so build once per resolution:
+        # at 1024x1024 each block is 25MB and 12 of them are re-cast every step.
+        cache_key = (batch_size, height, width)
+        cached = self.__dict__.get("_zero_control_blocks")
+        if cached is not None and cached[0] == cache_key:
+            return cached[1]
+
         inputs_info = self.transformer.model.get_inputs()
         block0_meta = next(
             (
@@ -960,6 +952,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
             None,
         )
         if block0_meta is None:
+            self.__dict__["_zero_control_blocks"] = (cache_key, {})
             return {}
         onnx_to_np = {
             "tensor(float16)": np.float16,
@@ -982,9 +975,8 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
         for i, input_info in enumerate(inputs_info):
             if input_info.name.startswith("block_controlnet_hidden_states_"):
                 zero_block_dict[input_info.name] = zero_block
-                # zero_block_dict[input_info.name] = np.zeros(block0_shape, dtype=np_dtype)
 
-
+        self.__dict__["_zero_control_blocks"] = (cache_key, zero_block_dict)
         return zero_block_dict
 
     @property
@@ -1266,9 +1258,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
             sd3Logger.debug(
                 f"vae encoder time {time.perf_counter() - vae_en_start_time}"
             )
-            self.perf_time_dict["vae_encoder"].append(
-                time.perf_counter() - vae_en_start_time
-            )
+            self._record_timing(self.vae_encoder, time.perf_counter() - vae_en_start_time)
             if self.do_classifier_free_guidance:  # and not self.guess_mode:
                 encoded_data = np.concatenate([encoded_data] * 2, axis=0)
             latent_dist = DiagonalGaussianDistribution(
@@ -1278,7 +1268,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
             control_image = control_image * self.vae_encoder.config["scaling_factor"]
             controlnet_cond = control_image.to(dtype=torch.float16).cpu().numpy()
         else:
-            self.perf_time_dict["vae_encoder"].append(0)
+            self._record_timing(self.vae_encoder, 0)
 
         if controlnet_pooled_projections is None:
             controlnet_pooled_projections = torch.zeros_like(pooled_prompt_embeds)
@@ -1458,18 +1448,18 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
                         control_block_samples = self.create_zero_control_blocks(height, width, latent_model_input.shape[0])
                         model_input.update(control_block_samples)
                     ctrlnet_time = time.perf_counter() - ctrlnet_start_time
-                    self.perf_time_dict["ctrlnet"].append(ctrlnet_time)
+                    self._record_timing(self.controlnet, ctrlnet_time)
 
                     transformer_start_time = time.perf_counter()
                     noise_pred_np = self.transformer.model.run(None, model_input)[0]
                     transformer_time = time.perf_counter() - transformer_start_time
-                    self.perf_time_dict["dit"].append(transformer_time)
+                    self._record_timing(self.transformer, transformer_time)
                     if enable_tea_caching:
                         cache_state.cached_residual = noise_pred_np - latent_model_input
 
                 if enable_tea_caching and tea_start_time is not None:
                     tea_time = time.perf_counter() - tea_start_time
-                    self.perf_time_dict["tea_caching"].append(tea_time)
+                    self._record_timing(self.tea_caching_model, tea_time)
                 noise_pred = torch.from_numpy(noise_pred_np).to(device)
 
                 # perform guidance
@@ -1516,12 +1506,12 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
  
         model_names = "ControlNet + MMDiT" if self.controlnet is not None else "MMDiT"
         if enable_tea_caching:
-            cache_miss = len(self.perf_time_dict["dit"])
+            cache_miss = len(self.perf_time_dict[self.transformer.model_name]["time"])
             cache_hit = num_inference_steps - cache_miss
-            mmdit_time = sum(self.perf_time_dict["dit"])
+            mmdit_time = sum(self.perf_time_dict[self.transformer.model_name]["time"])
             model_time = mmdit_time
             if self.controlnet is not None:
-                conctrl_time = sum(self.perf_time_dict["ctrlnet"])
+                conctrl_time = sum(self.perf_time_dict[self.controlnet.model_name]["time"])
                 model_time += conctrl_time
             sd3Logger.info(f"tea caching cache hit {cache_hit} times(s). {model_names} actually inferenced {cache_miss} steps.")
             sd3Logger.info(f"{model_names} average latency = {(model_time) / cache_miss:.3f} s.")
@@ -1544,7 +1534,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
         else:
             image = self.vae_decoder(latent_sample=latents.cpu().numpy())[0]
         sd3Logger.debug(f"vae_decoder inference time = {time.perf_counter() - t0:.3f}s")
-        self.perf_time_dict["vae_decoder"].append(time.perf_counter() - t0)
+        self._record_timing(self.vae_decoder, time.perf_counter() - t0)
         image = torch.from_numpy(image)
 
         t0 = time.perf_counter()
@@ -1554,7 +1544,8 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
         )
 
         # dump perf counters
-        for k, v in self.perf_time_dict.items():
+        for k, entry in self.perf_time_dict.items():
+            v = entry["time"]
             if len(v) != 0:
                 sd3Logger.debug(f"==> {k} : exec time {len(v)}, avg time {sum(v)/len(v)}")
             else:

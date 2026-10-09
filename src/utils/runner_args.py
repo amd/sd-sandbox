@@ -7,8 +7,14 @@ import os
 import sys
 import logging as Logger
 import platform
-from .common import resolve_project_path, resolve_root_model_path
+from .common import (
+    configure_ort_runtime,
+    get_absolute_path,
+    resolve_project_path,
+    resolve_root_model_path,
+)
 from .model_config import InferenceConfig, detect_model_spec
+from .npu_platform import detect_npu_platform, get_dd_plugins_subpath
 
 # pr-231: shown when the 'lib' directory (or one of its subfolders) is missing
 # from the project root -- it isn't shipped in git and must be copied in from
@@ -51,7 +57,8 @@ parser.add_argument(
             'black-forest-labs/FLUX.2-klein-4B', \
             'stabilityai/stable-diffusion-3.5-medium', \
             'playgroundai/playground-v2.5-1024px-aesthetic', \
-            '/Lykon/dreamshaper-xl-lightning', 'segmind/SSD-1B'",
+            '/Lykon/dreamshaper-xl-lightning', 'segmind/SSD-1B',\
+            'Kwai-Kolors/Kolors'",
 )
 parser.add_argument(
     "--revision",
@@ -252,32 +259,92 @@ def check_sd3_normal_args(args):
             f"Allowed values are: {', '.join(VALID_CONTROLNET_VALUES)}. "
             "Use 'None' for text-to-image mode without ControlNet."
         )
-        while True:
-            try:
-                choice = (
-                    input(
-                        "Do you want to continue by running with 'Canny' (Y) or exit (N)? [Y/N]: "
-                    )
-                    .strip()
-                    .lower()
-                )
-                if choice == "y":
-                    Logger.info(
-                        "User chose to continue. Proceeding with ControlNet type 'Canny'."
-                    )
-                    args.controlnet = "Canny"  # Modify args directly
-                    break
-                elif choice == "n":
-                    Logger.info("User chose to exit. Exiting script.")
-                    sys.exit(0)
-                else:
-                    Logger.warning("Invalid input. Please enter 'Y' or 'N'.")
-            except EOFError:  # Handle cases where input stream is closed (e.g. piping)
-                Logger.error("No input received. Exiting.")
-                sys.exit(1)
+        if _confirm_continue(
+            "Do you want to continue by running with 'Canny' (Y) or exit (N)? [Y/N]: "
+        ):
+            Logger.info(
+                "User chose to continue. Proceeding with ControlNet type 'Canny'."
+            )
+            args.controlnet = "Canny"  # Modify args directly
     else:
         Logger.info(f"ControlNet type from args: {args.controlnet}")
     return args
+
+
+def _confirm_continue(prompt: str) -> bool:
+    """Ask the user to continue (Y) or exit (N). Invalid input is retried.
+
+    When stdin is not an interactive TTY -- e.g. an orchestrated subprocess whose
+    stdin is inherited/closed -- there is no one to answer, so default to
+    continuing instead of blocking on ``input()`` (which would hang the batch) or
+    exiting on EOF.
+    """
+    if not sys.stdin or not sys.stdin.isatty():
+        Logger.warning(
+            "Non-interactive stdin; auto-continuing past prompt: %s", prompt.strip()
+        )
+        return True
+    while True:
+        try:
+            choice = input(prompt).strip().lower()
+            if choice == "y":
+                return True
+            if choice == "n":
+                Logger.info("User chose to exit. Exiting script.")
+                sys.exit(0)
+            Logger.warning("Invalid input. Please enter 'Y' or 'N'.")
+        except EOFError:
+            Logger.error("No input received. Exiting.")
+            sys.exit(1)
+
+
+def _resolve_npu_platform(args) -> str:
+    """Resolve the NPU platform without ever aborting or prompting.
+
+    The platform selects the DD transaction plugins (``lib/transaction/<plat>``),
+    which must match the actual NPU silicon -- so hardware detection is
+    authoritative when available. Resolution order:
+
+      1. ``NPU_PLATFORM`` env override ('mds'/'stx') -- escape hatch for when
+         xrt-smi is untrusted, missing, or reports the wrong value.
+      2. xrt-smi hardware detection -- authoritative, but non-fatal: any failure
+         or 'unknown' simply falls through (it never exits).
+      3. ``model_id`` naming convention ('-medusa' => mds, else stx) as a
+         last-resort fallback.
+
+    A hardware/model disagreement is logged as an advisory only; this function
+    never calls ``input()`` and never ``sys.exit()``, so an orchestrated
+    subprocess can neither hang on a prompt nor be killed by a mismatch.
+    """
+    model_id = getattr(args, "model_id", None) or ""
+    model_name = model_id.rsplit("/", 1)[-1]
+    inferred = "mds" if model_name.lower().endswith("-medusa") else "stx"
+
+    override = (os.environ.get("NPU_PLATFORM") or "").strip().lower()
+    if override in ("mds", "stx"):
+        Logger.info("NPU platform forced to %r via NPU_PLATFORM env.", override)
+        return override
+
+    try:
+        detected = detect_npu_platform()  # "mds" | "stx" | "unknown"; never raises
+    except Exception as exc:  # defensive: detection must never crash the run
+        Logger.debug("NPU detection raised %s; falling back to model_id.", exc)
+        detected = "unknown"
+
+    if detected in ("mds", "stx"):
+        if detected != inferred:
+            Logger.info(
+                "NPU advisory: detected hardware=%r but model_id=%r implies %r; "
+                "using detected hardware platform %r.",
+                detected, model_id, inferred, detected,
+            )
+        return detected
+
+    Logger.info(
+        "NPU platform not detected via xrt-smi; using %r inferred from model_id %r.",
+        inferred, model_id,
+    )
+    return inferred
 
 
 def _apply_spec_defaults(args, cfg: InferenceConfig) -> None:
@@ -361,6 +428,10 @@ def check_args(args):
             level=Logger.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
         )
 
+    configure_ort_runtime(
+        getattr(args, "enable_profile", False),
+        getattr(args, "model_id", None),
+    )
 
     if not args.model_id:
         Logger.warning("model_id is not set, using built-in defaults.")
@@ -387,6 +458,8 @@ def check_args(args):
     if not args.model_id:
         # Skip model-path / env validation when no model is configured.
         return args
+
+    args.npu_platform = _resolve_npu_platform(args)
 
     if args.tea_caching_coef is None:
         args.tea_caching_coef = [1.0, 0.0]
@@ -420,6 +493,9 @@ def check_args(args):
             candidates.append(
                 os.path.join(onnx_utils_root, "build", "install", "bin", share_obj_name)
             )
+            candidates.append(
+                os.path.join(onnx_utils_root, "install", "bin", share_obj_name)
+            )
         # 2. RYZEN_AI_INSTALLATION_PATH/deployment
         if ryzen_root:
             candidates.append(
@@ -449,9 +525,16 @@ def check_args(args):
     )
     # pr-231: FLUX models also need DD_PLUGINS_ROOT for NPU transactions
     is_flux_model = "flux" in mid
-    if is_sd3_model or is_flux_model:
+    npu_platform = args.npu_platform
+    if npu_platform == "mds" or is_sd3_model or is_flux_model:
+        dd_subpath = get_dd_plugins_subpath(npu_platform)
         if not os.environ.get("DD_PLUGINS_ROOT"):
-            os.environ["DD_PLUGINS_ROOT"] = resolve_project_path("lib/transaction/stx")
+            os.environ["DD_PLUGINS_ROOT"] = resolve_project_path(dd_subpath)
+            Logger.info(
+                "NPU platform=%s, DD_PLUGINS_ROOT auto-set to %s",
+                npu_platform,
+                dd_subpath,
+            )
         dd_plugins_path = os.environ["DD_PLUGINS_ROOT"]
         Logger.debug(f"DD_PLUGINS_ROOT set to: {dd_plugins_path}")
         if not os.path.exists(dd_plugins_path):
