@@ -67,9 +67,9 @@ The table below lists every model, with the Strix (RAI 1.8) and Medusa (MDS) Hug
 | Segmind Vega | [amd/segmind-vega-amdnpu](https://huggingface.co/amd/segmind-vega-amdnpu) | [amd/segmind-vega-amdnpu-medusa](https://huggingface.co/amd/segmind-vega-amdnpu-medusa) | 1024x1024 | ✅ | ☑️ | |
 | Playground 2.5 | [amd/playground-v2.5-1024px-aesthetic-amdnpu](https://huggingface.co/amd/playground-v2.5-1024px-aesthetic-amdnpu) | [amd/playground-v2.5-1024px-aesthetic-amdnpu-medusa](https://huggingface.co/amd/playground-v2.5-1024px-aesthetic-amdnpu-medusa) | 1024x1024, 20x DynRes | ✅ | | ⚠️ No DynRes in the shipped config (fixed 1024x1024) |
 | DreamShaper XL | [amd/dreamshaper-xl-lightning-amdnpu](https://huggingface.co/amd/dreamshaper-xl-lightning-amdnpu) | [amd/dreamshaper-xl-lightning-amdnpu-medusa](https://huggingface.co/amd/dreamshaper-xl-lightning-amdnpu-medusa) | 1024x1024, 20x DynRes | ✅ | | ⚠️ No DynRes in the shipped config (fixed 1024x1024) |
-| SD 3.0 Medium — Text-to-Image, ControlNet (Canny, Depth, Tile, Pose), Inpainting | [stabilityai/stable-diffusion-3-medium-amdnpu](https://huggingface.co/stabilityai/stable-diffusion-3-medium-amdnpu) | ❌ | 512x512, 20x DynRes (Inpainting: 1024x1024) | ✅ | ☑️ | ❌ **Not available on MDS** |
-| SD 3.5 Medium — Text-to-Image, ControlNet (Canny, Depth, Tile, Pose), Inpainting | [stabilityai/stable-diffusion-3.5-medium-amdnpu](https://huggingface.co/stabilityai/stable-diffusion-3.5-medium-amdnpu) | [amd/stable-diffusion-3.5-medium-amdnpu-medusa](https://huggingface.co/amd/stable-diffusion-3.5-medium-amdnpu-medusa) | 512x512, 20x DynRes (Inpainting: 1024x1024) | ✅ | ☑️ | ⚠️ Text-to-Image only (no ControlNet or Inpainting); fixed 1024x1024 unless `dynamic_shape: true` is set |
-| FLUX.1 Schnell | [amd/FLUX.1-schnell-amdnpu](https://huggingface.co/amd/FLUX.1-schnell-amdnpu) | [amd/FLUX.1-schnell-amdnpu-medusa](https://huggingface.co/amd/FLUX.1-schnell-amdnpu-medusa) | 1024x1024, 20x DynRes | ✅ | | ⚠️ No DynRes in the shipped config (fixed 1024x1024) |
+| SD 3.0 Medium — Text-to-Image, ControlNet (Canny, Depth, Tile, Pose), Inpainting | [amd/stable-diffusion-3-medium-amdnpu](https://huggingface.co/amd/stable-diffusion-3-medium-amdnpu) | ❌ | 512x512, 20x DynRes (Inpainting: 1024x1024) | ✅ | ☑️ | ❌ **Not available on MDS** |
+| SD 3.5 Medium — Text-to-Image | [amd/stable-diffusion-3.5-medium-amdnpu](https://huggingface.co/amd/stable-diffusion-3.5-medium-amdnpu) | [amd/stable-diffusion-3.5-medium-amdnpu-medusa](https://huggingface.co/amd/stable-diffusion-3.5-medium-amdnpu-medusa) | 512x512, 20x DynRes | ✅ | | ⚠️ Fixed 1024x1024 unless `dynamic_shape: true` is set |
+| FLUX.1 Schnell | [amd/FLUX.1-schnell-amdnpu](https://huggingface.co/amd/FLUX.1-schnell-amdnpu) | [amd/FLUX.1-schnell-amdnpu-medusa](https://huggingface.co/amd/FLUX.1-schnell-amdnpu-medusa) | 512x512, 20x DynRes | ✅ | | ⚠️ No DynRes in the shipped config (fixed 1024x1024) |
 | FLUX.2 Klein | [amd/FLUX.2-klein-4B-amdnpu](https://huggingface.co/amd/FLUX.2-klein-4B-amdnpu) | [amd/FLUX.2-klein-4B-amdnpu-medusa](https://huggingface.co/amd/FLUX.2-klein-4B-amdnpu-medusa) | 1024x1024 | ✅ | | ➕ **MDS only:** Image-To-Image reference-image editing via `--edit_image_path` |
 
 **DynRes** indicates the number of dynamic-resolution presets a model supports (e.g. `5x`, `20x`) in addition to its default resolution. The exact width×height pairs for each preset are defined in the `config/dynamic_shape_*.json` files — the 20x grid spans 512x288 – 1024x1024 across 1:1, 3:4, 4:3, 9:16, and 16:9 aspect ratios.
@@ -97,7 +97,7 @@ Here are some explanations of each of the SD methods. Note that pre- and post-pr
 **🔄 Image-To-Image (I2I)** — Transform an existing image based on a text prompt while preserving certain structural or compositional elements. You provide both a reference image and a prompt, and the model generates a new image that follows the guidance of the input image while incorporating your text description.
 *Example use cases: style transfer, image variations, artistic reinterpretation, photo enhancement*
 
-> **FLUX.2 Klein image editing (Medusa only).** On Medusa, FLUX.2 Klein performs I2I as prompt-guided *image editing*: pass one or more reference images with `--edit_image_path`. With a single reference image you can restyle or alter it (e.g. *"Change the dress to red"*); with two reference images you can combine them (e.g. *"Replace the astronaut in image 1 with the girl in image 2"*). The `flux2_klein_i2i` pipeline in `config/pipeline_configs_medusa.yaml` is an example.
+> **FLUX.2 Klein image editing (Medusa only).** On Medusa, FLUX.2 Klein performs I2I as prompt-guided *image editing*: pass one or more reference images with `--edit_image_path`. With a single reference image you can restyle or alter it (e.g. *"Change the dress to red"*); with two reference images you can combine them (e.g. *"Replace the astronaut in image 1 with the girl in image 2"*). The `flux2_klein_i2i` (one image) and `flux2_klein_i2i_2` (two images) pipelines in `config/pipeline_configs_medusa.yaml` are examples.
 
 ![Image-to-Image ControlNet Process](test/assets/2025_Bousetouane_image_to_image_controlnet.png)
 
@@ -145,9 +145,9 @@ the directory for your platform to a local directory of your choice:
 
 #### Step 3: Configure Paths
 
-Now that you have the models, you need to configure paths by editing [config/pipeline_configs_strx.yaml](config/pipeline_configs_strx.yaml) on Strix, or [config/pipeline_configs_medusa.yaml](config/pipeline_configs_medusa.yaml) on Medusa. The bare minimum that you need to change in order to run a pipeline is:
+Next, configure paths by editing [config/pipeline_configs_strx.yaml](config/pipeline_configs_strx.yaml) on Strix, or [config/pipeline_configs_medusa.yaml](config/pipeline_configs_medusa.yaml) on Medusa. Relative paths are resolved from the sandbox root. The bare minimum that you need to change in order to run a pipeline is:
 
-1. `test_path` : the location of the `test` directory in the  in the `GenAI-SD` directory copied in Step 2
+1. `test_path` : the location of the `test` directory in the `GenAI-SD` directory copied in Step 2
 
 Optional paths that can be configured are:
 
@@ -156,9 +156,9 @@ Optional paths that can be configured are:
 
 ```yaml
 paths:
-  test_path: "/test"
-  control_images_path: "/test/assets"
-  config_files_path: "/config"  
+  test_path: "./test"
+  control_images_path: "./test/assets"
+  config_files_path: "./config"
 ```
 
 More details on configurations can be found in the [Pipelines and Pipeline Groups Configuration](#-pipelines-and-pipeline-groups-configuration) section.
@@ -205,9 +205,7 @@ python scripts/run_pipelines.py --config config/pipeline_configs_medusa.yaml --l
 
 You should see a list of all available pipelines and groups of pipelines for your platform, similar to this (Strix output shown; Medusa lists its own set of pipelines):
 ```text
-⚡ Automatic provider selection enabled
-   • Will use best available: GPU > NPU > CPU
-   • Available providers: DmlExecutionProvider, CPUExecutionProvider
+[AUTO] Automatic provider selection (NPU > DML > CPU)
 
 ==================================================
 Available Pipelines
@@ -221,7 +219,7 @@ Available Pipelines
 ==================================================
 Available Pipeline Groups
 ==================================================
-  all_sd3                   - sd3_base, sd3_controlnet_canny, sd3_controlnet_pose, sd3_controlnet_tile, 
+  all                       - sd_15, sd_15_controlnet, sd_turbo, sdxl_turbo, sdxl_base, ...
 ...
 ```
 
@@ -234,17 +232,13 @@ python scripts/run_pipelines.py --pipelines sd_15
 And get an output similar to:
 
 ```text
-[AUTO] Automatic provider selection enabled
-   • Will use best available: DML > CPU
-   • Available providers: DmlExecutionProvider, CPUExecutionProvider
+[AUTO] Automatic provider selection (NPU > DML > CPU)
 
 ============================================================
 Running 1 pipelines in QUICK TEST mode
 ============================================================
 
 --- Pipeline 1/1: SD 1.5 Pipeline ---
-[AUTO] SD 1.5 Pipeline - Automatic provider selection
-  [Output] Live Output:
      ---Loading ONNX Unet for DD
      2025-11-24 10:11:14,521 [INFO] Load unet/dd ...
 
@@ -300,7 +294,7 @@ python scripts/run_pipelines.py --pipelines sd_15
 python scripts/run_pipelines.py --config config/pipeline_configs_medusa.yaml --pipelines sd_15
 ```
 
-The Strix configuration defines every pipeline; the Medusa configuration defines a subset, plus one pipeline of its own. Pipelines marked ❌ are not available on MDS:
+The Strix configuration defines every pipeline; the Medusa configuration defines a subset, plus two pipelines of its own. Pipelines marked ❌ are not available on MDS:
 
 | Pipeline | Strix (`pipeline_configs_strx.yaml`) | Medusa (`pipeline_configs_medusa.yaml`) |
 |---|---|---|
@@ -311,27 +305,37 @@ The Strix configuration defines every pipeline; the Medusa configuration defines
 | `segmind_vega`, `segmind_vega_i2i` | ✅ | ✅ |
 | `sd3_base` | ✅ | ❌ **Not available on MDS** |
 | `sd3_controlnet_tile`, `sd3_controlnet_depth`, `sd3_controlnet_pose`, `sd3_controlnet_canny`, `sd3_controlnet_inpainting` | ✅ | ❌ **Not available on MDS** |
-| `sd35_base` | ✅ | ⚠️ Text-to-Image only |
+| `sd35_base` | ✅ | ✅ |
 | `flux1_schnell`, `flux2_klein` | ✅ | ✅ |
-| `flux2_klein_i2i` | ❌ | ➕ **MDS only** |
+| `flux2_klein_i2i`, `flux2_klein_i2i_2` | ❌ | ➕ **MDS only** |
 
 Other differences between the two files:
 
 | | Strix | Medusa |
 |---|---|---|
 | Model IDs | `amd/<model>-amdnpu` | `amd/<model>-amdnpu-medusa` |
-| Pipeline groups | `all` | `all`, `i2i` |
-| Default execution mode | Image-only (`image_only: true`) | Profiling (no `image_only` default; pass `--image-only` for image-only runs) |
+| Pipeline groups | `all`, `flux` | `all`, `flux` |
 
-The `flux2_klein_i2i` pipeline exists only in the Medusa configuration. It uses `edit_image_path` to pass one or more reference images to FLUX.2 Klein:
+The `flux2_klein_i2i` and `flux2_klein_i2i_2` pipelines exist only in the Medusa configuration. They use `edit_image_path` to pass one or two reference images to FLUX.2 Klein:
 
 ```yaml
   flux2_klein_i2i:
-    name: "Flux2_i2i"
+    name: "FLUX.2 Klein I2I Pipeline (1 image)"
     width: 1024
     height: 1024
     model_ids: ["amd/FLUX.2-klein-4B-amdnpu-medusa"]
-    prompt: "Put the main from img3 on the horse in img1"
+    prompt: "Make the overalls red"
+    args:
+      edit_image_path: ["flux2_img3.png"]
+      num_inference_steps: 4
+      guidance_scale: 0.0
+
+  flux2_klein_i2i_2:
+    name: "FLUX.2 Klein I2I Pipeline (2 images)"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/FLUX.2-klein-4B-amdnpu-medusa"]
+    prompt: "Put the man from img3 on the horse in img1"
     args:
       edit_image_path: ["flux2_img3.png", "flux2_img1.png"]
       num_inference_steps: 4
@@ -349,7 +353,7 @@ Global defaults are defined at the top of the YAML file and are useful for setti
 
 One example of setting a global default might be setting the `num_inference_steps` to 20. Every pipeline will use 20 inference steps unless overridden in the pipeline definition.
 
-Some global parameters must be set to run any pipeline: the `models_path` where the models are located, the `test_path` directory containing the `run*.py` scripts, and the `prompt_file` path where the prompts are located.
+Under `paths`, `test_path` must point at the directory containing `run.py`. `models_path` is optional and defaults to `models`. A global `prompt_file` under `defaults` is optional; without it, each pipeline's `prompt` (or the global `prompt`) is used.
 
 **2. Pipeline Definitions**
 
@@ -412,7 +416,7 @@ Pipeline configurations are validated against the known set of runner arguments 
 
 The **best** way to become familiar with the available parameters is to examine the [Strix](config/pipeline_configs_strx.yaml) or [Medusa](config/pipeline_configs_medusa.yaml) configuration file. 
 
-**SD3/SD3.5 Dynamic Shape Support (Strix)**: All SD3 and SD3.5 pipelines support dynamic shapes, allowing a single model to handle multiple resolutions without recompilation. This is enabled by default for these models The available resolutions are: 512x512, 512x768, 768x512, 576x1024, 1024x576, 768x1024, 1024x768, and 1024x1024.
+**SD3/SD3.5 Dynamic Shape Support (Strix)**: All SD3 and SD3.5 pipelines support dynamic shapes, allowing a single model to handle multiple resolutions without recompilation. Enable it with `dynamic_shape: true` in the pipeline's `args`. The 20 supported resolutions are listed in [config/dynamic_shape_20x.json](config/dynamic_shape_20x.json) and span 512x288 – 1024x1024 across 1:1, 3:4, 4:3, 9:16, and 16:9 aspect ratios.
 
 **SD3.5 Dynamic Shape Support (Medusa)**: The shipped Medusa configuration runs SD3.5 at a fixed 1024x1024. To run it at the resolutions listed above without recompilation, add `dynamic_shape: true` to the pipeline's `args`.
 
@@ -463,7 +467,7 @@ python scripts/run_pipelines.py --pipelines sd_15 --prompt_file custom_prompts.j
 Pipelines are run by invoking the [scripts/run_pipelines.py](scripts/run_pipelines.py) with the desired pipeline or pipeline group specified. For example, we can run the `sd_15` pipeline with:
 
 ```powershell
-python /scripts/run_pipelines.py --pipelines sd_15
+python scripts/run_pipelines.py --pipelines sd_15
 ```
 
 Or we can run the `all` pipelines group with: 
@@ -480,31 +484,83 @@ python scripts/run_pipelines.py --help
 
 ### Execution Modes
 
-The framework supports 3 execution modes to balance speed and performance measurement. 
+The framework has three execution modes. They differ only in how many times each prompt is generated and how much timing information is reported. In every mode, **one image is saved per prompt and resolution**.
 
-1. Quick Test Mode (default) - Balanced mode with one warmup iteration followed by one profiled generation, producing two images while capturing basic performance metrics for quick evaluation.
+| Mode | Generations per prompt | Timing reported | Image filename tag | Results file |
+|------|------------------------|-----------------|--------------------|--------------|
+| **Image-Only** | 1 | Model load summary and a single pipeline execution time (includes first-run overhead) | `batch` | `pipeline_results_image_only_*.txt` |
+| **Quick Test** | 2 (1 warmup + 1 profiled) | Model load summary, warmup (1st gen) time, average pipeline time, per-component times, memory | `profiling` | `pipeline_results_quick_*.txt` |
+| **Benchmark** | 11 (1 warmup + 10 profiled) | Same as Quick Test, averaged over 10 rounds | `profiling` | `pipeline_results_benchmark_*.txt` |
+
+The saved image always comes from the first generation; the profiled rounds are used for timing only. If a run mixes Image-Only and Quick Test pipelines (see [Setting the mode per pipeline](#setting-the-mode-per-pipeline)), the results file is named `pipeline_results_mixed_*.txt`. Log files saved with `--save-log` use the same mode in their name (e.g. `pipeline_log_quick_test_*.txt`).
+
+**Quick Test Mode is the default** on both Strix and Medusa; neither shipped configuration enables `image_only`. The mode for each pipeline is chosen in this order (highest first):
+
+1. `--benchmark` — always Benchmark Mode, regardless of any `image_only` setting
+2. `--image-only` — Image-Only Mode for every pipeline
+3. `image_only` set on the pipeline in the YAML
+4. `image_only` under `defaults` in the YAML
+5. Otherwise, Quick Test Mode
+
+#### 1. Image-Only Mode
+
+Use this for generating images as fast as possible, e.g. batch-generating images from a prompt file. Each prompt is generated once with no warmup or profiling.
 
 ```powershell
-# Test SDXL Turbo with basic performance metrics
-python scripts/run_pipelines.py --pipelines sdxl_turbo --prompt "a serene mountain landscape"
-```
-*Output: 2 images (1 warmup + 1 profiled), basic timing statistics*
-
-2. Image-Only Mode (`--image-only`) - Fastest execution for batch image generation with zero warmup and one generation pass, producing a single image per prompt without any profiling overhead.
-
-```powershell
-# Generate 5 images from anime_prompts.json using SD3 (Strix; on Medusa use sd35_base), no profiling
+# Strix
 python scripts/run_pipelines.py --image-only --pipelines sd3_base --prompt_file config/anime_prompts.json
-```
-*Output: 5 images total (the anime_prompts.json file contains 5 prompts), 0 warmup rounds, no performance metrics*
 
-3. Benchmark Mode (`--benchmark`) - Comprehensive profiling with one warmup iteration followed by ten profiled generations, producing eleven images total with detailed timing statistics for thorough performance analysis.
+# Medusa
+python scripts/run_pipelines.py --config config/pipeline_configs_medusa.yaml --image-only --pipelines sd35_base --prompt_file config/anime_prompts.json
+```
+*Output: 5 images (`anime_prompts.json` contains 5 prompts), no profiling metrics*
+
+To make Image-Only the default for every pipeline without passing `--image-only`, set `image_only: true` under `defaults` in the YAML.
+
+#### 2. Quick Test Mode
+
+Use this for a quick performance check. Each prompt is generated once as a warmup and once more for profiling, so the report separates the first-generation time from the steady-state time.
 
 ```powershell
-# Benchmark SD3 with detailed profiling across all SD3 models (Strix; on Medusa use --pipeline_groups all)
-python scripts/run_pipelines.py --benchmark --pipeline_groups all_sd3
+# Strix
+python scripts/run_pipelines.py --pipelines sdxl_turbo
+
+# Medusa
+python scripts/run_pipelines.py --config config/pipeline_configs_medusa.yaml --pipelines sdxl_turbo
 ```
-*Output: 11 images per pipeline (1 warmup + 10 profiled), detailed performance report with timing averages and standard deviations*
+*Output: 1 image per prompt, warmup and average timing statistics*
+
+#### 3. Benchmark Mode
+
+Use this for performance measurement. Each prompt is generated once as a warmup, followed by 10 profiled rounds whose times are averaged. Benchmark Mode works the same on both platforms and needs no YAML changes.
+
+```powershell
+# Strix
+python scripts/run_pipelines.py --benchmark --pipelines sdxl_turbo
+
+# Medusa
+python scripts/run_pipelines.py --config config/pipeline_configs_medusa.yaml --benchmark --pipelines sdxl_turbo
+```
+*Output: 1 image per prompt, timing averaged over 10 rounds.* The log shows `Running 10 profiling rounds...` followed by `__ROUND_COMPLETE__ 1/10` … `10/10`. Benchmark results files can be converted to CSV; see [Benchmark Files](#benchmark-files).
+
+#### Setting the mode per pipeline
+
+Add a top-level `image_only` key to a pipeline definition (next to `name` and `model_ids`, not inside `args`) to override the `defaults` value for that pipeline only. For example, to profile every pipeline except FLUX.1 Schnell, which only generates images:
+
+```yaml
+defaults:
+  image_only: false
+
+pipelines:
+  flux1_schnell:
+    name: "FLUX.1 Schnell Pipeline"
+    image_only: true
+    model_ids: ["amd/FLUX.1-schnell-amdnpu"]
+    args:
+      num_inference_steps: 4
+```
+
+The reverse also works: set `image_only: true` under `defaults` and `image_only: false` on the pipelines you want to profile. `--image-only` and `--benchmark` on the command line override per-pipeline settings.
 
 ### Argument priority 
 
@@ -525,7 +581,7 @@ python scripts/run_pipelines.py --help
 | Option | Type | Default | Help |
 |--------|------|---------|------|
 | --benchmark | flag | False | Enable benchmark mode (10 profiling rounds). Default is quick mode (1 round). |
-| --image-only | flag | True | Generate images only without profiling (batch mode). Disables warmup and profiling rounds for fastest execution. Enabled by default in `config/pipeline_configs_strx.yaml`; the Medusa config does not set it, so pass `--image-only` explicitly. Use `--benchmark` to enable profiling instead. |
+| --image-only | flag | False | Generate images only without profiling (batch mode). Disables warmup and profiling rounds for fastest execution. Overrides `image_only` in the YAML. `--benchmark` takes precedence over `--image-only`. |
 | --timeout | int | 600 | Timeout in seconds for each run (default: 600) |
 | --model_id | list |  | Run only these model IDs (e.g. --model_id amd/stable-diffusion-1.5-amdnpu) |
 | --pipelines | list |  | Run specific pipelines by name (e.g. --pipelines sd_15 sd3_base) |
@@ -552,7 +608,7 @@ When running [scripts/run_pipelines.py](scripts/run_pipelines.py), the outputs a
 
 ### Generated Images
 
-Images by default can be found in `test/generated_images/`. Filenames include model name, resolution, number of steps, image index, and timestamp (e.g., `test/generated_images/stable-diffusion-v1-5_0_512x512_steps20_idx0_20251124_101132.png`).
+Images by default can be found in `test/generated_images/`. Filenames include model name, image index, run type, resolution, number of steps, prompt index, and timestamp (e.g., `test/generated_images/FLUX.1-schnell-amdnpu_img0_batch_1024x1024_steps4_prompt0_20261012_121816.png`).
 
 > **Note:** You can use the `--clean-images` flag to remove all existing images from the `generated_images` folder before running any pipelines. 
 
@@ -564,7 +620,7 @@ Results files can be found in `results/` directory (e.g., `results/pipeline_resu
 
 ### Log Files
 
-You can choose to save all lines printed to the console at runtime with the`--save-log` flag when running the main script. Log files are saved in the `results/` directory and contain the complete console output from all pipeline executions, including detailed progress messages, warnings, and debug information (eg., `results\pipeline_log_quick_20251124_102713.txt`).
+You can choose to save all lines printed to the console at runtime with the`--save-log` flag when running the main script. Log files are saved in the `results/` directory and contain the complete console output from all pipeline executions, including detailed progress messages, warnings, and debug information (e.g., `results\pipeline_log_quick_test_20251124_102713.txt`).
 
 ### Benchmark Files
 
@@ -579,8 +635,8 @@ python scripts/process_benchmark_results.py
 And you should get an output of CSV files (e.g., `benchmark_summary_20251124_104406.csv`) with an output similar to:
 
 ```csv
-Model Name,Resolution,Inference Steps,NPU Models Load Time (s),All Models Load Time (s),1st Gen Pipeline Time (s),Avg Pipeline Time (s),NPU Memory Usage (MB),Total Memory Usage (MB)
-SD 1.5 Pipeline,512x512,20,3.898902,3.899352,5.979673,5.978549,1527.36,4412.52
+Model Name,Resolution,Inference Steps,NPU Models Load Time (s),All Models Load Time (s),1st Gen Pipeline Time (s),Avg Pipeline Time (s),Seconds/Iter,NPU Memory Usage (MB),Total Memory Usage (MB)
+SD 1.5 Pipeline,512x512,20,3.898902,3.899352,5.979673,5.978549,0.298927,1527.36,4412.52
 ```
 
 [Back to Table of Contents](#-contents)

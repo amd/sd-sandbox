@@ -130,7 +130,6 @@ pipelines:
       num_inference_steps: 4
       guidance_scale: 0.0
       
-
   flux2_klein:
     name: "FLUX.2 Klein Pipeline"
     width: 1024
@@ -142,19 +141,32 @@ pipelines:
       guidance_scale: 0.0
 
   flux2_klein_i2i:
-    name: "Flux2_i2i"
+    name: "FLUX.2 Klein I2I Pipeline (1 image)"
     width: 1024
     height: 1024
     model_ids: ["amd/FLUX.2-klein-4B-amdnpu-medusa"]
-    prompt: "Put the main from img3 on the horse in img1"
+    prompt: "Make the overalls red"
+    args:
+      edit_image_path: ["flux2_img3.png"]
+      num_inference_steps: 4
+      guidance_scale: 0.0
+  
+  flux2_klein_i2i_2:
+    name: "FLUX.2 Klein I2I Pipeline (2 images)"
+    width: 1024
+    height: 1024
+    model_ids: ["amd/FLUX.2-klein-4B-amdnpu-medusa"]
+    prompt: "Put the man from img3 on the horse in img1"
     args:
       edit_image_path: ["flux2_img3.png", "flux2_img1.png"]
       num_inference_steps: 4
       guidance_scale: 0.0
 
 pipeline_groups:
-  i2i:
+  flux:
+    - flux2_klein
     - flux2_klein_i2i
+    - flux2_klein_i2i_2
 
   all:
     - sd_15

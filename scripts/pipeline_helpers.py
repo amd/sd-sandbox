@@ -384,6 +384,8 @@ def save_results(results: List[Dict[str, Any]], mode_str: str,
     # Determine filename suffix based on mode
     if mode_str == "IMAGE-ONLY":
         mode_suffix = "image_only"
+    elif mode_str == "MIXED":
+        mode_suffix = "mixed"
     elif benchmark_mode:
         mode_suffix = "benchmark"
     else:

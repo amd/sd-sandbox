@@ -21,7 +21,8 @@ defaults:
   # Streaming display settings
   streaming_output: true # Enable real-time output by default
   # Generate images only without profiling (batch mode). Disables warmup and profiling rounds.
-  image_only: true
+  # Can be overridden per pipeline with a top-level image_only key.
+  image_only: false
   # Execution provider settings
   execution:
     force_cpu: false  # Set to true to force CPU-only execution (disables DML)
@@ -257,5 +258,8 @@ pipeline_groups:
     - sd3_controlnet_canny
     - sd3_controlnet_inpainting
     - sd35_base
+    - flux1_schnell
+    - flux2_klein
+  flux:
     - flux1_schnell
     - flux2_klein

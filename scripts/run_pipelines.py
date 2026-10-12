@@ -40,8 +40,33 @@ CONFIG_DIR = WORKSPACE_ROOT / "config"
 # pr-231: removed subprocess env dict — pipelines now run in-process
 
 
+def resolve_image_only(args: argparse.Namespace, config_item: Dict[str, Any],
+                       config_defaults: Dict[str, Any]) -> bool:
+    """--benchmark > --image-only > per-pipeline image_only > defaults.image_only > False."""
+    if args.benchmark:
+        return False
+    if args.image_only:
+        return True
+    if 'image_only' in config_item:
+        return bool(config_item['image_only'])
+    return bool(config_defaults.get('image_only', False))
+
+
+def resolve_mode_str(args: argparse.Namespace, pipeline_configs: List[Dict[str, Any]],
+                     config_defaults: Dict[str, Any]) -> str:
+    if args.benchmark:
+        return "BENCHMARK"
+    image_only_flags = {resolve_image_only(args, c, config_defaults) for c in pipeline_configs}
+    if image_only_flags == {True}:
+        return "IMAGE-ONLY"
+    if image_only_flags == {False}:
+        return "QUICK TEST"
+    return "MIXED"
+
+
 def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, Path], 
-                     args: argparse.Namespace, config: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+                     args: argparse.Namespace, config: Dict[str, Any],
+                     mode_str: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """
     Execute all pipeline configurations and collect results.
     
@@ -78,12 +103,7 @@ def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, P
         # Setup execution providers for this specific pipeline
         setup_pipeline_execution_provider(config_item, args, config)
         
-        # Determine image_only: command-line > per-pipeline config > global defaults > False
-        image_only = args.image_only
-        if not image_only:
-            image_only = config_item.get('image_only', False)
-        if not image_only:
-            image_only = config_defaults.get('image_only', False)
+        image_only = resolve_image_only(args, config_item, config_defaults)
 
         for model_id in config_item["model_ids"]:
             result = run_pipeline(config_item, model_id, paths['test_path'], paths['source_path'],
@@ -105,8 +125,7 @@ def run_all_pipelines(pipeline_configs: List[Dict[str, Any]], paths: Dict[str, P
     
     # Save log file if log buffer has content
     if log_buffer:
-        mode_str = "BENCHMARK" if args.benchmark else "QUICK_TEST"
-        log_file_path = save_log_file(log_buffer, mode_str, WORKSPACE_ROOT)
+        log_file_path = save_log_file(log_buffer, mode_str.replace("-", "_"), WORKSPACE_ROOT)
     
     return all_results, log_file_path
 
@@ -230,18 +249,13 @@ def main():
         print(f"\n[Stats] Cleanup Summary: {removed_count} result file(s) removed")
     
     # Run pipelines
-    if args.image_only:
-        mode_str = "IMAGE-ONLY"
-    elif args.benchmark:
-        mode_str = "BENCHMARK"
-    else:
-        mode_str = "QUICK TEST"
+    mode_str = resolve_mode_str(args, pipeline_configs, config.get('defaults', {}))
     print(f"\n{'='*60}")
     print(f"Running {len(pipeline_configs)} pipelines in {mode_str} mode")
     print(f"{'='*60}")
     
     start_time = datetime.now()
-    all_results, log_file_path = run_all_pipelines(pipeline_configs, paths, args, config)
+    all_results, log_file_path = run_all_pipelines(pipeline_configs, paths, args, config, mode_str)
     
     # Calculate and handle summary/results
     total_duration = datetime.now() - start_time

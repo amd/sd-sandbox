@@ -436,9 +436,8 @@ def config_session_options(
         # DML must be registered before RyzenAI for fallback (e.g. NHWCConv on controlnet).
         # RyzenAI -> DML -> CPU can crash at runtime; DML -> RyzenAI -> CPU is stable.
         dd_path = Path(dd_model_path) if dd_model_path else None
-        # const_key must point at the dd/ folder so the custom op can locate the
-        # .fconst const-weight files; it is independent of low-memory optimization.
-        const_key = dd_path.as_posix() if dd_path else ""
+        # Custom op expects const_key only when shared const buffers are enabled.
+        const_key = dd_path.as_posix() if low_memory_optimized and dd_path else ""
         compile_fusion_rt = "1" if enable_dd_fusion_compile else "0"
         dd_cache = (dd_path / "cache").as_posix() if dd_path else ""
         available_execution_providers = onnxruntime.get_available_providers()
