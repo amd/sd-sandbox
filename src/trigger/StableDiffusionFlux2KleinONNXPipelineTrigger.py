@@ -56,7 +56,7 @@ class StableDiffusionFlux2KleinONNXPipelineTrigger(BaseOnnxPipelineTrigger):
             execution_providers=["DmlExecutionProvider", "CPUExecutionProvider"],
         )
         npu_platform = getattr(args, "npu_platform", "unknown")
-        if npu_platform == "mds" and False:
+        if npu_platform == "mds":
             try:
                 self.text_encoder = load_model(
                     ModelLoadConfig(
