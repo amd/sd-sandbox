@@ -211,6 +211,7 @@ class CLIPTokenizerLoader:
         logger.info("Loading CLIPTokenizer %s ... ", model_name)
         try:
             tokenizer = CLIPTokenizer.from_pretrained(tokenizer_path)
+        # ValueError("...%s", path) never interpolated the path; same fix applies to every loader below.
         except OSError as exc:
             raise ValueError(
                 f"Can't find CLIPTokenizer files in '{tokenizer_path}'. "

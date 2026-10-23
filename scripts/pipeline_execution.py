@@ -19,6 +19,18 @@ from typing import Dict, List, Optional, Any, Callable, Tuple
 # Project root so we can resolve test/run.py
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+# Windows native crash codes seen when the Ryzen-AI 1.9.0 / onnxruntime NPU
+# runtime faults on a background thread during teardown, *after* the pipeline
+# has finished and saved its output. These surface as the subprocess exit code
+# even though all deliverables are on disk. Treated as benign only when the
+# worker also emitted its image-saved success signal (see run_pipeline).
+#   3221226505 = 0xC0000409 STATUS_STACK_BUFFER_OVERRUN
+#   3221225477 = 0xC0000005 STATUS_ACCESS_VIOLATION
+_BENIGN_TEARDOWN_EXIT_CODES = {3221226505, 3221225477}
+
+# Substring logged by base_runner.save_images once an image is written to disk.
+_IMAGE_SAVED_MARKER = "[Image saved]"
+
 from pipeline_helpers import (
     extract_arg_value, get_dimension_value, create_result_dict
 )
@@ -262,11 +274,15 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str,
         # Stream output line by line
         timing_lines = []
         in_summary = False
+        image_saved = False
         for line in process.stdout:
             line = line.rstrip('\n')
             print(f"  {line}")
             if log_buffer is not None:
                 log_buffer.append(line)
+            # Track the worker's own success signal: an image was written.
+            if _IMAGE_SAVED_MARKER in line:
+                image_saved = True
             # Capture the per-component summary tables and their totals in full.
             # A summary block starts at its banner and ends on a pure '=' rule line.
             stripped = line.strip()
@@ -284,11 +300,30 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str,
         process.wait(timeout=timeout)
         duration = time.time() - start_time
 
-        if process.returncode == 0:
+        # A benign native teardown crash (Ryzen-AI/onnxruntime faulting on a
+        # background thread at process exit) can set a nonzero return code even
+        # though the pipeline finished and saved its image. Don't fail the run
+        # for that -- the deliverable exists and the work completed.
+        benign_teardown_crash = (
+            process.returncode != 0
+            and image_saved
+            and process.returncode in _BENIGN_TEARDOWN_EXIT_CODES
+        )
+
+        if process.returncode == 0 or benign_teardown_crash:
+            warning = ""
+            if benign_teardown_crash:
+                warning = (
+                    f"[WARNING] Pipeline completed and image saved, but the worker "
+                    f"process crashed during teardown (exit code {process.returncode}, "
+                    f"known benign Ryzen-AI/onnxruntime NPU cleanup fault). "
+                    f"Treating run as successful."
+                )
+                print(f"  {warning}")
             return create_result_dict(
                 script_name="run.py", model_id=model_id,
                 pipeline_name=pipeline_name, success=True,
-                duration=duration, timing_lines=timing_lines,
+                duration=duration, error=warning, timing_lines=timing_lines,
                 resolution=resolution,
                 num_inference_steps=num_inference_steps,
                 model_path=model_path)

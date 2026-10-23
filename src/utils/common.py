@@ -89,6 +89,7 @@ def _configure_external_loggers():
         "huggingface_hub",
         "huggingface_hub.file_download",
         "transformers.modeling_utils",
+        # Model downloads otherwise flood verbose runs with per-request DEBUG lines.
         "filelock",
         "urllib3",
         "urllib3.connectionpool",
@@ -157,6 +158,7 @@ def download_model_from_huggingface(model_id: str, force_download: bool = False,
         if models_root is not None:
             cache_dir = Path(models_root)
         else:
+            # get_absolute_path raises if models/ doesn't exist yet, which breaks the first download.
             cache_dir = Path(resolve_project_path("models"))
         cache_dir.mkdir(parents=True, exist_ok=True)
 

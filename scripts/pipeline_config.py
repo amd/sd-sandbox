@@ -5,11 +5,31 @@ Handles YAML configuration loading, argument processing, pipeline selection,
 and prompt management from files, command line, and configuration.
 """
 
+import os
 import sys
 import yaml
 import argparse
+import importlib.util
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
+
+_PLATFORM_CONFIGS = {
+    "stx": "pipeline_configs_strx.yaml",
+    "mds": "pipeline_configs_medusa.yaml",
+}
+
+
+def default_config_name(workspace_root: Optional[Path] = None) -> str:
+    """Config file for the NPU platform: NPU_PLATFORM env, then xrt-smi, else Strix."""
+    platform = (os.environ.get("NPU_PLATFORM") or "").strip().lower()
+    if platform not in _PLATFORM_CONFIGS:
+        # Load by path: importing src.utils pulls in torch/onnxruntime.
+        root = Path(workspace_root) if workspace_root else Path(__file__).resolve().parent.parent
+        spec = importlib.util.spec_from_file_location("_npu_platform", root / "src" / "utils" / "npu_platform.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        platform = module.detect_npu_platform()
+    return _PLATFORM_CONFIGS.get(platform, _PLATFORM_CONFIGS["stx"])
 
 
 def load_config(config_file: Optional[str] = None, config_dir: Optional[Path] = None, workspace_root: Optional[Path] = None) -> Tuple[Dict[str, Any], Dict[str, Path]]:
@@ -18,7 +38,8 @@ def load_config(config_file: Optional[str] = None, config_dir: Optional[Path] = 
     
     Args:
         config_file (str, optional): Path to custom configuration file. 
-                                   If None, uses default 'pipeline_configs_strx.yaml'
+                                   If None, picks pipeline_configs_<platform>.yaml from NPU_PLATFORM
+                                   or xrt-smi, falling back to 'pipeline_configs_strx.yaml'
         config_dir (Path): Path to config directory
         workspace_root (Path): Path to workspace root
     
@@ -36,7 +57,7 @@ def load_config(config_file: Optional[str] = None, config_dir: Optional[Path] = 
     else:
         if not config_dir:
             raise ValueError("config_dir must be provided")
-        config_path = config_dir / "pipeline_configs_strx.yaml"
+        config_path = config_dir / default_config_name(workspace_root)
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
     

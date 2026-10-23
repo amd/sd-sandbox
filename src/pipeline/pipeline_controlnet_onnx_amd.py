@@ -70,14 +70,14 @@ logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 EXAMPLE_DOC_STRING = """
     Examples:
         ```py
-        >>> # !pip install opencv-python transformers accelerate
+        >>> # !pip install transformers accelerate
         >>> from diffusers import StableDiffusionControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
         >>> from diffusers.utils import load_image
         >>> import numpy as np
         >>> import torch
 
-        >>> import cv2
         >>> from PIL import Image
+        >>> from src.utils.canny import canny_edges
 
         >>> # download an image
         >>> image = load_image(
@@ -86,7 +86,7 @@ EXAMPLE_DOC_STRING = """
         >>> image = np.array(image)
 
         >>> # get canny image
-        >>> image = cv2.Canny(image, 100, 200)
+        >>> image = canny_edges(image, 100, 200)
         >>> image = image[:, :, None]
         >>> image = np.concatenate([image, image, image], axis=2)
         >>> canny_image = Image.fromarray(image)

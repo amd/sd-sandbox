@@ -9,7 +9,6 @@ import torch
 import importlib
 import logging as Logger
 
-import cv2
 import numpy as np
 from diffusers.utils import load_image
 from PIL import Image
@@ -17,6 +16,7 @@ from transformers import CLIPTokenizer, CLIPTextModel, CLIPImageProcessor
 
 from src.pipeline import StableDiffusionControlNetONNXPipelineAMD
 from src.utils import common
+from src.utils.canny import canny_edges
 from src.utils.model_loader import ModelLoadConfig, ModelType, load_model
 from src.trigger.base_trigger import BaseOnnxPipelineTrigger
 
@@ -132,7 +132,7 @@ class StableDiffusionControlnetONNXPipelineTrigger(BaseOnnxPipelineTrigger):
         """Moved from runner — canny preprocessing belongs with the controlnet trigger."""
         try:
             image = np.array(load_image(image_path))
-            image = cv2.Canny(image, low_threshold, high_threshold)
+            image = canny_edges(image, low_threshold, high_threshold)
             image = np.concatenate([image[:, :, None]] * 3, axis=2)
             return Image.fromarray(image)
         except Exception as exc:

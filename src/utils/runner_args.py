@@ -316,6 +316,8 @@ def _resolve_npu_platform(args) -> str:
     never calls ``input()`` and never ``sys.exit()``, so an orchestrated
     subprocess can neither hang on a prompt nor be killed by a mismatch.
     """
+    # Detection failures or a model/hardware mismatch used to exit or block on a Y/N
+    # prompt, which kills or hangs orchestrated runs; env override covers a bad xrt-smi.
     model_id = getattr(args, "model_id", None) or ""
     model_name = model_id.rsplit("/", 1)[-1]
     inferred = "mds" if model_name.lower().endswith("-medusa") else "stx"
@@ -529,6 +531,7 @@ def check_args(args):
     if npu_platform == "mds" or is_sd3_model or is_flux_model:
         dd_subpath = get_dd_plugins_subpath(npu_platform)
         if not os.environ.get("DD_PLUGINS_ROOT"):
+            # get_absolute_path raises FileNotFoundError first, hiding the clearer EnvironmentError below.
             os.environ["DD_PLUGINS_ROOT"] = resolve_project_path(dd_subpath)
             Logger.info(
                 "NPU platform=%s, DD_PLUGINS_ROOT auto-set to %s",
