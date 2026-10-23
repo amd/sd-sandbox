@@ -163,7 +163,7 @@ def main():
     parser.add_argument("--no-summary", action="store_true",
                        help="Skip printing the detailed summary report and skip saving results to disk")
     parser.add_argument("--config", type=str,
-                       help="Path to custom YAML configuration file (default: config/pipeline_configs_strx.yaml; use config/pipeline_configs_medusa.yaml for Medusa)")
+                       help="Path to custom YAML configuration file (default: config/pipeline_configs_strx.yaml; use config/pipeline_configs_mds.yaml for MDS)")
     parser.add_argument("--clean-images", action="store_true",
                        help="Remove all existing images and Excel files from generated_images folder before running pipelines")
     parser.add_argument("--clean-results", action="store_true",
