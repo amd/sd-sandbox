@@ -1,6 +1,6 @@
-#
-# Copyright (C) 2026 Advanced Micro Devices, Inc.  All rights reserved.
-#
+# Copyright(C) 2026 Advanced Micro Devices, Inc. All rights reserved.
+# SPDX-License-Identifier: MIT
+
 # Re-export runner helpers for backward compatibility.
 
 from src.runner import (

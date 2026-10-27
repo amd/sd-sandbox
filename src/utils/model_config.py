@@ -1,4 +1,6 @@
-# Copyright (C) 2026 Advanced Micro Devices, Inc.  All rights reserved.
+# Copyright(C) 2026 Advanced Micro Devices, Inc. All rights reserved.
+# SPDX-License-Identifier: MIT
+
 """
 GenAI-SD configuration: inference defaults, runner ``model_id`` profiles, SD3 / SD3.5 ControlNet CLI.
 

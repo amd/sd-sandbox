@@ -1,4 +1,6 @@
-# Copyright (C) 2026 Advanced Micro Devices, Inc.  All rights reserved.
+# Copyright(C) 2026 Advanced Micro Devices, Inc. All rights reserved.
+# SPDX-License-Identifier: MIT
+
 """Model-specific ONNX pipeline implementations."""
 
 from .pipeline_flux_onnx_amd import OnnxFluxPipelineAMD

@@ -1,6 +1,5 @@
-#
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
-#
+# Copyright(C) 2026 Advanced Micro Devices, Inc. All rights reserved.
+# SPDX-License-Identifier: MIT
 
 """
 Sync-check test: VALID_ARGS (config_validator.py) vs runner_args.py parser.

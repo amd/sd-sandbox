@@ -1,4 +1,6 @@
-# Copyright (C) 2026 Advanced Micro Devices, Inc.  All rights reserved.
+# Copyright(C) 2026 Advanced Micro Devices, Inc. All rights reserved.
+# SPDX-License-Identifier: MIT
+
 from .base_trigger import BaseOnnxPipelineTrigger
 from .StableDiffusionONNXPipelineTrigger import StableDiffusionONNXPipelineAMDTrigger
 from .StableDiffusionXLONNXPipelineTrigger import StableDiffusionXLONNXPipelineAMDTrigger

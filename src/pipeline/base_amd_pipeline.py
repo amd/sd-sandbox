@@ -1,4 +1,5 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
+# Copyright(C) 2026 Advanced Micro Devices, Inc. All rights reserved.
+# SPDX-License-Identifier: MIT
 # pr-231: new file -- mixin providing properties and utility methods shared across all AMD ONNX pipelines
 
 import functools

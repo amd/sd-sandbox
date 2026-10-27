@@ -1,6 +1,5 @@
-#
-# Copyright (C) 2025 Advanced Micro Devices, Inc.  All rights reserved.
-#
+# Copyright(C) 2026 Advanced Micro Devices, Inc. All rights reserved.
+# SPDX-License-Identifier: MIT
 
 import torch
 from torchmetrics.functional.multimodal import clip_score

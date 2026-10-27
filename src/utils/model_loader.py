@@ -1,4 +1,6 @@
-# Copyright (C) 2026 Advanced Micro Devices, Inc.  All rights reserved.
+# Copyright(C) 2026 Advanced Micro Devices, Inc. All rights reserved.
+# SPDX-License-Identifier: MIT
+
 """Unified model loading: single entry ``load_model`` + ONNX / T5 NPU loaders."""
 
 from __future__ import annotations
