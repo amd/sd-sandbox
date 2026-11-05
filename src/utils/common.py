@@ -350,6 +350,23 @@ def register_ep(ep_dll: Path) -> None:
     _EP_REGISTERED = True
 
 
+def unregister_ep() -> None:
+    """Unregister the RyzenAI EP, idempotently.
+
+    Must be called after every ORT session using the EP has been released
+    (and ideally garbage-collected). Without this, process exit can race the
+    AMD graphics user-mode driver's unload ordering and crash with
+    0xC0000409, even though all sessions were already released cleanly.
+    """
+    global _EP_REGISTERED
+    if not _EP_REGISTERED:
+        return
+    try:
+        onnxruntime.unregister_execution_provider_library(EP_NAME)
+    finally:
+        _EP_REGISTERED = False
+
+
 def get_total_physical_memory_gb() -> float:
     """Get the total physical memory of the system (GiB) using the Windows GlobalMemoryStatusEx API."""
     kernel32 = ctypes.windll.kernel32

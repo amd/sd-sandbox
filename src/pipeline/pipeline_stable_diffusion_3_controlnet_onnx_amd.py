@@ -33,7 +33,10 @@ from transformers import (
 
 from diffusers.image_processor import PipelineImageInput, VaeImageProcessor
 from diffusers.loaders import FromSingleFileMixin, SD3LoraLoaderMixin
-from diffusers.models.controlnet_sd3 import  SD3MultiControlNetModel
+try:
+    from diffusers.models.controlnet_sd3 import SD3MultiControlNetModel
+except ModuleNotFoundError:
+    from diffusers.models.controlnets.controlnet_sd3 import SD3MultiControlNetModel
 from diffusers.schedulers import FlowMatchEulerDiscreteScheduler
 from diffusers.utils import (
     is_torch_xla_available,

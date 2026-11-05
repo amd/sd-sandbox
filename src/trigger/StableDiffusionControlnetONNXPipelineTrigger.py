@@ -123,6 +123,12 @@ class StableDiffusionControlnetONNXPipelineTrigger(BaseOnnxPipelineTrigger):
         import gc
 
         gc.collect()
+        # bugcase 48820: must run after every ORT session using the
+        # dynamically-registered RyzenAI EP has been released and collected
+        # above -- otherwise process-exit EP/driver unload ordering races
+        # the AMD graphics UMD and crashes with 0xC0000409/0xC0000005 even
+        # though all sessions were already released cleanly.
+        common.unregister_ep()
         Logger.debug(
             "Models in StableDiffusionControlnetONNXPipelineTrigger are released"
         )

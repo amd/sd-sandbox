@@ -2,6 +2,8 @@
 # Copyright (C) 2026 Advanced Micro Devices, Inc.  All rights reserved.
 #
 
+import glob
+import json
 import logging as Logger
 import os
 from typing import List, Optional
@@ -133,6 +135,28 @@ class StableDiffusionFlux2KleinONNXPipelineTrigger(BaseOnnxPipelineTrigger):
             self.load_metrics_collector,
         )
 
+        self.vae_encoder_shapes = None
+        self.vae_decoder_shapes = None
+        if is_dynamic:
+            self.vae_encoder_shapes = self._load_dd_shapes(os.path.join(root_model_path, "vae_encoder"))
+            self.vae_decoder_shapes = self._load_dd_shapes(os.path.join(root_model_path, "vae_decoder"))
+            Logger.info("vae_encoder DD shapes (h, w): %s", self.vae_encoder_shapes)
+            Logger.info("vae_decoder DD shapes (h, w): %s", self.vae_decoder_shapes)
+
+    @staticmethod
+    def _load_dd_shapes(model_dir: str) -> Optional[List[tuple]]:
+        """Pixel (height, width) shapes from the DD cache meta ``dynamic_shape_list`` of a VAE model."""
+        meta_files = glob.glob(os.path.join(model_dir, "**", "dd", "cache", "*_meta.json"), recursive=True)
+        for meta_file in meta_files:
+            with open(meta_file, "r", encoding="utf-8") as f:
+                shape_list = json.load(f).get("dynamic_shape_list")
+            if shape_list:
+                return [
+                    (s["height"], s["width"]) if "height" in s else (s["latent_h"] * 8, s["latent_w"] * 8)
+                    for s in shape_list
+                ]
+        return None
+
     def __enter__(self):
         return self
 
@@ -145,6 +169,12 @@ class StableDiffusionFlux2KleinONNXPipelineTrigger(BaseOnnxPipelineTrigger):
         import gc
 
         gc.collect()
+        # Only after every ORT session using the dynamically-registered RyzenAI
+        # EP has been released and collected is it safe to unregister it.
+        # Skipping this leaves process-exit EP/driver unload ordering to race
+        # the AMD graphics UMD and crash with 0xC0000409 even though all
+        # sessions were released cleanly.
+        common.unregister_ep()
 
     def run(self, args, prompt, shape):
         height, width = shape.height, shape.width
@@ -164,6 +194,8 @@ class StableDiffusionFlux2KleinONNXPipelineTrigger(BaseOnnxPipelineTrigger):
             bn_running_mean=self.bn_running_mean,
             bn_running_var=self.bn_running_var,
             is_distilled=self.is_distilled,
+            vae_encoder_shapes=self.vae_encoder_shapes,
+            vae_decoder_shapes=self.vae_decoder_shapes,
         )
 
         common.print_config(

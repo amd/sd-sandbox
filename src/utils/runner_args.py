@@ -22,7 +22,7 @@ from .npu_platform import detect_npu_platform, get_dd_plugins_subpath
 _LIB_DIR_HINT = (
     "The 'lib' directory is missing from the sd-sandbox project root.\n"
     "Copy it from your Ryzen AI installation, e.g.:\n"
-    r'  Copy-Item "C:\Program Files\RyzenAI\1.8.0\GenAI-SD\lib" "<sd-sandbox_dir>\lib" -Recurse' "\n"
+    r'  Copy-Item "C:\Program Files\RyzenAI\1.9.0\GenAI-SD\lib" "<sd-sandbox_dir>\lib" -Recurse' "\n"
     "If Ryzen AI was installed to a different location, copy the 'lib' directory "
     "from '<RyzenAI_install_dir>\\GenAI-SD\\lib' instead."
 )

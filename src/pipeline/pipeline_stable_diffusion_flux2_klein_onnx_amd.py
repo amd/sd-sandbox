@@ -187,8 +187,13 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
         bn_running_var: torch.Tensor = None,
         bn_running_mean: torch.Tensor = None,
         is_distilled: bool = False,
+        vae_encoder_shapes: list[tuple[int, int]] | None = None,
+        vae_decoder_shapes: list[tuple[int, int]] | None = None,
     ):
         super().__init__()
+        # (height, width) pixel shapes each VAE accepts; None means no shape constraint.
+        self.vae_encoder_shapes = vae_encoder_shapes
+        self.vae_decoder_shapes = vae_decoder_shapes
 
         self.register_modules(
             vae_encoder=vae_encoder,
@@ -221,6 +226,21 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
         self.image_processor = Flux2ImageProcessor(vae_scale_factor=self.vae_scale_factor * 2)
         self.tokenizer_max_length = 256
         self.default_sample_size = 128
+
+    def _fit_vae_size(
+        self, width: int, height: int, shapes: list[tuple[int, int]] | None, max_area: int = 1024 * 1024
+    ) -> tuple[int, int]:
+        """Largest (width, height) with the given aspect ratio that is covered by one of `shapes`."""
+        multiple_of = self.vae_scale_factor * 2
+        ratio = max(width, height) / min(width, height)
+        scale = min(1.0, math.sqrt(max_area / (width * height)))
+        start = int(max(width, height) * scale) // multiple_of * multiple_of
+        for long_side in range(start, multiple_of - 1, -multiple_of):
+            short_side = max(multiple_of, round(long_side / ratio / multiple_of) * multiple_of)
+            w, h = (long_side, short_side) if width >= height else (short_side, long_side)
+            if w * h <= max_area and (shapes is None or any(h <= sh and w <= sw for sh, sw in shapes)):
+                return w, h
+        raise ValueError(f"No supported VAE size for {width}x{height}")
 
     @staticmethod
     def _onnx_type_str_to_numpy_type(onnx_type_str: str):
@@ -817,24 +837,22 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
             image = [image]
 
         condition_images = None
+        output_size = None
         if image is not None:
             for img in image:
                 self.image_processor.check_image_input(img)
 
             condition_images = []
             for img in image:
-                image_width, image_height = img.size
-                if image_width * image_height > 1024 * 1024:
-                    img = self.image_processor._resize_to_target_area(img, 1024 * 1024)
-                    image_width, image_height = img.size
-
-                multiple_of = self.vae_scale_factor * 2
-                image_width = (image_width // multiple_of) * multiple_of
-                image_height = (image_height // multiple_of) * multiple_of
-                img = self.image_processor.preprocess(img, height=image_height, width=image_width, resize_mode="crop")
+                image_width, image_height = self._fit_vae_size(*img.size, self.vae_encoder_shapes)
+                logger.info("VAE encoder size %sx%s, edit image size %sx%s", image_width, image_height, *img.size)
+                img = self.image_processor.preprocess(img, height=image_height, width=image_width)
                 condition_images.append(img)
-                height = height or image_height
-                width = width or image_width
+
+            # Denoise/decode at a VAE-decoder-supported size with the output aspect ratio, then resize to (height, width).
+            output_size = (height or image[0].height, width or image[0].width)
+            width, height = self._fit_vae_size(output_size[1], output_size[0], self.vae_decoder_shapes)
+            logger.info("VAE decoder size %sx%s, output size %sx%s", width, height, output_size[1], output_size[0])
 
         height = height or self.default_sample_size * self.vae_scale_factor
         width = width or self.default_sample_size * self.vae_scale_factor
@@ -976,6 +994,8 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
             self._record_timing(self.vae_decoder, time.perf_counter() - t0)
 
             image = torch.tensor(image)
+            if output_size is not None and image.shape[-2:] != output_size:
+                image = nn.functional.interpolate(image.float(), size=output_size, mode="bicubic", antialias=True)
             image = self.image_processor.postprocess(image, output_type=output_type)
 
         # Offload all models

@@ -167,12 +167,12 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger(BaseOnnxPipelineT
                 self.load_metrics_collector,
             )
         except Exception as e:
-            Logger.warning(f"Failed to load text_encoder_3_gptq_v2, using text_encoder_3 instead: {e}")
+            Logger.warning(f"Failed to load text_encoder_3_gptq_v2, using text_encoder_3_int4 instead: {e}")
             self.text_encoder_3 = load_model(
                 ModelLoadConfig(
-                    model_path=os.path.join(abs_common_model_path, "text_encoder_3"),
+                    model_path=os.path.join(abs_common_model_path, "text_encoder_3_int4"),
                     model_type=ModelType.ONNX_MODEL,
-                    execution_providers=self.execution_providers,
+                    execution_providers=["DmlExecutionProvider", "CPUExecutionProvider"],
                 ),
                 self.load_metrics_collector,
             )

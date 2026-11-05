@@ -15,7 +15,7 @@ from typing import Dict, List, Tuple, Optional, Any
 
 _PLATFORM_CONFIGS = {
     "stx": "pipeline_configs_strx.yaml",
-    "mds": "pipeline_configs_medusa.yaml",
+    "mds": "pipeline_configs_mds.yaml",
 }
 
 

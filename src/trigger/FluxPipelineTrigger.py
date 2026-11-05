@@ -76,14 +76,27 @@ class FluxPipelineTrigger(BaseOnnxPipelineTrigger):
                 self.load_metrics_collector,
             )
         else:
-            self.text_encoder_2 = load_model(
-                ModelLoadConfig(
-                    model_path=os.path.join(root_model_path, "text_encoder_3_gptq_v2"),
-                    model_type=ModelType.T5_NPU_MODEL,
-                    execution_providers=self.execution_providers,
-                ),
-                self.load_metrics_collector,
-            )
+            try:
+                self.text_encoder_2 = load_model(
+                    ModelLoadConfig(
+                        model_path=os.path.join(root_model_path, "text_encoder_3_gptq_v2"),
+                        model_type=ModelType.T5_NPU_MODEL,
+                        execution_providers=self.execution_providers,
+                    ),
+                    self.load_metrics_collector,
+                )
+            except Exception as e:
+                Logger.warning(
+                    f"Failed to load text_encoder_3_gptq_v2, using text_encoder_3_int4 instead: {e}"
+                )
+                self.text_encoder_2 = load_model(
+                    ModelLoadConfig(
+                        model_path=os.path.join(root_model_path, "text_encoder_3_int4"),
+                        model_type=ModelType.ONNX_MODEL,
+                        execution_providers=["DmlExecutionProvider", "CPUExecutionProvider"],
+                    ),
+                    self.load_metrics_collector,
+                )
 
         self.vae_decoder = load_model(
             ModelLoadConfig(
@@ -127,6 +140,12 @@ class FluxPipelineTrigger(BaseOnnxPipelineTrigger):
         del self.vae_decoder.model
         import gc
         gc.collect()
+        # bugcase 48820: must run after every ORT session using the
+        # dynamically-registered RyzenAI EP has been released and collected
+        # above -- otherwise process-exit EP/driver unload ordering races
+        # the AMD graphics UMD and crashes with 0xC0000409/0xC0000005 even
+        # though all sessions were already released cleanly.
+        common.unregister_ep()
         Logger.debug("Models in FluxPipelineTrigger are released")
 
     # pr-231: Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate

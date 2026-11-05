@@ -209,6 +209,65 @@ class BaseOnnxPipelineTrigger(ABC):
             self.profiling_rounds = args.profiling_rounds
 
     # ------------------------------------------------------------------
+    # Teardown (context-manager protocol; see base_runner.py's `with trigger_ctx:`)
+    # ------------------------------------------------------------------
+    #
+    # bugcase 48820: the RyzenAI ORT execution-provider DLL is dynamically
+    # registered (common.register_ep(), triggered by model_loader.py on any
+    # NPU model load) but was never unregistered before process exit. At
+    # teardown, ORT/driver unload ordering for that EP races the AMD
+    # graphics UMD's own unload sequence and crashes the host process
+    # natively (0xC0000409 STATUS_STACK_BUFFER_OVERRUN, sometimes 0xC0000005
+    # STATUS_ACCESS_VIOLATION) -- *after* inference and image-save have
+    # already completed successfully. Defining __enter__/__exit__ here means
+    # every trigger gets the fix even if it never overrides them; triggers
+    # that do override __exit__ for extra cleanup must still end with a call
+    # to common.unregister_ep() (see e.g. StableDiffusionControlnetONNXPipelineTrigger).
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        self._release_models()
+        import gc
+
+        gc.collect()
+        # Only after every ORT session using the dynamically-registered
+        # RyzenAI EP has been released and collected is it safe to
+        # unregister it. Skipping this leaves process-exit EP/driver unload
+        # ordering to race the AMD graphics UMD and crash with 0xC0000409
+        # even though all sessions were already released cleanly.
+        common.unregister_ep()
+        return False
+
+    def _release_models(self) -> None:
+        """Drop references to every loaded model/session attribute.
+
+        Generic by design so new triggers (and the ones that never had a
+        custom ``__exit__``) get correct cleanup for free: walks every
+        instance attribute set by ``__init__``, drops the inner ``.model``
+        reference on model_loader wrapper objects (the shape used by
+        unet/transformer/vae_decoder/controlnet/ONNX text encoders/etc.),
+        then clears the attribute itself so nothing in this trigger keeps
+        the underlying ORT session (and the RyzenAI EP handle it holds)
+        alive past this point. Subclasses with extra per-run state can
+        override this -- call ``super()._release_models()`` first.
+        """
+        skip = {
+            "pipeline_metrics", "load_metrics_collector", "execution_providers",
+            "model_id", "enable_profile", "profiling_rounds",
+        }
+        for name, value in list(vars(self).items()):
+            if name in skip or value is None:
+                continue
+            if hasattr(value, "model"):
+                try:
+                    delattr(value, "model")
+                except AttributeError:
+                    pass
+            setattr(self, name, None)
+
+    # ------------------------------------------------------------------
     # Template method (invoked by subclass via super().run())
     # ------------------------------------------------------------------
 

@@ -128,9 +128,9 @@ class StableDiffusion3PipelineTrigger(BaseOnnxPipelineTrigger):
                 )
                 self.text_encoder_3 = load_model(
                     ModelLoadConfig(
-                        model_path=os.path.join(abs_common_model_path, "text_encoder_3"),
+                        model_path=os.path.join(abs_common_model_path, "text_encoder_3_int4"),
                         model_type=ModelType.ONNX_MODEL,
-                        execution_providers=self.execution_providers,
+                        execution_providers=["DmlExecutionProvider", "CPUExecutionProvider"],
                     ),
                     self.load_metrics_collector,
                 )
@@ -264,6 +264,12 @@ class StableDiffusion3PipelineTrigger(BaseOnnxPipelineTrigger):
             del self.tea_caching_model.model
         import gc
         gc.collect()
+        # bugcase 48820: must run after every ORT session using the
+        # dynamically-registered RyzenAI EP has been released and collected
+        # above -- otherwise process-exit EP/driver unload ordering races
+        # the AMD graphics UMD and crashes with 0xC0000409/0xC0000005 even
+        # though all sessions were already released cleanly.
+        common.unregister_ep()
         Logger.debug("Models in StableDiffusion3PipelineTrigger are released")
 
     # pr-231: Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
