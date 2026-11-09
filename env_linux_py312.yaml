@@ -17,7 +17,7 @@ dependencies:
   - icu=75.1
   - identify=2.6.14=pyhd8ed1ab_0
   - krb5=1.21.3
-  - libabseil=20250512.1
+  - libabseil=20260107.0
   - libblas=3.9.0
   - libboost=1.85.0
   - libboost-devel=1.85.0
@@ -33,8 +33,8 @@ dependencies:
   - liblapack=3.9.0
   - liblzma=5.8.1
   - liblzma-devel=5.8.1
-  - libprotobuf=6.31.1
-  - libprotobuf-static=6.31.1
+  - libprotobuf=6.33.5
+  - libprotobuf-static=6.33.5
   - libsqlite=3.50.4
   - libssh2=1.11.1
   - libuv=1.51.0
@@ -49,7 +49,7 @@ dependencies:
   - pip=25.2=pyh8b19718_0
   - platformdirs=4.4.0=pyhcf101f3_0
   - pre-commit=4.3.0=pyha770c72_0
-  - protobuf=6.31.1
+  - protobuf=6.33.5
   - pycparser=2.22=pyh29332c3_1
   - pyproject_hooks=1.2.0=pyhd8ed1ab_1
   - python=3.12.11
@@ -118,7 +118,6 @@ dependencies:
       - onnx==1.21.0
       - onnx-tool==0.9.0
       - onnxruntime==1.24.3
-      - opencv-python==4.11.0.86
       - openpyxl==3.1.5
       - optimum==1.24.0
       - packaging==24.1

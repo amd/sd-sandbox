@@ -34,6 +34,7 @@ models using `onnx_utils` on **Windows 11**.
   - [SD3 / SD3.5 OutPainting / Removal / InPainting](#sd3--sd35-outpainting--removal--inpainting)
   - [SD3 / SD3.5 Dynamic Shape](#sd3--sd35-dynamic-shape)
   - [FLUX.1-schnell](#flux1-schnell)
+  - [FLUX.2 Klein](#flux2-klein)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -115,7 +116,11 @@ onnx_utils --version
 3. For dynamic shape models, set the DD plugin environment variable:
 
 ```bash
+# Strix/Krackan
 set DD_PLUGINS_ROOT=.\lib\transaction\stx
+
+# Medusa
+set DD_PLUGINS_ROOT=.\lib\transaction\mds
 ```
 
 ---
@@ -267,7 +272,7 @@ optimization profile matching the model architecture.
 | `sd15_unet` | SD 1.5 / SD 2.1 UNet |
 | `sd15_controlnet` | SD 1.5 ControlNet |
 | `vae` | VAE decoder (all models) |
-| `sdxl_unet` | SDXL UNet |
+| `sd15_unet` | SDXL UNet |
 | `mmdit` | SD3 / SD3.5 MM-DiT transformer |
 | `flux1` | FLUX.1-schnell DiT transformer |
 | `flux2` | FLUX.2-klein DiT transformer |
@@ -300,17 +305,28 @@ onnx_utils partition "optimized.onnx" "dd/" sd3_mmdit_bfp.yaml -v --force
 # NOT: config/partition_strategies/sd3_mmdit_bfp.yaml
 ```
 
+### Strix / Krackan
+
 | Filename | Used for |
-|---------|---------|
-| `sd15_unet_bfp.yaml` | SD 1.5 / SD-Turbo / SD 2.1 UNet (BFP16) |
-| `sd15_unet_bfp_preempt.yaml` | SD 1.5 UNet with preemptive scheduling |
-| `sd15_vae_decoder.yaml` | SD 1.5 / SDXL VAE decoder |
-| `sdxl_turbo_bfp_unet.yaml` | SDXL / SDXL-turbo / Segmind-Vega UNet (BFP16) |
-| `sdxl_turbo_bfp_vae_decoder.yaml` | SDXL VAE decoder (BFP16) |
+|----------|----------|
+| `sd15_unet_bfp.yaml` | SD 1.5 / SD-Turbo / SD 2.1 UNet (BFP16) / SDXL-family UNet (BFP16)|
+| `sd15_vae_decoder.yaml` | SD 1.5 / SD-Turbo / SD 2.1 / SDXL-family VAE decoder / encoder(BFloat16) |
 | `sd3_mmdit_bfp.yaml` | SD3 / SD3.5 MM-DiT transformer (BFP16) |
-| `sd3_vae.yaml` | SD3 / SD3.5 / FLUX VAE decoder |
+| `sd3_vae.yaml` | SD3 / SD3.5 / FLUX VAE decoder / encoder(BFloat16) |
 | `flux_transformer_bfp.yaml` | FLUX.1-schnell transformer (BFP16) |
-| `flux2_transformer_bfp.yaml` | FLUX.2-klein transformer (BFP16) |
+| `flux2_transformer_bfp.yaml` | FLUX.2 Klein transformer (BFP16) |
+
+### Medusa
+
+| Filename | Used for |
+|----------|----------|
+| `procyon_sd15_unet_bfp.yaml` | SD 1.5 UNet (MXINT8) |
+| `sd15_unet_bfp_aie4.yaml` | SDXL-family UNet (MXINT8) |
+| `sd15_vae_decoder_bfp.yaml` | SDXL-family VAE decoder / encoder (MXINT8) |
+| `sd3_mmdit_bfp_aie4.yaml` | SD3.5 MM-DiT transformer (MXINT8) |
+| `sd3_vae_bfp.yaml` | SD 1.5 / SD3.5 / FLUX VAE decoder / encoder (MXINT8) |
+| `flux_transformer_bfp_aie4.yaml` | FLUX.1-schnell transformer (MXINT8) |
+| `flux2_transformer_bfp_aie4.yaml` | FLUX.2 Klein transformer (MXINT8) |
 
 List all available strategy files in your environment:
 
@@ -570,6 +586,8 @@ python test/run.py --model_id amd/sdxl-turbo-amdnpu --model_path path/to/your/lo
 
 **Components to partition:** `unet`, `vae_decoder`
 
+#### Preprocess
+
 ```bash
 # 1. Preprocess UNet
 cd models/sd15/unet
@@ -578,18 +596,42 @@ onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize sd15_unet --save-
 # 2. Preprocess VAE decoder
 cd models/sd15/vae_decoder
 onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize vae
+```
 
+#### Strix / Krackan partition
+
+```bash
 # 3. Partition UNet
 onnx_utils partition "models/sd15/unet/optimized.onnx" "models/sd15/unet/dd/" \
     "sd15_unet_bfp.yaml" -v --force
 
 # 4. Partition VAE decoder
 onnx_utils partition "models/sd15/vae_decoder/optimized.onnx" "models/sd15/vae_decoder/dd/" \
-    "sd3_vae.yaml" -v --force
+    "sd15_vae_decoder.yaml" -v --force
 
 # 5. Copy config.json files
 cp models/sd15/unet/config.json models/sd15/unet/dd/
 cp models/sd15/vae_decoder/config.json models/sd15/vae_decoder/dd/
+```
+
+#### Medusa partition
+
+```bash
+# UNet
+onnx_utils partition \
+    "models/sd15/unet/optimized.onnx" \
+    "models/sd15/unet/dd" \
+    "procyon_sd15_unet_bfp.yaml" \
+    --model-name replaced -v --force \
+    --attributes backend="aie4"
+
+# VAE decoder
+onnx_utils partition \
+    "models/sd15/vae_decoder/optimized.onnx" \
+    "models/sd15/vae_decoder/dd" \
+    "sd3_vae_bfp.yaml" \
+    --model-name replaced -v --force \
+    --attributes backend="aie4"
 ```
 
 **Preprocess parameter reference:**
@@ -627,7 +669,7 @@ onnx_utils partition "models/sd15_controlnet/controlnet/optimized.onnx" \
 
 onnx_utils partition "models/sd15_controlnet/vae_decoder/optimized.onnx" \
     "models/sd15_controlnet/vae_decoder/dd/" \
-    "sd3_vae.yaml" -v --force
+    "sd15_vae_decoder.yaml" -v --force
 ```
 
 ---
@@ -636,17 +678,23 @@ onnx_utils partition "models/sd15_controlnet/vae_decoder/optimized.onnx" \
 
 **Components to partition:** `unet`, `vae_decoder`, `vae_encoder`
 
+#### Preprocess
+
 ```bash
 # Preprocess
 cd models/sdxl-turbo/unet
-onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize sdxl_unet --save-as-external
+onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize sd15_unet --save-as-external
 
 cd models/sdxl-turbo/vae_decoder
 onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize vae
 
 cd models/sdxl-turbo/vae_encoder
 onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize vae
+```
 
+#### Strix / Krackan partition
+
+```bash
 # Partition
 onnx_utils partition "models/sdxl-turbo/unet/optimized.onnx" \
     "models/sdxl-turbo/unet/dd/" \
@@ -660,6 +708,40 @@ onnx_utils partition "models/sdxl-turbo/vae_decoder/optimized.onnx" \
 onnx_utils partition "models/sdxl-turbo/vae_encoder/optimized.onnx" \
     "models/sdxl-turbo/vae_encoder/dd/" \
     "sd3_vae.yaml" -v --force
+```
+
+#### Medusa partition
+
+This is a generic SDXL-family example for 1024×1024. Replace `models/sdxl-turbo` with the target
+model directory and use the shape list built for that model.
+
+```bash
+# UNet
+onnx_utils partition \
+    "models/sdxl-turbo/unet/optimized.onnx" \
+    "models/sdxl-turbo/unet/dd" \
+    "sd15_unet_bfp_aie4.yaml" \
+    --model-name replaced -v --force \
+    --attributes dynamic_shape_graph=true \
+    --attributes "dynamic_shape_list=[{'batch_1': 1, 'batch_2': 1, 'batch_3': 1, 'batch_4': 1, 'batch_size': 1, 'batch': 1, 'height': 64, 'width': 64}]"
+
+# VAE decoder
+onnx_utils partition \
+    "models/sdxl-turbo/vae_decoder/optimized.onnx" \
+    "models/sdxl-turbo/vae_decoder/dd" \
+    "sd15_vae_decoder_bfp.yaml" \
+    --model-name replaced -v --force \
+    --attributes backend="aie4" \
+    --attributes dynamic_shape_graph=true \
+    --attributes "dynamic_shape_list=[{'height': 64, 'width': 64}]"
+
+# VAE encoder (required for image-to-image models)
+onnx_utils partition \
+    "models/sdxl-turbo/vae_encoder/optimized.onnx" \
+    "models/sdxl-turbo/vae_encoder/dd" \
+    "sd15_vae_decoder_bfp.yaml" \
+    --force \
+    --attributes backend="aie4"
 ```
 
 **Preprocess parameter reference:**
@@ -761,9 +843,14 @@ onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize mmdit --save-as-e
 
 Dynamic shape models use `x` as a placeholder for symbolic dimensions and require the DD plugin.
 
+#### Preprocess
+
 ```bash
-# Set DD plugin (required for dynamic shape)
+# Set the DD plugin matching the target platform (required for dynamic shape)
+# Strix/Krackan:
 set DD_PLUGINS_ROOT=.\lib\transaction\stx
+# Medusa:
+set DD_PLUGINS_ROOT=.\lib\transaction\mds
 
 # Preprocess MM-DiT with dynamic shapes (x = dynamic placeholder)
 cd models/sd3/normal/transformer/dynamic
@@ -774,7 +861,11 @@ onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize mmdit --save-as-e
 cd models/sd3/common/vae_decoder/dynamic
 onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize vae
 # Parameters: batch=1, channels=16, latent_height=x, latent_width=x
+```
 
+#### Strix / Krackan partition
+
+```bash
 # Partition MM-DiT with dynamic shape list (SD3, 20 resolutions — from config/dynamic_shape_20x.json)
 onnx_utils partition "optimized.onnx" "dd" \
     "sd3_mmdit_bfp.yaml" \
@@ -784,6 +875,29 @@ onnx_utils partition "optimized.onnx" "dd" \
     --attributes whitebox_checker_level=2 \
     --attributes fusion_max_init_bytes=4294967296 \
     --save-as-external
+```
+
+#### Medusa partition
+
+The following shape lists build the 1024×1024 SD3.5 Medium model.
+
+```bash
+# MM-DiT transformer
+onnx_utils partition \
+    "models/sd3.5/normal/transformer/optimized.onnx" \
+    "models/sd3.5/normal/transformer/dynamic/dd" \
+    "sd3_mmdit_bfp_aie4.yaml" \
+    --attributes dynamic_shape_graph=true \
+    --attributes "dynamic_shape_list=[{'batch_2': 2, 'h': 128, 'w': 128, 'max_length': 160, 'state_dim1': 4096}]"
+
+# VAE decoder
+onnx_utils partition \
+    "models/sd3.5/common/vae_decoder/optimized.onnx" \
+    "models/sd3.5/common/vae_decoder/dynamic/dd" \
+    "sd3_vae_bfp.yaml" -v \
+    --attributes dynamic_shape_graph=true \
+    --attributes "dynamic_shape_list=[{'height': 128, 'width': 128}]" \
+    --attributes backend="aie4"
 ```
 
 **Supported dynamic resolutions for SD3 (20 resolutions):**
@@ -827,9 +941,14 @@ latent_dim = (H / 16) * (W / 16)
 
 For example, 1024×1024 → `latent_dim = 64 * 64 = 4096`.
 
+#### Preprocess
+
 ```bash
-# Set DD plugin (required for FLUX dynamic shape)
+# Set the DD plugin matching the target platform (required for FLUX dynamic shape)
+# Strix/Krackan:
 set DD_PLUGINS_ROOT=.\lib\transaction\stx
+# Medusa (use instead of the line above):
+# set DD_PLUGINS_ROOT=.\lib\transaction\mds
 
 # Preprocess FLUX transformer
 cd models/flux1-schnell/transformer/dynamic
@@ -840,7 +959,11 @@ onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize flux1 --save-as-e
 cd models/flux1-schnell/vae_decoder/dynamic
 onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize vae
 # Parameters: batch=1, batch_size=1, channels=16, latent_height=x, latent_width=x
+```
 
+#### Strix / Krackan partition
+
+```bash
 # Partition FLUX transformer (11 unique latent_dims covering 20 resolutions)
 onnx_utils partition "optimized.onnx" "dynamic/dd" \
     "flux_transformer_bfp.yaml" \
@@ -859,6 +982,30 @@ onnx_utils partition \
     -v --force \
     --attributes dynamic_shape_graph=true \
     --attributes dynamic_shape_list="[{'batch_size': 1, 'latent_height': 64, 'latent_width': 64}, {'batch_size': 1, 'latent_height': 80, 'latent_width': 80}, {'batch_size': 1, 'latent_height': 96, 'latent_width': 96}, {'batch_size': 1, 'latent_height': 128, 'latent_width': 128}, {'batch_size': 1, 'latent_height': 64, 'latent_width': 48}, {'batch_size': 1, 'latent_height': 80, 'latent_width': 60}, {'batch_size': 1, 'latent_height': 96, 'latent_width': 72}, {'batch_size': 1, 'latent_height': 128, 'latent_width': 96}, {'batch_size': 1, 'latent_height': 48, 'latent_width': 64}, {'batch_size': 1, 'latent_height': 60, 'latent_width': 80}, {'batch_size': 1, 'latent_height': 72, 'latent_width': 96}, {'batch_size': 1, 'latent_height': 96, 'latent_width': 128}, {'batch_size': 1, 'latent_height': 64, 'latent_width': 36}, {'batch_size': 1, 'latent_height': 80, 'latent_width': 48}, {'batch_size': 1, 'latent_height': 96, 'latent_width': 56}, {'batch_size': 1, 'latent_height': 128, 'latent_width': 72}, {'batch_size': 1, 'latent_height': 36, 'latent_width': 64}, {'batch_size': 1, 'latent_height': 48, 'latent_width': 80}, {'batch_size': 1, 'latent_height': 56, 'latent_width': 96}, {'batch_size': 1, 'latent_height': 72, 'latent_width': 128}]"
+```
+
+#### Medusa partition
+
+The following shape lists build the 1024×1024 Medusa model.
+
+```bash
+# FLUX transformer
+onnx_utils partition \
+    "models/flux1-schnell/transformer/optimized.onnx" \
+    "models/flux1-schnell/transformer/dynamic/dd" \
+    "flux_transformer_bfp_aie4.yaml" \
+    --attributes dynamic_shape_graph=true \
+    --attributes "dynamic_shape_list=[{'B': 1, 'latent_dim': 4096, 'txt_seq_len': 256}]" \
+    --save-as-external
+
+# VAE decoder
+onnx_utils partition \
+    "models/flux1-schnell/vae_decoder/optimized.onnx" \
+    "models/flux1-schnell/vae_decoder/dynamic/dd" \
+    "sd3_vae_bfp.yaml" -v \
+    --attributes dynamic_shape_graph=true \
+    --attributes "dynamic_shape_list=[{'batch_size': 1, 'latent_height': 128, 'latent_width': 128}]" \
+    --attributes backend="aie4"
 ```
 
 **FLUX supported dynamic resolutions (20 resolutions, 11 unique latent_dims):**
@@ -885,6 +1032,106 @@ cp models/flux1-schnell/transformer/config.json models/flux1-schnell/transformer
 
 ---
 
+### FLUX.2 Klein
+
+**Components to partition:** `transformer` (DiT), `vae_decoder`; Medusa image editing also uses
+`vae_encoder`
+
+#### Preprocess
+
+```bash
+# Preprocess FLUX.2 transformer
+cd models/flux2-klein/transformer
+onnx_utils preprocess "model.onnx" "optimized.onnx" \
+    --optimize flux2 --save-as-external
+
+# Preprocess VAE decoder
+cd ../vae_decoder
+onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize vae
+
+# Preprocess VAE encoder (image editing only)
+cd ../vae_encoder
+onnx_utils preprocess "model.onnx" "optimized.onnx" --optimize vae
+```
+
+#### Strix / Krackan partition
+
+The following shape lists build the 1024×1024 Strix/Krackan model.
+
+```bash
+# FLUX.2 transformer
+onnx_utils partition \
+    "models/flux2-klein/transformer/optimized.onnx" \
+    "models/flux2-klein/transformer/dynamic/dd" \
+    "flux2_transformer_bfp.yaml" \
+    -v --force \
+    --attributes dynamic_shape_graph=true \
+    --attributes "dynamic_shape_list=[{'batch_size': 1, 'txt_seq_len': 256, 'img_seq_len': 4096}]" \
+    --save-as-external
+
+# VAE decoder
+onnx_utils partition \
+    "models/flux2-klein/vae_decoder/optimized.onnx" \
+    "models/flux2-klein/vae_decoder/dynamic/dd" \
+    "sd3_vae.yaml" \
+    -v --force \
+    --attributes dynamic_shape_graph=true \
+    --attributes "dynamic_shape_list=[{'latent_h': 128, 'latent_w': 128}]"
+```
+
+#### Medusa partition
+
+The following commands build the 5-resolution Medusa image-edit model:
+512×1024, 1024×512, 768×1024, 1024×768, 1024×1024.
+
+The transformer compiles img_seq_len buckets 4096 / 8192 / 12288; VAE compiles five spatial resolutions. At runtime **`com.ryzenai::DynamicPad`** pads concatenated canvas and reference tokens up to the smallest bucket that fits, then crops outputs back to native shapes.
+
+```bash
+# FLUX.2 transformer
+onnx_utils partition \
+    "models/flux2-klein/transformer/optimized.onnx" \
+    "models/flux2-klein/transformer/dynamic/dd" \
+    "flux2_transformer_bfp_aie4.yaml" \
+    --attributes dynamic_shape_graph=true \
+    --attributes "dynamic_shape_list=[{'batch_size': 1, 'txt_seq_len': 256, 'img_seq_len': 4096}, {'batch_size': 1, 'txt_seq_len': 256, 'img_seq_len': 8192}, {'batch_size': 1, 'txt_seq_len': 256, 'img_seq_len': 12288}]"
+
+# VAE decoder
+onnx_utils partition \
+    "models/flux2-klein/vae_decoder/optimized.onnx" \
+    "models/flux2-klein/vae_decoder/dynamic/dd" \
+    "sd3_vae_bfp.yaml" -v \
+    --attributes dynamic_shape_graph=true \
+    --attributes "dynamic_shape_list=[{'latent_h': 64, 'latent_w': 128}, {'latent_h': 128, 'latent_w': 64}, {'latent_h': 96, 'latent_w': 128}, {'latent_h': 128, 'latent_w': 96}, {'latent_h': 128, 'latent_w': 128}]" \
+    --attributes backend="aie4"
+
+# VAE encoder (image editing)
+onnx_utils partition \
+    "models/flux2-klein/vae_encoder/optimized.onnx" \
+    "models/flux2-klein/vae_encoder/dynamic/dd" \
+    "sd3_vae_bfp.yaml" \
+    --attributes dynamic_shape_graph=true \
+    --attributes "dynamic_shape_list=[{'height': 512, 'width': 1024}, {'height': 1024, 'width': 512}, {'height': 768, 'width': 1024}, {'height': 1024, 'width': 768}, {'height': 1024, 'width': 1024}]" \
+    --attributes backend="aie4"
+```
+
+**FLUX.2 Medusa (5 resolutions, transformer `img_seq_len` 4096 / 8192 / 12288):**
+
+| Resolution | img_seq_len (1× / 2× / 3×) | DynamicPad (1× / 2× / 3×) | latent h×w (VAE decoder) | height x width (VAE encoder) |
+|-----------|---------------------|---------------------|--------------------------|-------------|
+| 512×1024 | 2048 / 4096 / 6144 | 4096 / 4096 / 8192 | 64×128 | 512×1024 |
+| 1024×512 | 2048 / 4096 / 6144 | 4096 / 4096 / 8192 | 128×64 | 1024×512 |
+| 768×1024 | 3072 / 6144 / 9216 | 4096 / 8192 / 12288 | 96×128 | 768×1024 |
+| 1024×768 | 3072 / 6144 / 9216 | 4096 / 8192 / 12288 | 128×96 | 1024×768 |
+| 1024×1024 | 4096 / 8192 / 12288 | 4096 / 8192 / 12288 | 128×128 | 1024×1024 |
+
+After partitioning, copy the `config.json` from the transformer model directory into the `dd/` output:
+
+```bash
+cp models/flux.2-klein/transformer/config.json models/flux.2-kelin/transformer/dynamic/dd/
+```
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
@@ -892,7 +1139,7 @@ cp models/flux1-schnell/transformer/config.json models/flux1-schnell/transformer
 | `onnx_utils: command not found` | Ryzen AI Software not installed or env not active | Run `conda activate ryzen-ai-1.8.0`; verify `pip show ryzenai-onnx-utils` |
 | Partition fails with OOM | Fusion buffer too small | Add `--attributes fusion_max_init_bytes=4294967296` |
 | `replaced.onnx` not generated | Whitebox checker failure | Try `--attributes whitebox_checker_level=1` to get more details |
-| `cache/` directory is empty | DD plugin not set | Set `DD_PLUGINS_ROOT=.\lib\transaction\stx` before running |
+| `cache/` directory is empty | DD plugin not set | Set `DD_PLUGINS_ROOT=.\lib\transaction\stx` for `stx` (Strix/Krackan) or `DD_PLUGINS_ROOT=.\lib\transaction\mds` for `mds` (Medusa) before running |
 | Low NPU offload ratio (<50%) | Wrong `--optimize` profile | Verify you used the correct profile for your model architecture |
 | Black output images at inference | Missing `config.json` in `dd/` directory | Copy `config.json` from the model root into the `dd/` output directory |
 | `LFS pointer file` errors | git-lfs not properly set up | Run `git lfs install && git lfs pull` in the model directory |

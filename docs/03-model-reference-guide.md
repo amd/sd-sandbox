@@ -6,7 +6,7 @@ capabilities, model directory layouts, run commands, and CLI options.
 > **Before running any model**, complete environment setup in [docs/01-quick-start.md](01-quick-start.md)
 > (Linux: [docs/05-linux-guide.md](05-linux-guide.md)).
 >
-> **`--enable_compile`:** Not required for Hugging Face `amd/` models — they ship pre-partitioned
+> `--enable_compile`**:** Not required for Hugging Face `amd/` models — they ship pre-partitioned
 > and ready to run. Use `--enable_compile` (`-c`) only on the **first inference run with a locally
 > built DD model** (see [docs/04-model-generate-guide.md](04-model-generate-guide.md)).
 
@@ -48,27 +48,44 @@ capabilities, model directory layouts, run commands, and CLI options.
 
 ## Supported Models Summary
 
-| Model | Hugging Face ID | Resolution | T2I | I2I | ControlNet | OutPainting |
-|-------|----------------|-----------|-----|-----|------------|-------------|
-| SD 1.5 | `amd/stable-diffusion-1.5-amdnpu` | 512×512 | ✓ | | | |
-| SD Turbo | `amd/sd-turbo-amdnpu` | 512×512 | ✓ | | | |
-| SD 2.1 *(deprecated)* | — | 512/768 | ✓ | | | |
-| SD 1.5 ControlNet | `amd/sd15-controlnet-amdnpu` | 512×512 | ✓ | | Canny | |
-| SDXL-base | `amd/sdxl-base-amdnpu` | 1024×1024 | ✓ | | | |
-| SDXL-turbo | `amd/sdxl-turbo-amdnpu` | 512×512 | ✓ | | | |
-| Playground 2.5 | `amd/playground-v2.5-1024px-aesthetic-amdnpu` | 1024×1024 | ✓ | | | |
-| SSD-1B | `amd/SSD-1B-amdnpu` | 1024×1024 | ✓ | | | |
-| DreamShaper XL | `amd/dreamshaper-xl-lightning-amdnpu` | 1024×1024 | ✓ | | | |
-| Segmind-Vega | `amd/segmind-vega-amdnpu` | 1024×1024 | ✓ | ✓ | | |
-| SD3 Medium | `amd/stable-diffusion-3-medium-amdnpu` | 512–1024 | ✓ | | Canny/Tile/Pose/Depth/Union | ✓ |
-| SD3.5 Medium | `amd/stable-diffusion-3.5-medium-amdnpu` | 512–1024 | ✓ | | Canny/Tile/Pose | ✓ |
-| FLUX.1-schnell | `amd/FLUX.1-schnell-amdnpu` | 288–1024 | ✓ | | | |
-| FLUX.2 Klein | `amd/FLUX.2-klein-4B-amdnpu` | 1024×1024 | ✓ | ✓ | | |
+### Strix / Krackan
+
+| Model                 | Hugging Face ID                               | Resolution | T2I | I2I | ControlNet                  | OutPainting |
+| --------------------- | --------------------------------------------- | ---------- | --- | --- | --------------------------- | ----------- |
+| SD 1.5                | `amd/stable-diffusion-1.5-amdnpu`             | 512×512    | ✓   |     |                             |             |
+| SD Turbo              | `amd/sd-turbo-amdnpu`                         | 512×512    | ✓   |     |                             |             |
+| SD 2.1 *(deprecated)* | —                                             | 512/768    | ✓   |     |                             |             |
+| SD 1.5 ControlNet     | `amd/sd15-controlnet-amdnpu`                  | 512×512    | ✓   |     | Canny                       |             |
+| SDXL-base             | `amd/sdxl-base-amdnpu`                        | 1024×1024  | ✓   |     |                             |             |
+| SDXL-turbo            | `amd/sdxl-turbo-amdnpu`                       | 512×512    | ✓   |     |                             |             |
+| Playground 2.5        | `amd/playground-v2.5-1024px-aesthetic-amdnpu` | 1024×1024  | ✓   |     |                             |             |
+| SSD-1B                | `amd/SSD-1B-amdnpu`                           | 1024×1024  | ✓   |     |                             |             |
+| DreamShaper XL        | `amd/dreamshaper-xl-lightning-amdnpu`         | 1024×1024  | ✓   |     |                             |             |
+| Segmind-Vega          | `amd/segmind-vega-amdnpu`                     | 1024×1024  | ✓   | ✓   |                             |             |
+| SD3 Medium            | `amd/stable-diffusion-3-medium-amdnpu`        | 512–1024   | ✓   |     | Canny/Tile/Pose/Depth/Union | ✓           |
+| SD3.5 Medium          | `amd/stable-diffusion-3.5-medium-amdnpu`      | 512–1024   | ✓   |     | Canny/Tile/Pose             | ✓           |
+| FLUX.1-schnell        | `amd/FLUX.1-schnell-amdnpu`                   | 288–1024   | ✓   |     |                             |             |
+| FLUX.2 Klein          | `amd/FLUX.2-klein-4B-amdnpu`                  | 1024×1024  | ✓   | ✓   |                             |             |
+
+Strix/Krackan models are downloaded automatically from Hugging Face on first use when
+`--model_path` is omitted.
 
 *Dynamic resolution models support: 512×512, 512×768, 768×512, 576×1024, 1024×576, 768×1024, 1024×768, 1024×1024*
 
-All `amd/` models are downloaded automatically from Hugging Face on first use when `--model_path`
-is omitted. **Kolors** requires a locally built DD model — see the [Kolors](#kolors) section.
+### Medusa
+
+| Model          | Hugging Face ID                                      | Resolution | T2I | I2I | ControlNet | OutPainting |
+| -------------- | ---------------------------------------------------- | ---------- | --- | --- | ---------- | ----------- |
+| SD 1.5         | `amd/stable-diffusion-1.5-amdnpu-medusa`             | 512×512    | ✓   |     |            |             |
+| SDXL-base      | `amd/sdxl-base-amdnpu-medusa`                        | 1024×1024  | ✓   |     |            |             |
+| SDXL-turbo     | `amd/sdxl-turbo-amdnpu-medusa`                       | 512×512    | ✓   |     |            |             |
+| Playground 2.5 | `amd/playground-v2.5-1024px-aesthetic-amdnpu-medusa` | 1024×1024  | ✓   |     |            |             |
+| SSD-1B         | `amd/SSD-1B-amdnpu-medusa`                           | 1024×1024  | ✓   |     |            |             |
+| DreamShaper XL | `amd/dreamshaper-xl-lightning-amdnpu-medusa`         | 1024×1024  | ✓   |     |            |             |
+| Segmind-Vega   | `amd/segmind-vega-amdnpu-medusa`                     | 1024×1024  | ✓   | ✓   |            |             |
+| SD3.5 Medium   | `amd/stable-diffusion-3.5-medium-amdnpu-medusa`      | 1024x1024  | ✓   |     |            |             |
+| FLUX.1-schnell | `amd/FLUX.1-schnell-amdnpu-medusa`                   | 1024x1024  | ✓   |     |            |             |
+| FLUX.2 Klein   | `amd/FLUX.2-klein-4B-amdnpu-medusa`                  | 1024×1024  | ✓   | ✓   |            |             |
 
 ---
 
@@ -76,32 +93,32 @@ is omitted. **Kolors** requires a locally built DD model — see the [Kolors](#k
 
 These arguments apply to all run scripts:
 
-| Argument | Short | Default | Description |
-|----------|-------|---------|-------------|
-| `--model_id` | | required | Hugging Face model ID or model type identifier |
-| `--model_path` | | auto-download | Path to local model directory (auto-downloaded if omitted; see `RYZENAI_GENAI_SD_MODELS_ROOT`) |
-| `--revision` | | None | Hugging Face branch, tag, or commit hash (e.g. `"1.8.0"`) |
-| `--prompt` | | model default | Text description for image generation |
-| `--prompt_2` | | None | Second prompt for dual-encoder models (e.g. FLUX T5 encoder) |
-| `--n_prompt` | | `""` | Negative prompt (what to avoid) |
-| `--width` | `-W` | model default | Output image width in pixels |
-| `--height` | `-H` | model default | Output image height in pixels |
-| `--num_inference_steps` | `-n` | model default | Number of denoising steps |
-| `--guidance_scale` | | model default | CFG scale (higher = more prompt adherence) |
-| `--seed` | | None | Random seed for reproducibility |
-| `--t5_sequence_len` | | model default | T5 sequence length (e.g. 77, 83, or 256 for Flux) |
-| `--edit_image_path` | | None | Reference image path(s) for FLUX.2 Klein image editing (accepts one or more paths) |
-| `--output_path` | | `generated_images` | Output directory for saved images |
-| `--enable_compile` | `-c` | False | Compile DD fusion runtime on first run with a **locally built** DD model (not needed for HF `amd/` models) |
-| `--enable_profile` | `-p` | False | Enable performance profiling |
-| `--profiling_rounds` | `-pr` | 4 | Number of profiling rounds |
-| `--no_excel` | | False | Skip Excel metrics file; timing still printed to stdout |
-| `--no_images` | | False | Skip image saving (pipeline still runs; useful for pure benchmarking) |
-| `--custom_op_path` | | auto | `onnxruntime_providers_ryzenai.dll` / `libonnxruntime_providers_ryzenai.so` (auto-detected if omitted) |
-| `--verbose` | `-v` | False | Enable verbose output |
-| `--prompt_file_path` | | None | Path to JSON prompt list file |
-| `--num_images_per_prompt` | | 1 | Number of images to generate per prompt |
-| `-C` / `--controlnet` | `-C` | None | ControlNet mode: `Canny`, `Tile`, `Pose`, `Depth`, `Union`, `OutPainting`, `Removal`, `InPainting`, or `None` |
+| Argument                  | Short | Default            | Description                                                                                                   |
+| ------------------------- | ----- | ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `--model_id`              |       | required           | Hugging Face model ID or model type identifier                                                                |
+| `--model_path`            |       | auto-download      | Path to local model directory (auto-downloaded if omitted; see `RYZENAI_GENAI_SD_MODELS_ROOT`)                |
+| `--revision`              |       | None               | Hugging Face branch, tag, or commit hash (e.g. `"1.8.0"`)                                                     |
+| `--prompt`                |       | model default      | Text description for image generation                                                                         |
+| `--prompt_2`              |       | None               | Second prompt for dual-encoder models (e.g. FLUX T5 encoder)                                                  |
+| `--n_prompt`              |       | `""`               | Negative prompt (what to avoid)                                                                               |
+| `--width`                 | `-W`  | model default      | Output image width in pixels                                                                                  |
+| `--height`                | `-H`  | model default      | Output image height in pixels                                                                                 |
+| `--num_inference_steps`   | `-n`  | model default      | Number of denoising steps                                                                                     |
+| `--guidance_scale`        |       | model default      | CFG scale (higher = more prompt adherence)                                                                    |
+| `--seed`                  |       | None               | Random seed for reproducibility                                                                               |
+| `--t5_sequence_len`       |       | model default      | T5 sequence length (e.g. 77, 83, or 256 for Flux)                                                             |
+| `--edit_image_path`       |       | None               | Reference image path(s) for FLUX.2 Klein image editing (accepts one or more paths)                            |
+| `--output_path`           |       | `generated_images` | Output directory for saved images                                                                             |
+| `--enable_compile`        | `-c`  | False              | Compile DD fusion runtime on first run with a **locally built** DD model (not needed for HF `amd/` models)    |
+| `--enable_profile`        | `-p`  | False              | Enable performance profiling                                                                                  |
+| `--profiling_rounds`      | `-pr` | 4                  | Number of profiling rounds                                                                                    |
+| `--no_excel`              |       | False              | Skip Excel metrics file; timing still printed to stdout                                                       |
+| `--no_images`             |       | False              | Skip image saving (pipeline still runs; useful for pure benchmarking)                                         |
+| `--custom_op_path`        |       | auto               | `onnxruntime_providers_ryzenai.dll` / `libonnxruntime_providers_ryzenai.so` (auto-detected if omitted)        |
+| `--verbose`               | `-v`  | False              | Enable verbose output                                                                                         |
+| `--prompt_file_path`      |       | None               | Path to JSON prompt list file                                                                                 |
+| `--num_images_per_prompt` |       | 1                  | Number of images to generate per prompt                                                                       |
+| `-C` / `--controlnet`     | `-C`  | None               | ControlNet mode: `Canny`, `Tile`, `Pose`, `Depth`, `Union`, `OutPainting`, `Removal`, `InPainting`, or `None` |
 
 ### Model Download Path
 
@@ -121,13 +138,15 @@ python test/run.py --model_id "amd/sdxl-turbo-amdnpu" --prompt "..."
 
 ### Environment Variables (inference)
 
-| Variable | Windows | Linux |
-|----------|---------|-------|
-| `RYZENAI_GENAI_SD_MODELS_ROOT` | Model download/cache directory | Same |
-| `DD_PLUGINS_ROOT` | `set DD_PLUGINS_ROOT=.\lib\transaction\stx` | `export DD_PLUGINS_ROOT=./lib/transaction/stx` |
-| Session setup (XRT, `LD_LIBRARY_PATH`) | See [01-quick-start.md](01-quick-start.md) | See [05-linux-guide.md](05-linux-guide.md) Step 6 |
+| Variable                               | Windows                                      | Linux                                             |
+| -------------------------------------- | -------------------------------------------- | ------------------------------------------------- |
+| `RYZENAI_GENAI_SD_MODELS_ROOT`         | Model download/cache directory               | Same                                              |
+| `DD_PLUGINS_ROOT`                      | Auto-selected from the detected NPU platform | Same                                              |
+| Session setup (XRT, `LD_LIBRARY_PATH`) | See [01-quick-start.md](01-quick-start.md)   | See [05-linux-guide.md](05-linux-guide.md) Step 6 |
 
-`DD_PLUGINS_ROOT` is required for SD3 / SD3.5 / FLUX dynamic-shape models.
+`DD_PLUGINS_ROOT` is required for SD3 / SD3.5 / FLUX dynamic-shape models. The runner sets it automatically: `lib/transaction/stx` for Strix/Krackan, or
+`lib/transaction/mds` for Medusa. If you override it manually, the directory must
+match the NPU platform.
 
 ---
 
@@ -145,18 +164,32 @@ sd15/
 
 ### SD 1.5 Text-to-Image
 
+#### Strix / Krackan
+
 ```bash
 # Auto-download from Hugging Face (recommended)
 python test/run.py --model_id "amd/stable-diffusion-1.5-amdnpu" --prompt "a beautiful landscape"
 
-# Local model path
+# Local model path with explicit inference settings
 python test/run.py --model_id "stable-diffusion-v1-5/stable-diffusion-v1-5" \
-    --model_path path/to/sd15/models/ --prompt "a beautiful landscape"
+    --model_path "path/to/sd_models" \
+    -n 50 --guidance_scale 7.5 --num_images_per_prompt 1 \
+    --prompt "Photo of a ultra realistic sailing ship, dramatic light, pale sunrise, cinematic lighting, battered, low angle, trending on artstation, 4k, hyper realistic, focused, extreme details, " \
+    -W 512 -H 512 -v -p
+```
+
+#### Medusa
+
+```bash
+python test/run.py --model_id "amd/stable-diffusion-1.5-amdnpu-medusa" \
+    -H 512 -W 512 -n 50
 ```
 
 **Defaults:** 512×512, 20 steps, guidance_scale=7.5
 
 ### SD-Turbo Text-to-Image
+
+#### Strix / Krackan
 
 ```bash
 # Batch size 1 (default)
@@ -170,6 +203,8 @@ python test/run.py --model_id "amd/sd-turbo-amdnpu" --prompt "a beautiful landsc
 **Defaults:** 512×512, 1 step, guidance_scale=0.0 (distilled)
 
 ### SD 2.1 Text-to-Image
+
+#### Strix / Krackan
 
 ```bash
 # SD 2.1-base (512×512)
@@ -197,6 +232,8 @@ sd15-controlnet/
 └─ tokenizer/
 ```
 
+#### Strix / Krackan
+
 ```bash
 python test/run.py \
     --model_id "amd/sd15-controlnet-amdnpu" \
@@ -206,10 +243,10 @@ python test/run.py \
 
 **Additional ControlNet arguments:**
 
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--control_image_path` | required | Path to the edge/control image |
-| `--controlnet_conditioning_scale` | 1.5 | Strength of ControlNet guidance |
+| Argument                          | Default  | Description                     |
+| --------------------------------- | -------- | ------------------------------- |
+| `--control_image_path`            | required | Path to the edge/control image  |
+| `--controlnet_conditioning_scale` | 1.5      | Strength of ControlNet guidance |
 
 **Defaults:** 512×512, 20 steps, guidance_scale=7.5
 
@@ -231,6 +268,8 @@ sdxl-turbo/
 
 ### SDXL-base Text-to-Image
 
+#### Strix / Krackan
+
 ```bash
 python test/run.py --model_id "amd/sdxl-base-amdnpu" --prompt "a beautiful landscape"
 
@@ -239,9 +278,18 @@ python test/run.py --model_id "amd/sdxl-base-amdnpu" --prompt "a beautiful lands
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 ```
 
+#### Medusa
+
+```bash
+python test/run.py --model_id "amd/sdxl-base-amdnpu-medusa" \
+    -H 1024 -W 1024 -n 30
+```
+
 **Defaults:** 1024×1024, 50 steps, guidance_scale=7.5
 
 ### SDXL-turbo Text-to-Image
+
+#### Strix / Krackan
 
 ```bash
 python test/run.py --model_id "amd/sdxl-turbo-amdnpu" --prompt "a beautiful landscape"
@@ -251,9 +299,18 @@ python test/run.py --model_id "amd/sdxl-turbo-amdnpu" --prompt "a beautiful land
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 ```
 
+#### Medusa
+
+```bash
+python test/run.py --model_id "amd/sdxl-turbo-amdnpu-medusa" \
+    -H 512 -W 512 -n 4
+```
+
 **Defaults:** 512×512, 1 step (Runner default; orchestrator `sdxl_turbo` pipeline uses 4 steps), guidance_scale=0.0
 
 ### Playground 2.5 Text-to-Image
+
+#### Strix / Krackan
 
 ```bash
 python test/run.py --model_id "amd/playground-v2.5-1024px-aesthetic-amdnpu" \
@@ -265,14 +322,30 @@ python test/run.py --model_id "amd/playground-v2.5-1024px-aesthetic-amdnpu" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 ```
 
+#### Medusa
+
+```bash
+python test/run.py --model_id "amd/playground-v2.5-1024px-aesthetic-amdnpu-medusa" \
+    -H 1024 -W 1024 -n 30
+```
+
 **Defaults:** 1024×1024, 50 steps, guidance_scale=3.0
 
 ### SSD-1B Text-to-Image
 
 SSD-1B is a compact SDXL variant with faster inference while maintaining 1024×1024 output quality.
 
+#### Strix / Krackan
+
 ```bash
 python test/run.py --model_id "amd/SSD-1B-amdnpu" --prompt "a beautiful landscape"
+```
+
+#### Medusa
+
+```bash
+python test/run.py --model_id "amd/SSD-1B-amdnpu-medusa" \
+    -H 1024 -W 1024 -n 30
 ```
 
 **Defaults:** 1024×1024, 50 steps, guidance_scale=7.5
@@ -282,6 +355,8 @@ python test/run.py --model_id "amd/SSD-1B-amdnpu" --prompt "a beautiful landscap
 DreamShaper XL Lightning is a distilled SDXL model that generates high-quality images in very
 few steps.
 
+#### Strix / Krackan
+
 ```bash
 python test/run.py --model_id "amd/dreamshaper-xl-lightning-amdnpu" \
     --prompt "a beautiful landscape"
@@ -292,12 +367,28 @@ python test/run.py --model_id "amd/dreamshaper-xl-lightning-amdnpu" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 ```
 
+#### Medusa
+
+```bash
+python test/run.py --model_id "amd/dreamshaper-xl-lightning-amdnpu-medusa" \
+    -H 1024 -W 1024 -n 6
+```
+
 **Defaults:** 1024×1024, 6 steps (Lightning distilled; increase for higher quality), guidance_scale=7.5
 
 ### Segmind-Vega Text-to-Image
 
+#### Strix / Krackan
+
 ```bash
 python test/run.py --model_id "amd/segmind-vega-amdnpu" --prompt "a beautiful landscape"
+```
+
+#### Medusa
+
+```bash
+python test/run.py --model_id "amd/segmind-vega-amdnpu-medusa" \
+    -H 1024 -W 1024 -n 9
 ```
 
 **Defaults:** 1024×1024, 50 steps, guidance_scale=7.5
@@ -307,6 +398,8 @@ python test/run.py --model_id "amd/segmind-vega-amdnpu" --prompt "a beautiful la
 Transforms an existing image based on the prompt. The `--strength` parameter controls how much
 the original image is preserved vs. replaced.
 
+#### Strix / Krackan
+
 ```bash
 python test/run.py --model_id "amd/segmind-vega-amdnpu" \
     --prompt "a beautiful landscape" \
@@ -314,7 +407,16 @@ python test/run.py --model_id "amd/segmind-vega-amdnpu" \
     --strength 0.95
 ```
 
-**`--strength` reference:**
+#### Medusa
+
+```bash
+python test/run.py --model_id "amd/segmind-vega-amdnpu-medusa" \
+    --control_image_path test/assets/controlimg_input_1024x1024.png \
+    -H 1024 -W 1024 -n 9
+```
+
+`--strength` **reference:**
+
 - `0.3` (default) — 15 denoising steps; original image mostly preserved
 - `0.7` — 35 steps; balanced mix of prompt and original
 - `1.0` — 50 steps; original image mostly replaced by prompt
@@ -349,6 +451,8 @@ sd3/
 
 ### SD3 Text-to-Image
 
+#### Strix / Krackan
+
 ```bash
 # 512×512
 python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
@@ -373,14 +477,25 @@ python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
 > [SD3.5 ControlNet](#sd35-controlnet-cannytilepose) and
 > [SD3.5 OutPainting / Removal / InPainting](#sd35-outpainting--removal--inpainting) sections.
 
+#### Strix / Krackan
+
 ```bash
 python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu" \
     --prompt "a beautiful landscape"
 ```
 
+#### Medusa
+
+```bash
+python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu-medusa" \
+    -H 1024 -W 1024 -n 30
+```
+
 **Defaults:** 512×512, 8 steps, guidance_scale=4.5
 
 ### SD3 ControlNet (Canny/Tile/Pose)
+
+#### Strix / Krackan
 
 ```bash
 # Canny
@@ -398,13 +513,15 @@ python test/run.py -C Pose --model_id "amd/stable-diffusion-3-medium-amdnpu" \
 
 **ControlNet arguments:**
 
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `-C` | required | ControlNet type: `Canny`, `Tile`, `Pose`, or `None` |
-| `--control_image_path` | required | Path to control/reference image |
-| `--controlnet_conditioning_scale` | 0.5 | ControlNet guidance strength |
+| Argument                          | Default  | Description                                         |
+| --------------------------------- | -------- | --------------------------------------------------- |
+| `-C`                              | required | ControlNet type: `Canny`, `Tile`, `Pose`, or `None` |
+| `--control_image_path`            | required | Path to control/reference image                     |
+| `--controlnet_conditioning_scale` | 0.5      | ControlNet guidance strength                        |
 
 ### SD3.5 ControlNet (Canny/Tile/Pose)
+
+#### Strix / Krackan
 
 > **Note:** The SD3.5 Hugging Face release does not include separate ControlNet weights. These
 > modes reuse the SD3 controlnet weights — copy the relevant directories before running:
@@ -422,6 +539,8 @@ python test/run.py -C Canny --model_id "amd/stable-diffusion-3.5-medium-amdnpu" 
 ```
 
 ### SD3 OutPainting / Removal / InPainting
+
+#### Strix / Krackan
 
 > **Availability:** Only the **InPainting** controlnet weights are published on Hugging Face
 > (`amd/stable-diffusion-3-medium-amdnpu`). OutPainting and Removal weights are not currently
@@ -464,17 +583,19 @@ python test/run.py -C InPainting \
 
 **OutPainting/Removal/InPainting arguments:**
 
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `-C` | `OutPainting` | Mode: `OutPainting`, `Removal`, or `InPainting` |
-| `--control_image_path` | required | Input image |
-| `--control_mask_path` | required for Removal/InPainting | Binary mask (white = region to modify) |
-| `--image_pads` | `[10,10,10,10]` | OutPainting border [top, bottom, left, right] in pixels |
-| `--controlnet_conditioning_scale` | 0.95 (OutPainting/Removal), 0.7 (InPainting) | ControlNet strength |
+| Argument                          | Default                                      | Description                                             |
+| --------------------------------- | -------------------------------------------- | ------------------------------------------------------- |
+| `-C`                              | `OutPainting`                                | Mode: `OutPainting`, `Removal`, or `InPainting`         |
+| `--control_image_path`            | required                                     | Input image                                             |
+| `--control_mask_path`             | required for Removal/InPainting              | Binary mask (white = region to modify)                  |
+| `--image_pads`                    | `[10,10,10,10]`                              | OutPainting border [top, bottom, left, right] in pixels |
+| `--controlnet_conditioning_scale` | 0.95 (OutPainting/Removal), 0.7 (InPainting) | ControlNet strength                                     |
 
 **Defaults:** 1024×1024, 8 steps, guidance_scale=5.0
 
 ### SD3.5 OutPainting / Removal / InPainting
+
+#### Strix / Krackan
 
 > **Note:** The SD3.5 Hugging Face release does not include separate ControlNet weights for these
 > modes. These modes reuse the SD3 controlnet weights — copy the relevant directories from your
@@ -508,6 +629,8 @@ sd3/
    └─ transformer/dynamic/
 ```
 
+#### Strix / Krackan
+
 ```bash
 # Text-to-image with dynamic resolution (20 resolutions)
 python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
@@ -527,12 +650,14 @@ python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
 
 **Dynamic shape arguments:**
 
-| Argument | Short | Default | Description |
-|----------|-------|---------|-------------|
-| `--dynamic_shape` | `-ds` | False | Enable dynamic resolution |
-| `--dynamic_shape_file_path` | | `config/dynamic_shape_20x.json` | Custom dynamic shape config (20 presets by default) |
+| Argument                    | Short | Default                         | Description                                         |
+| --------------------------- | ----- | ------------------------------- | --------------------------------------------------- |
+| `--dynamic_shape`           | `-ds` | False                           | Enable dynamic resolution                           |
+| `--dynamic_shape_file_path` |       | `config/dynamic_shape_20x.json` | Custom dynamic shape config (20 presets by default) |
 
 ### SD3.5 Dynamic Resolution
+
+#### Strix / Krackan
 
 ```bash
 python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu" \
@@ -540,9 +665,18 @@ python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 ```
 
+#### Medusa
+
+```bash
+python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu-medusa" \
+    -H 1024 -W 1024 -n 30
+```
+
 > **Note for SD3.5 with LoRA:** Set `--guidance_scale 0.0` explicitly when using LoRA weights.
 
 ### SD3 ControlNet Dynamic Resolution
+
+#### Strix / Krackan
 
 ```bash
 # SD3 ControlNet Canny with dynamic shapes
@@ -558,13 +692,13 @@ python test/run.py -C Union --model_id "amd/stable-diffusion-3-medium-amdnpu" \
 
 **Union ControlNet recommended settings by task:**
 
-| Task | Steps | Control Scale | CFG |
-|------|-------|--------------|-----|
-| Canny | 20 | 0.7 | 3.0 |
-| Pose | 20 | 0.7 | 3.5 |
-| Tile | 20 | 1.0 | 3.5 |
-| Depth | 20 | 0.7 | 3.5 |
-| Scribble | 20 | 0.7 | 3.5 |
+| Task     | Steps | Control Scale | CFG |
+| -------- | ----- | ------------- | --- |
+| Canny    | 20    | 0.7           | 3.0 |
+| Pose     | 20    | 0.7           | 3.5 |
+| Tile     | 20    | 1.0           | 3.5 |
+| Depth    | 20    | 0.7           | 3.5 |
+| Scribble | 20    | 0.7           | 3.5 |
 
 ```bash
 # Union Canny example
@@ -576,6 +710,8 @@ python test/run.py -C Union --model_id "amd/stable-diffusion-3-medium-amdnpu" \
 ```
 
 ### SD3.5 ControlNet Dynamic Resolution
+
+#### Strix / Krackan
 
 ```bash
 python test/run.py -C Canny --model_id "amd/stable-diffusion-3.5-medium-amdnpu" \
@@ -605,6 +741,8 @@ flux1-schnell/
 
 ### Running FLUX.1-schnell
 
+#### Strix / Krackan
+
 ```bash
 # Run with dynamic resolution
 python test/run.py --model_id "amd/FLUX.1-schnell-amdnpu" \
@@ -620,26 +758,31 @@ python test/run.py --model_id "amd/FLUX.1-schnell-amdnpu" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v -p
 ```
 
+#### Medusa
+
+```bash
+python test/run.py --model_id "amd/FLUX.1-schnell-amdnpu-medusa" \
+    -H 1024 -W 1024 -n 4
+```
+
 **Defaults:** 4 steps (distilled), guidance_scale=0.0 (ignored by FLUX.1-schnell)
 
 **FLUX-specific arguments:**
-
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--prompt_2` | same as `--prompt` | Second prompt fed to the T5 encoder |
-| `--dynamic_shape` / `-ds` | False | Enable dynamic resolution |
-| `--dynamic_shape_file_path` | auto | Path to dynamic shape config JSON |
+| Argument                    | Default            | Description                         |
+| --------------------------- | ------------------ | ----------------------------------- |
+| `--prompt_2`                | same as `--prompt` | Second prompt fed to the T5 encoder |
+| `--dynamic_shape` / `-ds`   | False              | Enable dynamic resolution           |
+| `--dynamic_shape_file_path` | auto               | Path to dynamic shape config JSON   |
 
 **Supported dynamic resolutions for FLUX transformer:**
-
-| Resolution | latent_dim |
-|-----------|-----------|
-| 288×512 / 512×288 | 576 |
-| 384×512 / 512×384 | 768 |
-| 512×512 | 1024 |
-| 640×640 | 1600 |
-| 768×768 | 2304 |
-| 1024×1024 | 4096 |
+| Resolution        | latent_dim |
+| ----------------- | ---------- |
+| 288×512 / 512×288 | 576        |
+| 384×512 / 512×384 | 768        |
+| 512×512           | 1024       |
+| 640×640           | 1600       |
+| 768×768           | 2304       |
+| 1024×1024         | 4096       |
 
 > FLUX.1-schnell is optimized for 4 steps. Using fewer steps yields diminishing quality gains.
 > If you built the DD model locally, include `--enable_compile` on the first inference run.
@@ -664,6 +807,8 @@ flux2-klein/
 
 ### Running FLUX.2 Klein
 
+#### Strix / Krackan
+
 ```bash
 # Text-to-image (recommended)
 python test/run.py --model_id "amd/FLUX.2-klein-4B-amdnpu" \
@@ -679,20 +824,44 @@ python test/run.py --model_id "amd/FLUX.2-klein-4B-amdnpu" \
     --edit_image_path path/to/input.png -v
 ```
 
+#### Medusa
+
+```bash
+# Text-to-image
+python test/run.py --model_id "amd/FLUX.2-klein-4B-amdnpu-medusa" \
+    -H 1024 -W 1024 -n 4 -v
+
+# With profiling
+python test/run.py --model_id "amd/FLUX.2-klein-4B-amdnpu-medusa" \
+    -H 1024 -W 1024 -n 4 -v -p
+
+# Image editing — single input
+python test/run.py --model_id "amd/FLUX.2-klein-4B-amdnpu-medusa" \
+    -H 1024 -W 1024 -n 4 -v   \
+    --prompt "Change the dress to red" `
+    --edit_image_path "test/assets/flux2_img2.png"
+
+# Image editing — double input
+python test/run.py --model_id "amd/FLUX.2-klein-4B-amdnpu-medusa" \
+    --prompt "Replace the astronaut in image 1 with the girl in image 2" \
+    --edit_image_path "test/assets/flux2_img1.png" "test/assets/flux2_img2.png" \
+    -H 1024 -W 1024 -n 4 -v
+```
+
 **Defaults:** 1024×1024, 4 steps, guidance_scale=1.0, seed=0
 
 **FLUX.2 Klein–specific arguments:**
-
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--edit_image_path` | None | Reference image for image editing (I2I). Can pass multiple paths. |
-
+| Argument            | Default | Description                                                       |
+| ------------------- | ------- | ----------------------------------------------------------------- |
+| `--edit_image_path` | None    | Reference image for image editing (I2I). Can pass multiple paths. |
 ---
 
 ## O1 Optimization Preset
 
 For **SD3** and **SD3.5** models, pass `-O1` (or `--optimize_o1`) to enable a performance
 optimization preset that skips certain DiT steps during denoising.
+
+#### Strix / Krackan
 
 ```bash
 python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
@@ -710,7 +879,7 @@ the runner automatically disables O1 to avoid degraded performance.
 ## Output Files
 
 - **Images**: saved to `generated_images/` (or `--output_path`) with names like
-  `stable-diffusion-v1-5_0_512x512_steps20_idx0_20260101_100000.png`
+`stable-diffusion-v1-5_0_512x512_steps20_idx0_20260101_100000.png`
 - **Profiling data**: `.xlsx` files in the same directory when `--enable_profile` is used
 - **Result summaries**: `results/` directory when using `scripts/run_pipelines.py`
 

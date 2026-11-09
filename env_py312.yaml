@@ -18,7 +18,7 @@ dependencies:
   - identify=2.6.14=pyhd8ed1ab_0
   - intel-openmp=2024.2.1=h57928b3_1083
   - krb5=1.21.3=hdf4eb48_0
-  - libabseil=20250512.1=cxx17_habfad5f_0
+  - libabseil=20260107.0=cxx17_h0eb2380_0
   - libblas=3.9.0=35_h5709861_mkl
   - libboost=1.85.0=h444863b_4
   - libboost-devel=1.85.0=h91493d7_4
@@ -34,8 +34,8 @@ dependencies:
   - liblapack=3.9.0=35_hf9ab0e9_mkl
   - liblzma=5.8.1=h2466b09_2
   - liblzma-devel=5.8.1=h2466b09_2
-  - libprotobuf=6.31.1=hdcda5b4_1
-  - libprotobuf-static=6.31.1=hdcda5b4_1
+  - libprotobuf=6.33.5=h61fc761_0
+  - libprotobuf-static=6.33.5=h61fc761_0
   - libsqlite=3.50.4=hf5d6505_0
   - libssh2=1.11.1=h9aa295b_0
   - libuv=1.51.0=hfd05255_1
@@ -51,7 +51,7 @@ dependencies:
   - pip=25.2=pyh8b19718_0
   - platformdirs=4.4.0=pyhcf101f3_0
   - pre-commit=4.3.0=pyha770c72_0
-  - protobuf=6.31.1=py312hcb3287e_0
+  - protobuf=6.33.5=py312hcb3287e_2
   - pycparser=2.22=pyh29332c3_1
   - pyproject_hooks=1.2.0=pyhd8ed1ab_1
   - python=3.12.11=h3f84c4b_0_cpython
@@ -124,7 +124,6 @@ dependencies:
       - onnx==1.21.0
       - onnx-tool==0.9.0
       - onnxruntime-directml==1.24.3
-      - opencv-python==4.11.0.86
       - openpyxl==3.1.5
       - optimum==1.24.0
       - packaging==24.1

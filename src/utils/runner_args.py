@@ -527,8 +527,16 @@ def check_args(args):
     )
     # pr-231: FLUX models also need DD_PLUGINS_ROOT for NPU transactions
     is_flux_model = "flux" in mid
+    # The RyzenAI package's built-in transactions only cover 512/768/1024 square SDXL UNet shapes.
+    is_sdxl_model = any(
+        name in mid
+        for name in (
+            "sdxl-turbo", "stable-diffusion-xl-base-1.0", "sdxl-base", "playground-v2.5",
+            "playground2.5", "dreamshaper-xl-lightning", "ssd-1b", "segmind-vega",
+        )
+    )
     npu_platform = args.npu_platform
-    if npu_platform == "mds" or is_sd3_model or is_flux_model:
+    if npu_platform == "mds" or is_sd3_model or is_flux_model or is_sdxl_model:
         dd_subpath = get_dd_plugins_subpath(npu_platform)
         if not os.environ.get("DD_PLUGINS_ROOT"):
             # get_absolute_path raises FileNotFoundError first, hiding the clearer EnvironmentError below.
