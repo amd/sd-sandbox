@@ -16,7 +16,7 @@
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.kolors.tokenization_chatglm import ChatGLMTokenizer
+from third_party.kolors.tokenization_chatglm import ChatGLMTokenizer
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import torch
