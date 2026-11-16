@@ -12,7 +12,7 @@ from .base_runner import BaseRunner
 
 
 class KolorsRunner(BaseRunner):
-    # pr-231: Trigger reads args directly; hooks replace the full run() override
+    # Trigger reads args directly; hooks replace the full run() override
     trigger_cls = StableDiffusionKolorsONNXPipelineAMDTrigger
     default_shape_extras = {"seq_len": 512}
 

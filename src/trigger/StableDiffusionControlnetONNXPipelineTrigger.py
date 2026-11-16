@@ -22,7 +22,7 @@ from src.trigger.base_trigger import BaseOnnxPipelineTrigger
 
 
 class StableDiffusionControlnetONNXPipelineTrigger(BaseOnnxPipelineTrigger):
-    # pr-231: Accept args namespace directly — eliminates runner getter boilerplate
+    # Accept args namespace directly — eliminates runner getter boilerplate
     def __init__(self, args):
         super().__init__(args)
         root_model_path = args.model_path
@@ -139,7 +139,7 @@ class StableDiffusionControlnetONNXPipelineTrigger(BaseOnnxPipelineTrigger):
             Logger.warning("Failed to load control image: %s", exc)
             return None
 
-    # pr-231: Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
+    # Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
     def run(self, args, prompt, shape):
         height, width = shape.height, shape.width
         n_prompt = args.n_prompt

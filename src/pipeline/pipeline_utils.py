@@ -1,7 +1,7 @@
 # Copyright Advanced Micro Devices, Inc.
 #
 # SPDX-License-Identifier: MIT
-# pr-231: new file -- retrieve_timesteps and rescale_noise_cfg extracted from 7+ pipeline files
+# new file -- retrieve_timesteps and rescale_noise_cfg extracted from 7+ pipeline files
 
 import inspect
 from typing import List, Optional, Union

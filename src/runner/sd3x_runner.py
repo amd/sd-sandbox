@@ -10,7 +10,7 @@ from .base_runner import BaseRunner
 
 
 class SD3xRunner(BaseRunner):
-    # pr-231: Trigger reads args directly — no getter boilerplate needed
+    # Trigger reads args directly — no getter boilerplate needed
     trigger_cls = StableDiffusion3PipelineTrigger
 
     def __init__(self, args):

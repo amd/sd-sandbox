@@ -18,7 +18,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
-# pr-231: force unbuffered stdout so orchestrator progress appears immediately
+# force unbuffered stdout so orchestrator progress appears immediately
 # even when output is piped or redirected
 os.environ["PYTHONUNBUFFERED"] = "1"
 sys.stdout.reconfigure(line_buffering=True)
@@ -41,7 +41,7 @@ from config_validator import validate_config_structure, VALID_ARGS
 # Configuration
 WORKSPACE_ROOT = Path(__file__).parent.parent
 CONFIG_DIR = WORKSPACE_ROOT / "config"
-# pr-231: removed subprocess env dict — pipelines now run in-process
+# removed subprocess env dict — pipelines now run in-process
 
 
 def resolve_image_only(args: argparse.Namespace, config_item: Dict[str, Any],
@@ -147,7 +147,7 @@ def main():
                        help="Enable benchmark mode (10 profiling rounds). Default is quick mode (1 round).")
     parser.add_argument("--timeout", type=int, default=600,
                        help="Timeout in seconds for each run (default: 600)")
-    # pr-231: removed --script filter -- all pipelines now use unified run.py entry point
+    # removed --script filter -- all pipelines now use unified run.py entry point
     parser.add_argument("--model_id", type=str, nargs="*",
                        help="Run only these model IDs (e.g. --model_id runwayml/stable-diffusion-v1-5)")
     parser.add_argument("--pipelines", type=str, nargs="*",

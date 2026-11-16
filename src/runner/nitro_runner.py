@@ -10,5 +10,5 @@ from .base_runner import BaseRunner
 
 
 class NitroERunner(BaseRunner):
-    # pr-231: Trigger reads args directly — no getter boilerplate needed
+    # Trigger reads args directly — no getter boilerplate needed
     trigger_cls = StableDiffusionNitroEONNXPipelineTrigger

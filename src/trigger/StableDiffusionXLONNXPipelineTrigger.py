@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class StableDiffusionXLONNXPipelineAMDTrigger(BaseOnnxPipelineTrigger):
-    # pr-231: Accept args namespace directly — eliminates runner getter boilerplate
+    # Accept args namespace directly — eliminates runner getter boilerplate
     def __init__(self, args):
         super().__init__(args)
         self.control_image_path = args.control_image_path
@@ -139,7 +139,7 @@ class StableDiffusionXLONNXPipelineAMDTrigger(BaseOnnxPipelineTrigger):
         if "scaling_factor" not in self.vae_decoder.config:
             self.vae_decoder.config["scaling_factor"] = 0.18215
 
-    # pr-231: Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
+    # Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
     def run(self, args, prompt, shape):
         height, width = shape.height, shape.width
         n_prompt = args.n_prompt

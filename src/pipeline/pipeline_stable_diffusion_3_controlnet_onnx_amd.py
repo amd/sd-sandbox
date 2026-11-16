@@ -44,8 +44,8 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.pipelines.stable_diffusion_3.pipeline_output import (
     StableDiffusion3PipelineOutput,
 )
-from src.pipeline.pipeline_utils import retrieve_timesteps  # pr-231: was duplicated inline
-from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # pr-231: replaces duplicated properties
+from src.pipeline.pipeline_utils import retrieve_timesteps  # was duplicated inline
+from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # replaces duplicated properties
 
 
 if is_torch_xla_available():

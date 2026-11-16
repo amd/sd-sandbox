@@ -19,7 +19,7 @@ from src.trigger.base_trigger import BaseOnnxPipelineTrigger
 
 
 class StableDiffusion3PipelineTrigger(BaseOnnxPipelineTrigger):
-    # pr-231: Accept args namespace directly — eliminates runner getter boilerplate
+    # Accept args namespace directly — eliminates runner getter boilerplate
     def __init__(self, args):
         tea_caching_coef = getattr(args, "tea_caching_coef", None)
         if tea_caching_coef is None:
@@ -266,7 +266,7 @@ class StableDiffusion3PipelineTrigger(BaseOnnxPipelineTrigger):
         gc.collect()
         Logger.debug("Models in StableDiffusion3PipelineTrigger are released")
 
-    # pr-231: Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
+    # Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
     def run(self, args, prompt, shape):
         height, width = shape.height, shape.width
         t5_sequence_len = shape.extras.get("t5_sequence_len", args.t5_sequence_len)

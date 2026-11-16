@@ -57,8 +57,8 @@ from diffusers.configuration_utils import FrozenDict
 
 import time
 import numpy
-from src.pipeline.pipeline_utils import retrieve_timesteps, rescale_noise_cfg  # pr-231: was duplicated inline
-from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # pr-231: replaces duplicated properties
+from src.pipeline.pipeline_utils import retrieve_timesteps, rescale_noise_cfg  # was duplicated inline
+from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # replaces duplicated properties
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 

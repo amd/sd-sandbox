@@ -59,8 +59,8 @@ from diffusers.pipelines.controlnet.pipeline_controlnet import FromSingleFileMix
 from diffusers.schedulers.scheduling_pndm import PNDMScheduler
 from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepScheduler
 import logging as sd15Logger
-from src.pipeline.pipeline_utils import retrieve_timesteps  # pr-231: was duplicated inline
-from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # pr-231: replaces duplicated properties
+from src.pipeline.pipeline_utils import retrieve_timesteps  # was duplicated inline
+from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # replaces duplicated properties
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name

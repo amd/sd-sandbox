@@ -26,7 +26,7 @@ defaults:
   # Execution provider settings
   execution:
     force_cpu: false  # Set to true to force CPU-only execution (disables DML)
-  # pr-231: script defaults to run.py -- unified entry point for all pipelines
+  # script defaults to run.py -- unified entry point for all pipelines
   script: "run.py"
   prompt: "A red sports car parked beside a yellow fire hydrant on a cobblestone street. Behind the car is a blue storefront with a sign that reads \"OPEN\". A green bicycle is leaning against the building. Bright sunny day, realistic photography, sharp focus, detailed textures"
 

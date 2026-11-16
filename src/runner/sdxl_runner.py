@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class SDXLRunner(BaseRunner):
     trigger_cls = StableDiffusionXLONNXPipelineAMDTrigger
 
-    # pr-231: Strength validation moved from get_run_kwargs — trigger reads args directly
+    # Strength validation moved from get_run_kwargs — trigger reads args directly
     def pre_run(self, args):
         if args.control_image_path is not None:
             if "segmind-vega" in args.model_id:

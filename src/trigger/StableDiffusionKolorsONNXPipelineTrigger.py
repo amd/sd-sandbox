@@ -22,7 +22,7 @@ from src.trigger.base_trigger import BaseOnnxPipelineTrigger
 
 
 class StableDiffusionKolorsONNXPipelineAMDTrigger(BaseOnnxPipelineTrigger):
-    # pr-231: Accept args namespace directly — eliminates runner getter boilerplate
+    # Accept args namespace directly — eliminates runner getter boilerplate
     def __init__(self, args):
         super().__init__(args)
         self.controlnet_str = args.controlnet
@@ -124,7 +124,7 @@ class StableDiffusionKolorsONNXPipelineAMDTrigger(BaseOnnxPipelineTrigger):
                 0.18215  # default value in AutoencoderKL
             )
 
-    # pr-231: Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
+    # Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
     def run(self, args, prompt, shape):
         height, width = shape.height, shape.width
         n_prompt = args.n_prompt

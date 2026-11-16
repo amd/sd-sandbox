@@ -27,7 +27,7 @@ from src.trigger.base_trigger import BaseOnnxPipelineTrigger
 
 
 class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger(BaseOnnxPipelineTrigger):
-    # pr-231: Accept args namespace directly — eliminates runner getter boilerplate
+    # Accept args namespace directly — eliminates runner getter boilerplate
     def __init__(self, args):
         tea_caching_coef = getattr(args, "tea_caching_coef", None)
         if tea_caching_coef is None:
@@ -261,7 +261,7 @@ class StableDiffusion3ControlnetOutpaintingONNXPipelineTrigger(BaseOnnxPipelineT
         dilated_image = PIL.Image.fromarray(dilated_image)
         return dilated_image
 
-    # pr-231: Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
+    # Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
     def run(self, args, prompt, shape):
         height, width = shape.height, shape.width
         n_prompt = args.n_prompt

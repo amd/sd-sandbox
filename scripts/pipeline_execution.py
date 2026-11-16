@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-# pr-231: rewritten -- uses subprocess with unified run.py entry point
+# rewritten -- uses subprocess with unified run.py entry point
 """
 Pipeline execution utilities -- subprocess runner invocation.
 
@@ -151,7 +151,7 @@ def has_streaming_output(pipeline_configs: List[Dict[str, Any]],
 
 def _build_runner_arg_list(model_id: str, extra_args: List[str],
                            profiling_rounds: int, image_only: bool = False) -> List[str]:
-    # pr-231: builds args for test/run.py subprocess
+    # builds args for test/run.py subprocess
     """Build a string arg list for the test/run.py subprocess command."""
     args = ["--model_id", model_id, "--verbose", "--no_excel",
             "--profiling_rounds", str(profiling_rounds)]
@@ -188,7 +188,7 @@ def run_pipeline(config_item: Dict[str, Any], model_id: str,
                  traceback_enabled: bool = False,
                  control_images_path: Optional[Path] = None,
                  config_files_path: Optional[Path] = None) -> Dict[str, Any]:
-    # pr-231: subprocess execution via unified test/run.py entry point
+    # subprocess execution via unified test/run.py entry point
     """Execute a single pipeline in a subprocess for NPU process isolation."""
     pipeline_name = config_item["name"]
 

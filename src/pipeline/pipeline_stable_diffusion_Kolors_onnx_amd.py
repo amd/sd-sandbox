@@ -52,8 +52,8 @@ import numpy as np
 import PIL.Image
 import torch.nn.functional as F
 import time
-from src.pipeline.pipeline_utils import rescale_noise_cfg  # pr-231: was duplicated inline
-from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # pr-231: replaces duplicated properties
+from src.pipeline.pipeline_utils import rescale_noise_cfg  # was duplicated inline
+from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # replaces duplicated properties
 
 
 

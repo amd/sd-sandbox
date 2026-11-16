@@ -191,7 +191,7 @@ class BaseRunner(ABC):
         """Override when saved image size differs from shape (e.g. outpainting)."""
         return shape.width, shape.height
 
-    # pr-231: Triggers accept args directly — no get_trigger_kwargs / get_run_kwargs needed
+    # Triggers accept args directly — no get_trigger_kwargs / get_run_kwargs needed
     def run(self) -> None:
         args = self.args
         self.pre_run(args)

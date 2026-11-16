@@ -16,7 +16,7 @@ from .common import (
 from .model_config import InferenceConfig, detect_model_spec
 from .npu_platform import detect_npu_platform, get_dd_plugins_subpath
 
-# pr-231: shown when the 'lib' directory (or one of its subfolders) is missing
+# shown when the 'lib' directory (or one of its subfolders) is missing
 # from the project root -- it isn't shipped in git and must be copied in from
 # the Ryzen AI installation.
 _LIB_DIR_HINT = (
@@ -501,7 +501,7 @@ def check_args(args):
             candidates.append(
                 os.path.join(ryzen_root, "deployment", share_obj_name)
             )
-        # 3. project local lib fallback  # pr-231: uncommented -- enables lib/ EP DLL discovery
+        # 3. project local lib fallback  # uncommented -- enables lib/ EP DLL discovery
         candidates.append(
             resolve_project_path(os.path.join("lib", share_obj_name))
         )
@@ -523,7 +523,7 @@ def check_args(args):
         or "stable-diffusion-3.5" in mid
         or "stable-diffusion-3-5" in mid
     )
-    # pr-231: FLUX models also need DD_PLUGINS_ROOT for NPU transactions
+    # FLUX models also need DD_PLUGINS_ROOT for NPU transactions
     is_flux_model = "flux" in mid
     npu_platform = args.npu_platform
     if npu_platform == "mds" or is_sd3_model or is_flux_model:

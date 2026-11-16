@@ -1,7 +1,7 @@
 # Copyright Advanced Micro Devices, Inc.
 #
 # SPDX-License-Identifier: MIT
-# pr-231: new file -- shared trigger base class with profiling template and EP setup
+# new file -- shared trigger base class with profiling template and EP setup
 """Shared Trigger logic: profiling template and execution providers."""
 
 from __future__ import annotations

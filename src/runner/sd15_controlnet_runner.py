@@ -10,7 +10,7 @@ from .base_runner import BaseRunner
 
 
 class SD15ControlnetRunner(BaseRunner):
-    # pr-231: Trigger reads args directly; canny loading moved into trigger
+    # Trigger reads args directly; canny loading moved into trigger
     trigger_cls = StableDiffusionControlnetONNXPipelineTrigger
 
     def pre_run(self, args):

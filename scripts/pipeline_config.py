@@ -230,7 +230,7 @@ def get_pipeline_configs(config: Dict[str, Any], paths: Dict[str, Path],
         # Support dict-style 'args' alongside flat 'extra_args' lists
         expand_args_dict(pipeline_config)
         pipeline_config["extra_args"] = process_extra_args(pipeline_config.get('extra_args', []), config, paths)
-        # pr-231: fall back to defaults.script (run.py) if not set per-pipeline
+        # fall back to defaults.script (run.py) if not set per-pipeline
         if "script" not in pipeline_config:
             defaults = config.get('defaults', {})
             pipeline_config["script"] = defaults.get("script", "run.py")

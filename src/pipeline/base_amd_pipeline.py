@@ -1,7 +1,7 @@
 # Copyright Advanced Micro Devices, Inc.
 #
 # SPDX-License-Identifier: MIT
-# pr-231: new file -- mixin providing properties and utility methods shared across all AMD ONNX pipelines
+# new file -- mixin providing properties and utility methods shared across all AMD ONNX pipelines
 
 import functools
 import inspect
@@ -166,7 +166,7 @@ class AMDPipelineMixin:
             latents = latents.to(device)
 
         # scale the initial noise by the standard deviation required by the scheduler
-        # pr-231: FlowMatchEulerDiscreteScheduler (SD3.5) does not have init_noise_sigma
+        # FlowMatchEulerDiscreteScheduler (SD3.5) does not have init_noise_sigma
         if hasattr(self.scheduler, "init_noise_sigma"):
             latents = latents * self.scheduler.init_noise_sigma
         return latents

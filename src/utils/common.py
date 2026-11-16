@@ -165,7 +165,7 @@ def download_model_from_huggingface(model_id: str, force_download: bool = False,
         local_model_path = cache_dir / model_name
         revision_file = local_model_path / ".revision"
 
-        # pr-231: revision-aware caching -- if a revision is requested, check
+        # revision-aware caching -- if a revision is requested, check
         # whether the cached model was downloaded with that same revision.
         # If revisions don't match, re-download with the correct one.
         if local_model_path.exists() and not force_download:
@@ -202,7 +202,7 @@ def download_model_from_huggingface(model_id: str, force_download: bool = False,
 
             downloaded_path = snapshot_download(**download_kwargs)
 
-            # pr-231: save revision info for future cache validation
+            # save revision info for future cache validation
             if revision:
                 revision_file.write_text(revision, encoding='utf-8')
             elif revision_file.exists():
@@ -334,9 +334,9 @@ def register_ep(ep_dll: Path) -> None:
     global _EP_REGISTERED
     if _EP_REGISTERED:
         return
-    ep_dll = ep_dll.resolve()  # pr-231: resolve symlinks so dll_dir is correct
+    ep_dll = ep_dll.resolve()  # resolve symlinks so dll_dir is correct
     dll_dir = ep_dll.parent
-    # pr-231: os.add_dll_directory is required on Windows so ORT can resolve dependency DLLs
+    # os.add_dll_directory is required on Windows so ORT can resolve dependency DLLs
     if hasattr(os, "add_dll_directory"):
         os.add_dll_directory(str(dll_dir))
     prev_cwd = os.getcwd()

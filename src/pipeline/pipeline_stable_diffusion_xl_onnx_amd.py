@@ -68,8 +68,8 @@ from diffusers.pipelines.onnx_utils import OnnxRuntimeModel, ORT_TO_NP_TYPE
 
 import numpy as np
 import time
-from src.pipeline.pipeline_utils import retrieve_timesteps, rescale_noise_cfg  # pr-231: was duplicated inline
-from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # pr-231: replaces duplicated properties
+from src.pipeline.pipeline_utils import retrieve_timesteps, rescale_noise_cfg  # was duplicated inline
+from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # replaces duplicated properties
 
 if is_torch_xla_available():
     import torch_xla.core.xla_model as xm

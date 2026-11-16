@@ -19,7 +19,7 @@ class FluxPipelineTrigger(BaseOnnxPipelineTrigger):
     Uses the refactored ModelLoadConfig-based loader.
     """
 
-    # pr-231: Accept args namespace directly — eliminates runner getter boilerplate
+    # Accept args namespace directly — eliminates runner getter boilerplate
     def __init__(self, args):
         super().__init__(args)
         self.is_dynamic = args.dynamic_shape
@@ -129,7 +129,7 @@ class FluxPipelineTrigger(BaseOnnxPipelineTrigger):
         gc.collect()
         Logger.debug("Models in FluxPipelineTrigger are released")
 
-    # pr-231: Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
+    # Accept args + prompt + shape — eliminates runner get_run_kwargs boilerplate
     def run(self, args, prompt, shape):
         height, width = shape.height, shape.width
         prompt_2 = getattr(args, "prompt_2", None)
