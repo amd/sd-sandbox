@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# SPDX-License-Identifier: Apache-2.0
 
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -57,7 +58,7 @@ from diffusers.configuration_utils import FrozenDict
 
 import time
 import numpy
-from src.pipeline.pipeline_utils import retrieve_timesteps, rescale_noise_cfg  # was duplicated inline
+from third_party.diffusers.pipeline_utils import retrieve_timesteps, rescale_noise_cfg  # was duplicated inline
 from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # replaces duplicated properties
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name

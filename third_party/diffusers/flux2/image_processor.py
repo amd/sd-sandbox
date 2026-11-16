@@ -1,4 +1,10 @@
 # Modifications Copyright Advanced Micro Devices, Inc.
+#   - Relative imports changed to absolute diffusers.* imports, and the
+#     @register_to_config decorator commented out, so the class can be
+#     used outside the diffusers package.
+#
+# Third-party code from huggingface/diffusers (FLUX.2 image processor):
+# https://github.com/huggingface/diffusers/blob/7448258505c504d2070a48abd3ca56543324c016/src/diffusers/pipelines/flux2/image_processor.py
 #
 # Copyright 2025 The Black Forest Labs Team and The HuggingFace Team. All rights reserved.
 #
@@ -13,6 +19,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 
 import math
 

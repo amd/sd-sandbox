@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# SPDX-License-Identifier: Apache-2.0
 
 import inspect
 import time
@@ -35,7 +36,7 @@ from diffusers.pipelines.onnx_utils import OnnxRuntimeModel
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.pipelines.flux.pipeline_output import FluxPipelineOutput
 import logging as Logger
-from src.pipeline.pipeline_utils import retrieve_timesteps  # was duplicated inline
+from third_party.diffusers.pipeline_utils import retrieve_timesteps  # was duplicated inline
 from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # replaces duplicated properties
 
 logger = logging.get_logger(__name__)

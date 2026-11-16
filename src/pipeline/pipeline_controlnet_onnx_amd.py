@@ -13,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 
 import inspect
 import os
@@ -59,7 +61,7 @@ from diffusers.pipelines.controlnet.pipeline_controlnet import FromSingleFileMix
 from diffusers.schedulers.scheduling_pndm import PNDMScheduler
 from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepScheduler
 import logging as sd15Logger
-from src.pipeline.pipeline_utils import retrieve_timesteps  # was duplicated inline
+from third_party.diffusers.pipeline_utils import retrieve_timesteps  # was duplicated inline
 from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # replaces duplicated properties
 
 
