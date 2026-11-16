@@ -20,14 +20,14 @@ These files are derived from or taken from external projects. They keep the orig
 | `src/pipeline/pipeline_stable_diffusion_3_controlnet_outpainting_onnx_amd.py` | [huggingface/diffusers](https://github.com/huggingface/diffusers) | Stability AI, The HuggingFace Team and The AlimamaCreative Team | Apache-2.0 | Yes |
 | `src/pipeline/pipeline_flux_onnx_amd.py` | [huggingface/diffusers](https://github.com/huggingface/diffusers) | Black Forest Labs and The HuggingFace Team | Apache-2.0 | Yes |
 | `src/pipeline/pipeline_stable_diffusion_flux2_klein_onnx_amd.py` | [huggingface/diffusers](https://github.com/huggingface/diffusers) | Black Forest Labs and The HuggingFace Team | Apache-2.0 | Yes |
-| `src/pipeline/pipeline_stable_diffusion_NitroE_onnx_amd.py` | Adapted from diffusers pipeline structure (see note) | Not stated in file | Apache-2.0 (as headered) | Yes |
+| `src/pipeline/pipeline_stable_diffusion_NitroE_onnx_amd.py` | [huggingface/diffusers](https://github.com/huggingface/diffusers) `StableDiffusion3Pipeline` (v0.31.0) | Stability AI and The HuggingFace Team | Apache-2.0 | Yes |
 | `src/flux2/image_processor.py` | [huggingface/diffusers](https://github.com/huggingface/diffusers) | The Black Forest Labs Team and The HuggingFace Team | Apache-2.0 | Yes |
 | `src/t5/modeling_t5.py` | [huggingface/transformers](https://github.com/huggingface/transformers) (`models/t5/modeling_t5.py`) | Mesh TensorFlow authors, T5 Authors and HuggingFace Inc. team | Apache-2.0 | Yes |
 | `src/kolors/configuration_chatglm.py` | [Kwai-Kolors/Kolors @ 038818d](https://github.com/Kwai-Kolors/Kolors/blob/038818d244ed103056abd10f429729a26af4d239/kolors/models/configuration_chatglm.py) | Kwai-Kolors (no holder named upstream) | Apache-2.0 | No |
 | `src/kolors/modeling_chatglm.py` | [Kwai-Kolors/Kolors @ 038818d](https://github.com/Kwai-Kolors/Kolors/blob/038818d244ed103056abd10f429729a26af4d239/kolors/models/modeling_chatglm.py) | Kwai-Kolors (no holder named upstream) | Apache-2.0 | No |
 | `src/kolors/tokenization_chatglm.py` | [Kwai-Kolors/Kolors @ 038818d](https://github.com/Kwai-Kolors/Kolors/blob/038818d244ed103056abd10f429729a26af4d239/kolors/models/tokenization_chatglm.py) | Kwai-Kolors (no holder named upstream) | Apache-2.0 | Yes (`_pad()` `padding_side` argument) |
 
-Note on the Nitro-E pipeline: the file carries an Apache-2.0 header but no third-party copyright line. The Nitro-E model code itself is published by AMD under MIT ([AMD-AGI/Nitro-E](https://github.com/AMD-AGI/Nitro-E)). The correct license for this file is pending review.
+Note on the Nitro-E pipeline: the ONNX pipeline is adapted from the diffusers `StableDiffusion3Pipeline` (`check_inputs`, `encode_prompt`, and `prepare_latents` follow it), not from the [AMD-AGI/Nitro-E](https://github.com/AMD-AGI/Nitro-E) training repository (MIT). Nitro-E's own diffusers pipeline (`core/models/emmdit_pipeline.py`) is also Apache-2.0, for the same reason.
 
 All other source files (`scripts/`, `src/runner/`, `src/trigger/`, `src/utils/`, `test/`, and the remaining files under `src/`) were written by Advanced Micro Devices, Inc. and are MIT-licensed (`SPDX-License-Identifier: MIT`).
 
