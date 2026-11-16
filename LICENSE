@@ -22,23 +22,18 @@ SOFTWARE.
 
 
 ===============================================================================
-Third-party components
+Licenses in this repository
 ===============================================================================
 
-This repository contains files derived from third-party projects that are
-licensed under the Apache License, Version 2.0. Those files keep their
-original copyright notices and license headers and are NOT covered by the
-MIT License above. See MANIFEST.md for the full list. In summary:
+This repository contains open-source software under the following licenses:
 
-  - src/pipeline/pipeline_*_onnx_amd.py, src/flux2/image_processor.py
-      Derived from Hugging Face Diffusers
-      (https://github.com/huggingface/diffusers)
-  - src/t5/modeling_t5.py
-      Derived from Hugging Face Transformers
-      (https://github.com/huggingface/transformers)
-  - src/kolors/configuration_chatglm.py, src/kolors/modeling_chatglm.py,
-    src/kolors/tokenization_chatglm.py
-      From Kwai-Kolors/Kolors (https://github.com/Kwai-Kolors/Kolors)
+  - MIT License (above): files written by Advanced Micro Devices, Inc.
+  - Apache License, Version 2.0 (below): files derived from third-party
+    projects. These files keep their original copyright notices and
+    license headers.
+
+Each source file states its license in its header. MANIFEST.md lists the
+third-party files and their origins.
 
 The text of the Apache License, Version 2.0 follows.
 
