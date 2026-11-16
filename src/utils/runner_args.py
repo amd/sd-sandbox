@@ -22,7 +22,7 @@ from .npu_platform import detect_npu_platform, get_dd_plugins_subpath
 _LIB_DIR_HINT = (
     "The 'lib' directory is missing from the sd-sandbox project root.\n"
     "Copy it from your Ryzen AI installation, e.g.:\n"
-    r'  Copy-Item "C:\Program Files\RyzenAI\1.8.0\GenAI-SD\lib" "<sd-sandbox_dir>\lib" -Recurse' "\n"
+    r'  Copy-Item "C:\Program Files\RyzenAI\1.9.0\GenAI-SD\lib" "<sd-sandbox_dir>\lib" -Recurse' "\n"
     "If Ryzen AI was installed to a different location, copy the 'lib' directory "
     "from '<RyzenAI_install_dir>\\GenAI-SD\\lib' instead."
 )
@@ -316,6 +316,8 @@ def _resolve_npu_platform(args) -> str:
     never calls ``input()`` and never ``sys.exit()``, so an orchestrated
     subprocess can neither hang on a prompt nor be killed by a mismatch.
     """
+    # Detection failures or a model/hardware mismatch used to exit or block on a Y/N
+    # prompt, which kills or hangs orchestrated runs; env override covers a bad xrt-smi.
     model_id = getattr(args, "model_id", None) or ""
     model_name = model_id.rsplit("/", 1)[-1]
     inferred = "mds" if model_name.lower().endswith("-medusa") else "stx"
@@ -525,10 +527,19 @@ def check_args(args):
     )
     # FLUX models also need DD_PLUGINS_ROOT for NPU transactions
     is_flux_model = "flux" in mid
+    # The RyzenAI package's built-in transactions only cover 512/768/1024 square SDXL UNet shapes.
+    is_sdxl_model = any(
+        name in mid
+        for name in (
+            "sdxl-turbo", "stable-diffusion-xl-base-1.0", "sdxl-base", "playground-v2.5",
+            "playground2.5", "dreamshaper-xl-lightning", "ssd-1b", "segmind-vega",
+        )
+    )
     npu_platform = args.npu_platform
-    if npu_platform == "mds" or is_sd3_model or is_flux_model:
+    if npu_platform == "mds" or is_sd3_model or is_flux_model or is_sdxl_model:
         dd_subpath = get_dd_plugins_subpath(npu_platform)
         if not os.environ.get("DD_PLUGINS_ROOT"):
+            # get_absolute_path raises FileNotFoundError first, hiding the clearer EnvironmentError below.
             os.environ["DD_PLUGINS_ROOT"] = resolve_project_path(dd_subpath)
             Logger.info(
                 "NPU platform=%s, DD_PLUGINS_ROOT auto-set to %s",

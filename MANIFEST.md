@@ -1,7 +1,7 @@
 # Software Manifest
 
 Application: **sd-sandbox**: Stable Diffusion ONNX pipelines for AMD Ryzen™ AI
-Version: `main` (no tagged releases yet)
+Version: 1.9.0 (for AMD Ryzen™ AI Software 1.9.0)
 License: MIT for code written by Advanced Micro Devices, Inc. Third-party components are listed below with their own licenses. See [LICENSE](LICENSE).
 
 Every source file carries an SPDX license identifier or the full license header of its upstream project.
@@ -65,8 +65,8 @@ Primary direct dependencies:
 | sentencepiece | 0.2.0, 0.2.1 | Apache-2.0 |
 | numpy | 1.26.4, 2.3.3 | BSD-3-Clause |
 | pillow | 10.4.0, 11.3.0 | MIT-CMU (HPND) |
-| opencv-python | 4.11.0.86 | Apache-2.0 (binary wheels bundle additional components) |
-| protobuf | 6.31.1, 6.32.1 | BSD-3-Clause |
+| protobuf | 6.31.1, 6.33.5 | BSD-3-Clause |
+| scipy | 1.15.1, 1.16.2 | BSD-3-Clause |
 
 TODO: a complete license inventory of every transitive package in the environment files has not been produced yet.
 
@@ -76,18 +76,17 @@ Images used as test inputs and reference outputs. Their origin and license have 
 
 | File | Origin | License |
 |---|---|---|
-| `test/assets/2025_Bousetouane_image_to_image_controlnet.png` | TBD | TBD |
-| `test/assets/2025_Bousetouane_text-to-image.png` | TBD | TBD |
 | `test/assets/canny.jpg` | TBD | TBD |
-| `test/assets/coffe_table.png` | TBD | TBD |
+| `test/assets/coffee_table.png` | TBD | TBD |
 | `test/assets/control.png` | TBD | TBD |
 | `test/assets/controlimg_input_1024x1024.png` | TBD | TBD |
 | `test/assets/controlimg_output_strength_0.95_1024x1024.png` | TBD | TBD |
 | `test/assets/depth.jpeg` | TBD | TBD |
 | `test/assets/flux2_img1.png` | TBD | TBD |
+| `test/assets/flux2_img2.png` | TBD | TBD |
 | `test/assets/flux2_img3.png` | TBD | TBD |
-| `test/assets/inpainting_input_1024x1024.png` | TBD | TBD |
-| `test/assets/inpainting_mask_1024x1024.png` | TBD | TBD |
+| `test/assets/image-to-image-controlnet-workflow.png` | TBD | TBD |
+| `test/assets/image-to-image-workflow.png` | TBD | TBD |
 | `test/assets/inpainting_output_1024x1024.png` | TBD | TBD |
 | `test/assets/living_room_mask_books_vase_1024x1024.png` | TBD | TBD |
 | `test/assets/outpainting_input_512x512.png` | TBD | TBD |
@@ -98,6 +97,7 @@ Images used as test inputs and reference outputs. Their origin and license have 
 | `test/assets/removal_input_mask_1024x1024.jpg` | TBD | TBD |
 | `test/assets/removal_output_1024x1024.png` | TBD | TBD |
 | `test/assets/sd_demo.gif` | TBD | TBD |
+| `test/assets/text-to-image-workflow.png` | TBD | TBD |
 | `test/assets/tile.jpg` | TBD | TBD |
 | `test/ref/Canny_dog_condition.jpg` | TBD | TBD |
 | `test/ref/canny.jpg` | TBD | TBD |

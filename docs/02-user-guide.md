@@ -81,9 +81,6 @@ path instead of the built-in `models/` folder.
 
 *Multiple = 512×512, 512×768, 768×512, 576×1024, 1024×576, 768×1024, 1024×768, 1024×1024*
 
-> **Kolors** is not auto-downloaded from the `amd/` namespace. You must build and prepare the DD
-> model locally — see [docs/04-model-generate-guide.md](04-model-generate-guide.md).
-
 See [docs/03-model-reference-guide.md](03-model-reference-guide.md) for model-specific commands and parameters.
 
 ---

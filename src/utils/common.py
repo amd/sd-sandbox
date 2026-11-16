@@ -89,6 +89,7 @@ def _configure_external_loggers():
         "huggingface_hub",
         "huggingface_hub.file_download",
         "transformers.modeling_utils",
+        # Model downloads otherwise flood verbose runs with per-request DEBUG lines.
         "filelock",
         "urllib3",
         "urllib3.connectionpool",
@@ -157,6 +158,7 @@ def download_model_from_huggingface(model_id: str, force_download: bool = False,
         if models_root is not None:
             cache_dir = Path(models_root)
         else:
+            # get_absolute_path raises if models/ doesn't exist yet, which breaks the first download.
             cache_dir = Path(resolve_project_path("models"))
         cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -346,6 +348,23 @@ def register_ep(ep_dll: Path) -> None:
     finally:
         os.chdir(prev_cwd)
     _EP_REGISTERED = True
+
+
+def unregister_ep() -> None:
+    """Unregister the RyzenAI EP, idempotently.
+
+    Must be called after every ORT session using the EP has been released
+    (and ideally garbage-collected). Without this, process exit can race the
+    AMD graphics user-mode driver's unload ordering and crash with
+    0xC0000409, even though all sessions were already released cleanly.
+    """
+    global _EP_REGISTERED
+    if not _EP_REGISTERED:
+        return
+    try:
+        onnxruntime.unregister_execution_provider_library(EP_NAME)
+    finally:
+        _EP_REGISTERED = False
 
 
 def get_total_physical_memory_gb() -> float:

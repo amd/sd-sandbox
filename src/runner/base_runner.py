@@ -196,34 +196,42 @@ class BaseRunner(ABC):
         args = self.args
         self.pre_run(args)
         trigger_ctx = self.trigger_cls(args)
+        # Triggers that implement __enter__/__exit__ own cleanup (releasing ORT
+        # sessions, unregistering dynamically-registered EPs, etc.) that must
+        # run on both the success and the exception path — otherwise it's dead
+        # code and process exit can crash during EP/driver unload ordering.
+        # Triggers without a context manager fall back to nullcontext.
+        has_context_manager = hasattr(trigger_ctx, "__enter__") and hasattr(trigger_ctx, "__exit__")
+        cm = trigger_ctx if has_context_manager else nullcontext(trigger_ctx)
 
-        prompt_list = get_prompts(args)
-        shape_list = get_shapes(args, default_extras=self.default_shape_extras)
-        run_mode = get_run_mode(args)
-        controlnet_label = getattr(args, "controlnet", "none")
-        num_inference_steps = args.num_inference_steps
+        with cm as trigger:
+            prompt_list = get_prompts(args)
+            shape_list = get_shapes(args, default_extras=self.default_shape_extras)
+            run_mode = get_run_mode(args)
+            controlnet_label = getattr(args, "controlnet", "none")
+            num_inference_steps = args.num_inference_steps
 
-        for prompt_idx, prompt in enumerate(prompt_list):
-            for shape in shape_list:
-                images = normalize_images(trigger_ctx.run(args, prompt, shape))
-                save_w, save_h = self.get_save_dimensions(trigger_ctx, shape)
-                save_images(
-                    args,
-                    images,
-                    width=save_w,
-                    height=save_h,
-                    num_inference_steps=num_inference_steps,
-                    prompt_idx=prompt_idx,
-                    controlnet=controlnet_label,
-                    run_mode=run_mode,
-                )
-                save_profiling(
-                    trigger_ctx,
-                    args,
-                    width=shape.width,
-                    height=shape.height,
-                    prompt_idx=prompt_idx,
-                    num_inference_steps=num_inference_steps,
-                    controlnet=controlnet_label,
-                    run_mode=run_mode,
-                )
+            for prompt_idx, prompt in enumerate(prompt_list):
+                for shape in shape_list:
+                    images = normalize_images(trigger.run(args, prompt, shape))
+                    save_w, save_h = self.get_save_dimensions(trigger, shape)
+                    save_images(
+                        args,
+                        images,
+                        width=save_w,
+                        height=save_h,
+                        num_inference_steps=num_inference_steps,
+                        prompt_idx=prompt_idx,
+                        controlnet=controlnet_label,
+                        run_mode=run_mode,
+                    )
+                    save_profiling(
+                        trigger,
+                        args,
+                        width=shape.width,
+                        height=shape.height,
+                        prompt_idx=prompt_idx,
+                        num_inference_steps=num_inference_steps,
+                        controlnet=controlnet_label,
+                        run_mode=run_mode,
+                    )

@@ -17,7 +17,7 @@ dependencies:
   - identify=2.6.15=pyhd8ed1ab_0
   - intel-openmp=2024.2.1=h57928b3_1083
   - krb5=1.21.3=hdf4eb48_0
-  - libabseil=20250814.1=cxx17_habfad5f_0
+  - libabseil=20260107.0=cxx17_h0eb2380_0
   - libblas=3.9.0=35_h5709861_mkl
   - libboost=1.84.0=hb0986bb_7
   - libboost-devel=1.84.0=h91493d7_7
@@ -33,8 +33,8 @@ dependencies:
   - liblapack=3.9.0=35_hf9ab0e9_mkl
   - liblzma=5.8.1=h2466b09_2
   - libmpdec=4.0.0=h2466b09_0
-  - libprotobuf=6.32.1=h514701f_0
-  - libprotobuf-static=6.32.1=h514701f_0
+  - libprotobuf=6.33.5=h61fc761_0
+  - libprotobuf-static=6.33.5=h61fc761_0
   - libsqlite=3.50.4=hf5d6505_0
   - libssh2=1.11.1=h9aa295b_0
   - libuv=1.51.0=hfd05255_1
@@ -127,7 +127,6 @@ dependencies:
       - onnx==1.21.0
       - onnx-tool==0.9.0
       - onnxruntime-directml==1.24.3
-      - opencv-python==4.11.0.86
       - openpyxl==3.1.5
       - optimum==2.0.0
       - packaging==25.0
@@ -135,7 +134,7 @@ dependencies:
       - pathspec==0.12.1
       - pillow==11.3.0
       - propcache==0.4.1
-      - protobuf==6.32.1
+      - protobuf==6.33.5
       - psutil==7.1.0
       - pyarrow==21.0.0
       - pybind11==3.0.1

@@ -39,7 +39,7 @@ supports ControlNet for SD1.5 (Canny) and SD3/SD3.5 (Canny, Tile, Pose, Depth, U
 ## D
 
 **DD (Dynamic Dispatch)**
-AMD's technology for partitioning ONNX model graphs and running subgraphs on the NPU. The
+The AMD technology for partitioning ONNX model graphs and running subgraphs on the NPU. The
 `onnx_utils partition` tool replaces NPU-eligible subgraphs with a single `DynamicDispatch`
 custom operator. See [docs/04-model-generate-guide.md](04-model-generate-guide.md) for the full workflow.
 
@@ -159,7 +159,7 @@ execution provider (`onnxruntime_providers_ryzenai.dll`) which exposes the `Dyna
 custom operator.
 
 **onnx_utils**
-AMD's command-line tool (part of the `ryzenai-onnx-utils` package) for preprocessing and
+The AMD command-line tool (part of the `ryzenai-onnx-utils` package) for preprocessing and
 partitioning ONNX models for NPU deployment. Key commands:
 - `onnx_utils preprocess` — graph optimization
 - `onnx_utils partition` — NPU subgraph splitting
@@ -220,7 +220,7 @@ but with NPU-eligible subgraphs replaced by a single `DynamicDispatch` custom no
 loads this file at inference time. It must be kept alongside the `cache/` directory.
 
 **Ryzen AI Software**
-AMD's software platform for deploying AI models on Ryzen AI processors. The platform includes
+The AMD software platform for deploying AI models on Ryzen AI processors. The platform includes
 the NPU driver, XRT runtime, `onnx_utils`, `ryzenai-dynamic-dispatch`, and ONNX Runtime
 execution provider. Installation instructions at https://ryzenai.docs.amd.com/en/latest/inst.html
 

@@ -365,7 +365,7 @@ if __name__ == "__main__":
 
 ## 5. Built-in pipelines
 
-### 5.1 Registry map (9 pipelines)
+### 5.1 Registry map (7 pipelines)
 
 | Runner | Registry `name` | Match when `model_id` contains | Needs `--controlnet` | Trigger |
 |---|---|---|---|---|

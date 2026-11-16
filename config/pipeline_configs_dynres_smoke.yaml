@@ -1,0 +1,110 @@
+# Dynamic-resolution smoke test
+# Runs every model that supports dynamic resolution across its full shape list,
+# with 1 inference step and no image output. A pipeline passes only if every
+# resolution in its shape file completes.
+#
+# Run all:   python scripts/run_pipelines.py --config config/pipeline_configs_dynres_smoke.yaml --pipeline_groups dynres_smoke
+# Run one:   python scripts/run_pipelines.py --config config/pipeline_configs_dynres_smoke.yaml --pipelines dynres_sdxl_turbo
+
+paths:
+  test_path: "./test"
+  control_images_path: "./test/assets"
+  config_files_path: "./config"
+
+defaults:
+  width: 512
+  height: 512
+  streaming_output: true
+  image_only: true
+  execution:
+    force_cpu: false
+  prompt: "A red sports car parked beside a mountain lake at sunrise, realistic photography"
+
+pipelines:
+
+  dynres_sdxl_turbo:
+    name: "DynRes Smoke - SDXL Turbo (5 shapes)"
+    model_ids: ["amd/sdxl-turbo-amdnpu"]
+    args:
+      num_inference_steps: 1
+      guidance_scale: 0.0
+      dynamic_shape: true
+      dynamic_shape_file_path: "dynamic_shape_5x.json"
+      no_images: true
+
+  dynres_sdxl_base:
+    name: "DynRes Smoke - SDXL Base (20 shapes)"
+    model_ids: ["amd/sdxl-base-amdnpu"]
+    args:
+      num_inference_steps: 1
+      dynamic_shape: true
+      dynamic_shape_file_path: "dynamic_shape_20x.json"
+      no_images: true
+
+  dynres_ssd_1b:
+    name: "DynRes Smoke - SSD-1B (20 shapes)"
+    model_ids: ["amd/SSD-1B-amdnpu"]
+    args:
+      num_inference_steps: 1
+      dynamic_shape: true
+      dynamic_shape_file_path: "dynamic_shape_20x.json"
+      no_images: true
+
+  dynres_playground_25:
+    name: "DynRes Smoke - Playground 2.5 (20 shapes)"
+    model_ids: ["amd/playground-v2.5-1024px-aesthetic-amdnpu"]
+    args:
+      num_inference_steps: 1
+      dynamic_shape: true
+      dynamic_shape_file_path: "dynamic_shape_20x.json"
+      no_images: true
+
+  dynres_dreamshaper_xl:
+    name: "DynRes Smoke - DreamShaper XL (20 shapes)"
+    model_ids: ["amd/dreamshaper-xl-lightning-amdnpu"]
+    args:
+      num_inference_steps: 1
+      dynamic_shape: true
+      dynamic_shape_file_path: "dynamic_shape_20x.json"
+      no_images: true
+
+  dynres_sd3:
+    name: "DynRes Smoke - SD3 Medium (20 shapes)"
+    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
+    args:
+      num_inference_steps: 1
+      controlnet: "None"
+      dynamic_shape: true
+      dynamic_shape_file_path: "dynamic_shape_20x.json"
+      no_images: true
+
+  dynres_sd35:
+    name: "DynRes Smoke - SD3.5 Medium (20 shapes)"
+    model_ids: ["amd/stable-diffusion-3.5-medium-amdnpu"]
+    args:
+      num_inference_steps: 1
+      controlnet: "None"
+      dynamic_shape: true
+      dynamic_shape_file_path: "dynamic_shape_20x.json"
+      no_images: true
+
+  dynres_flux1_schnell:
+    name: "DynRes Smoke - FLUX.1 Schnell (20 shapes)"
+    model_ids: ["amd/FLUX.1-schnell-amdnpu"]
+    args:
+      num_inference_steps: 1
+      guidance_scale: 0.0
+      dynamic_shape: true
+      dynamic_shape_file_path: "dynamic_shape_20x.json"
+      no_images: true
+
+pipeline_groups:
+  dynres_smoke:
+    - dynres_sdxl_turbo
+    - dynres_sdxl_base
+    - dynres_ssd_1b
+    - dynres_playground_25
+    - dynres_dreamshaper_xl
+    - dynres_sd3
+    - dynres_sd35
+    - dynres_flux1_schnell
