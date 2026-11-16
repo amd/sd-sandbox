@@ -72,12 +72,12 @@ TODO: a complete license inventory of every transitive package in the environmen
 
 ## 4. Media assets
 
-Images used as test inputs and reference outputs. Their origin and license have not been confirmed yet. Images generated with the pipelines in this repository are marked "generated" once confirmed.
+Images used as test inputs, reference outputs, and README diagrams. Rows marked TBD have not had their origin and license confirmed yet.
 
 | File | Origin | License |
 |---|---|---|
 | `test/assets/canny.jpg` | TBD | TBD |
-| `test/assets/coffee_table.png` | TBD | TBD |
+| `test/assets/coffee_table.png` | Generated with SD 3.0 Medium by Advanced Micro Devices, Inc. (commit 3377d8a) | MIT |
 | `test/assets/control.png` | TBD | TBD |
 | `test/assets/controlimg_input_1024x1024.png` | TBD | TBD |
 | `test/assets/controlimg_output_strength_0.95_1024x1024.png` | TBD | TBD |
@@ -85,19 +85,19 @@ Images used as test inputs and reference outputs. Their origin and license have 
 | `test/assets/flux2_img1.png` | TBD | TBD |
 | `test/assets/flux2_img2.png` | TBD | TBD |
 | `test/assets/flux2_img3.png` | TBD | TBD |
-| `test/assets/image-to-image-controlnet-workflow.png` | TBD | TBD |
-| `test/assets/image-to-image-workflow.png` | TBD | TBD |
-| `test/assets/inpainting_output_1024x1024.png` | TBD | TBD |
+| `test/assets/image-to-image-controlnet-workflow.png` | Original diagram by Advanced Micro Devices, Inc. (commit 3377d8a) | MIT |
+| `test/assets/image-to-image-workflow.png` | Original diagram by Advanced Micro Devices, Inc. (commit bead652) | MIT |
+| `test/assets/inpainting_output_1024x1024.png` | Generated with SD 3.0 Medium by Advanced Micro Devices, Inc. (commit 3377d8a) | MIT |
 | `test/assets/living_room_mask_books_vase_1024x1024.png` | TBD | TBD |
 | `test/assets/outpainting_input_512x512.png` | TBD | TBD |
 | `test/assets/outpainting_output_1024x1024.png` | TBD | TBD |
 | `test/assets/pose.jpg` | TBD | TBD |
-| `test/assets/precise_mask.png` | TBD | TBD |
+| `test/assets/precise_mask.png` | Created by Advanced Micro Devices, Inc. to match `coffee_table.png` (commit 3377d8a) | MIT |
 | `test/assets/removal_input_1024x1024.jpg` | TBD | TBD |
 | `test/assets/removal_input_mask_1024x1024.jpg` | TBD | TBD |
 | `test/assets/removal_output_1024x1024.png` | TBD | TBD |
 | `test/assets/sd_demo.gif` | TBD | TBD |
-| `test/assets/text-to-image-workflow.png` | TBD | TBD |
+| `test/assets/text-to-image-workflow.png` | Original diagram by Advanced Micro Devices, Inc. (commit 3377d8a) | MIT |
 | `test/assets/tile.jpg` | TBD | TBD |
 | `test/ref/Canny_dog_condition.jpg` | TBD | TBD |
 | `test/ref/canny.jpg` | TBD | TBD |
