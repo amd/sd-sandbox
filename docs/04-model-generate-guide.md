@@ -226,7 +226,9 @@ cp models/sdxl-turbo/vae/config.json models/sdxl-turbo/vae_encoder/
 After export, switch back to the inference environment:
 
 ```bash
-conda activate ryzenai-stable-diffusion   # or ryzen-ai-1.8.0
+conda activate ryzenai-stable-diffusion
+# or, with the Ryzen AI MSI install:
+"C:\Program Files\RyzenAI\ryzen-ai-1.9.0\Scripts\activate"
 ```
 
 ### Method B: Using `src/utils/sd15_export_local.py` (SD 1.5 / SD 1.5 ControlNet)
@@ -1136,7 +1138,7 @@ cp models/flux.2-klein/transformer/config.json models/flux.2-kelin/transformer/d
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| `onnx_utils: command not found` | Ryzen AI Software not installed or env not active | Run `conda activate ryzen-ai-1.8.0`; verify `pip show ryzenai-onnx-utils` |
+| `onnx_utils: command not found` | Ryzen AI Software not installed or env not active | Activate the Ryzen AI 1.9.0 environment (`"C:\Program Files\RyzenAI\ryzen-ai-1.9.0\Scripts\activate"`); verify `pip show ryzenai-onnx-utils` |
 | Partition fails with OOM | Fusion buffer too small | Add `--attributes fusion_max_init_bytes=4294967296` |
 | `replaced.onnx` not generated | Whitebox checker failure | Try `--attributes whitebox_checker_level=1` to get more details |
 | `cache/` directory is empty | DD plugin not set | Set `DD_PLUGINS_ROOT=.\lib\transaction\stx` for `stx` (Strix/Krackan) or `DD_PLUGINS_ROOT=.\lib\transaction\mds` for `mds` (MDS) before running |

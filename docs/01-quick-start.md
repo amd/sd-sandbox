@@ -63,12 +63,14 @@ Choose the setup path that matches your situation:
 
 1. Download and install the Ryzen AI Software from the
    [Ryzen AI installation page](https://ryzenai.docs.amd.com/en/latest/inst.html). Allow approximately
-   30 minutes for the full installation.
-2. Activate the installed environment:
+   5 minutes for the full installation.
+2. Activate the Python virtual environment created by the installer:
 
 ```powershell
-conda activate ryzen-ai-1.8.0
+& "C:\Program Files\RyzenAI\ryzen-ai-1.9.0\Scripts\Activate.ps1"
 ```
+
+From Command Prompt, run `"C:\Program Files\RyzenAI\ryzen-ai-1.9.0\Scripts\activate"` instead.
 
 The MSI installer automatically installs all required packages including the `amd_atom` wheel and
 the `ryzenai-dynamic-dispatch` and `ryzenai-onnx-utils` packages.
@@ -138,13 +140,13 @@ pip show amd_atom
 The GenAI-SD code is included with the Ryzen AI Software installation at:
 
 ```
-C:\Program Files\RyzenAI\1.8.0\GenAI-SD
+C:\Program Files\RyzenAI\1.9.0\GenAI-SD
 ```
 
 Copy the `GenAI-SD` directory to a local working directory of your choice:
 
 ```powershell
-Copy-Item "C:\Program Files\RyzenAI\1.8.0\GenAI-SD" "C:\Users\YourName\projects\GenAI-SD" -Recurse
+Copy-Item "C:\Program Files\RyzenAI\1.9.0\GenAI-SD" "C:\Users\YourName\projects\GenAI-SD" -Recurse
 ```
 
 Then open a terminal in your copied directory:
@@ -194,8 +196,8 @@ $env:DD_PLUGINS_ROOT = ".\lib\transaction\stx"
 ```
 
 ```powershell
-# Make sure your conda environment is active
-conda activate ryzen-ai-1.8.0
+# Make sure your Ryzen AI environment is active
+& "C:\Program Files\RyzenAI\ryzen-ai-1.9.0\Scripts\Activate.ps1"
 
 # Run SDXL Turbo — pre-partitioned amd/ models download automatically from Hugging Face
 python scripts/run_pipelines.py --pipelines sdxl_turbo

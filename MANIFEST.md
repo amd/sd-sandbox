@@ -72,47 +72,69 @@ TODO: a complete license inventory of every transitive package in the environmen
 
 ## 4. Media assets
 
-Images used as test inputs, reference outputs, and README diagrams. Rows marked TBD have not had their origin and license confirmed yet.
+Images used as test inputs, reference outputs, and README diagrams, with the origin and license of each. Files under `test/ref/` that duplicate a file under `test/assets/` are listed separately because they are separate files in the repository.
+
+### 4.1 Third-party images
+
+These images are redistributed unmodified from public upstream sources. The copyright holder and license of each source are retained here.
+
+| File | Origin | Copyright holder | License | AMD modified |
+|---|---|---|---|---|
+| `test/assets/canny.jpg` | [InstantX/SD3-Controlnet-Canny @ e42ecba](https://huggingface.co/InstantX/SD3-Controlnet-Canny/blob/e42ecba9741dee3de8c54039eba8a879c0070ced/canny.jpg) `canny.jpg` | The InstantX Team | None stated upstream (see note 1) | No |
+| `test/ref/canny.jpg` | [InstantX/SD3-Controlnet-Canny @ e42ecba](https://huggingface.co/InstantX/SD3-Controlnet-Canny/blob/e42ecba9741dee3de8c54039eba8a879c0070ced/canny.jpg) `canny.jpg` | The InstantX Team | None stated upstream (see note 1) | No |
+| `test/assets/control.png` | [lllyasviel/sd-controlnet-canny @ 7f2f691](https://huggingface.co/lllyasviel/sd-controlnet-canny/blob/7f2f69197050967007f6bbd23ab5e52f0384162a/images/bird_canny.png) `images/bird_canny.png` | Lvmin Zhang (lllyasviel) | [CreativeML OpenRAIL-M](https://huggingface.co/spaces/CompVis/stable-diffusion-license) (see note 2) | No (same pixels, re-encoded) |
+| `test/ref/control.png` | [lllyasviel/sd-controlnet-canny @ 7f2f691](https://huggingface.co/lllyasviel/sd-controlnet-canny/blob/7f2f69197050967007f6bbd23ab5e52f0384162a/images/bird_canny.png) `images/bird_canny.png` | Lvmin Zhang (lllyasviel) | [CreativeML OpenRAIL-M](https://huggingface.co/spaces/CompVis/stable-diffusion-license) (see note 2) | No (same pixels, re-encoded) |
+| `test/assets/depth.jpeg` | [InstantX/SD3-Controlnet-Depth @ 7765870](https://huggingface.co/InstantX/SD3-Controlnet-Depth/blob/7765870fa5dfbb7b5399112bae404270b736f61c/images/depth.jpeg) `images/depth.jpeg` | The InstantX Team | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | No |
+| `test/ref/depth.jpeg` | [InstantX/SD3-Controlnet-Depth @ 7765870](https://huggingface.co/InstantX/SD3-Controlnet-Depth/blob/7765870fa5dfbb7b5399112bae404270b736f61c/images/depth.jpeg) `images/depth.jpeg` | The InstantX Team | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | No |
+| `test/assets/pose.jpg` | [InstantX/SD3-Controlnet-Pose @ 1c550db](https://huggingface.co/InstantX/SD3-Controlnet-Pose/blob/1c550dbb8f7b35098ae7c91f498d1a753c9f49ea/pose.jpg) `pose.jpg` | The InstantX Team | None stated upstream (see note 1) | No |
+| `test/ref/pose.jpg` | [InstantX/SD3-Controlnet-Pose @ 1c550db](https://huggingface.co/InstantX/SD3-Controlnet-Pose/blob/1c550dbb8f7b35098ae7c91f498d1a753c9f49ea/pose.jpg) `pose.jpg` | The InstantX Team | None stated upstream (see note 1) | No |
+| `test/assets/tile.jpg` | [InstantX/SD3-Controlnet-Tile @ 48005f2](https://huggingface.co/InstantX/SD3-Controlnet-Tile/blob/48005f2448d5ea7aad3d383c2bb8b017723244d6/tile.jpg) `tile.jpg` | The InstantX Team | None stated upstream (see note 1) | No |
+| `test/ref/tile.jpg` | [InstantX/SD3-Controlnet-Tile @ 48005f2](https://huggingface.co/InstantX/SD3-Controlnet-Tile/blob/48005f2448d5ea7aad3d383c2bb8b017723244d6/tile.jpg) `tile.jpg` | The InstantX Team | None stated upstream (see note 1) | No |
+| `test/ref/Canny_dog_condition.jpg` | [Kwai-Kolors/Kolors @ 038818d](https://github.com/Kwai-Kolors/Kolors/blob/038818d244ed103056abd10f429729a26af4d239/controlnet/outputs/Canny_dog_condition.jpg) `controlnet/outputs/Canny_dog_condition.jpg` | Kuaishou Technology (Kwai-Kolors) | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | No |
+| `test/ref/inpainting/kolors_origin.png` | [Kwai-Kolors/Kolors @ 038818d](https://github.com/Kwai-Kolors/Kolors/blob/038818d244ed103056abd10f429729a26af4d239/inpainting/asset/4.png) `inpainting/asset/4.png` | Kuaishou Technology (Kwai-Kolors) | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | No |
+| `test/ref/inpainting/kolors_mask.png` | [Kwai-Kolors/Kolors @ 038818d](https://github.com/Kwai-Kolors/Kolors/blob/038818d244ed103056abd10f429729a26af4d239/inpainting/asset/4_mask.png) `inpainting/asset/4_mask.png` | Kuaishou Technology (Kwai-Kolors) | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | No |
+
+### 4.2 Partner-provided images and derivatives
 
 | File | Origin | License |
 |---|---|---|
-| `test/assets/canny.jpg` | TBD | TBD |
+| `test/assets/removal_input_1024x1024.jpg` | Provided to Advanced Micro Devices, Inc. by a partner for use in this project | Redistributed with the permission of the provider (see note 3) |
+| `test/ref/removal/origin.jpg` | Copy of `test/assets/removal_input_1024x1024.jpg` | Same as `test/assets/removal_input_1024x1024.jpg` |
+| `test/assets/removal_input_mask_1024x1024.jpg` | Mask created by Advanced Micro Devices, Inc. for `removal_input_1024x1024.jpg` | MIT |
+| `test/ref/removal/mask.jpg` | Copy of `test/assets/removal_input_mask_1024x1024.jpg` | MIT |
+| `test/assets/removal_output_1024x1024.png` | Generated by Advanced Micro Devices, Inc. from `removal_input_1024x1024.jpg` and its mask | MIT for the AMD contribution; includes content from the partner-provided input (see note 3) |
+
+### 4.3 Images created by AMD
+
+These images were generated or drawn by Advanced Micro Devices, Inc. and are distributed under the MIT license of this repository. Where a generative model was used, the model and its license are named. None of those licenses claim ownership of generated output.
+
+| File | Origin | License |
+|---|---|---|
 | `test/assets/coffee_table.png` | Generated with SD 3.0 Medium by Advanced Micro Devices, Inc. (commit 3377d8a) | MIT |
-| `test/assets/control.png` | TBD | TBD |
-| `test/assets/controlimg_input_1024x1024.png` | TBD | TBD |
-| `test/assets/controlimg_output_strength_0.95_1024x1024.png` | TBD | TBD |
-| `test/assets/depth.jpeg` | TBD | TBD |
-| `test/assets/flux2_img1.png` | TBD | TBD |
-| `test/assets/flux2_img2.png` | TBD | TBD |
-| `test/assets/flux2_img3.png` | TBD | TBD |
+| `test/assets/controlimg_input_1024x1024.png` | Generated by Advanced Micro Devices, Inc. with [Segmind Vega](https://huggingface.co/segmind/Segmind-Vega) (Apache-2.0) | MIT |
+| `test/assets/controlimg_output_strength_0.95_1024x1024.png` | Generated by Advanced Micro Devices, Inc. with [Segmind Vega](https://huggingface.co/segmind/Segmind-Vega) (Apache-2.0) | MIT |
+| `test/assets/flux2_img1.png` | Generated by Advanced Micro Devices, Inc. with [FLUX.2 klein 4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) (Apache-2.0) | MIT |
+| `test/assets/flux2_img2.png` | Generated by Advanced Micro Devices, Inc. with [FLUX.2 klein 4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) (Apache-2.0) | MIT |
+| `test/assets/flux2_img3.png` | Generated by Advanced Micro Devices, Inc. with [FLUX.2 klein 4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) (Apache-2.0) | MIT |
 | `test/assets/image-to-image-controlnet-workflow.png` | Original diagram by Advanced Micro Devices, Inc. (commit 3377d8a) | MIT |
 | `test/assets/image-to-image-workflow.png` | Original diagram by Advanced Micro Devices, Inc. (commit bead652) | MIT |
 | `test/assets/inpainting_output_1024x1024.png` | Generated with SD 3.0 Medium by Advanced Micro Devices, Inc. (commit 3377d8a) | MIT |
-| `test/assets/living_room_mask_books_vase_1024x1024.png` | TBD | TBD |
-| `test/assets/outpainting_input_512x512.png` | TBD | TBD |
-| `test/assets/outpainting_output_1024x1024.png` | TBD | TBD |
-| `test/assets/pose.jpg` | TBD | TBD |
+| `test/assets/living_room_mask_books_vase_1024x1024.png` | Generated or created by Advanced Micro Devices, Inc. with AI models running on AMD hardware | MIT |
+| `test/assets/outpainting_input_512x512.png` | Generated by Advanced Micro Devices, Inc. with [Stable Diffusion 3 Medium](https://huggingface.co/stabilityai/stable-diffusion-3-medium) (Stability AI Community License) | MIT |
+| `test/assets/outpainting_output_1024x1024.png` | Generated or created by Advanced Micro Devices, Inc. with AI models running on AMD hardware | MIT |
 | `test/assets/precise_mask.png` | Created by Advanced Micro Devices, Inc. to match `coffee_table.png` (commit 3377d8a) | MIT |
-| `test/assets/removal_input_1024x1024.jpg` | TBD | TBD |
-| `test/assets/removal_input_mask_1024x1024.jpg` | TBD | TBD |
-| `test/assets/removal_output_1024x1024.png` | TBD | TBD |
-| `test/assets/sd_demo.gif` | TBD | TBD |
+| `test/assets/sd_demo.gif` | Generated or created by Advanced Micro Devices, Inc. with AI models running on AMD hardware | MIT |
 | `test/assets/text-to-image-workflow.png` | Original diagram by Advanced Micro Devices, Inc. (commit 3377d8a) | MIT |
-| `test/assets/tile.jpg` | TBD | TBD |
-| `test/ref/Canny_dog_condition.jpg` | TBD | TBD |
-| `test/ref/canny.jpg` | TBD | TBD |
-| `test/ref/control.png` | TBD | TBD |
-| `test/ref/depth.jpeg` | TBD | TBD |
-| `test/ref/inpainting/kolors_mask.png` | TBD | TBD |
-| `test/ref/inpainting/kolors_origin.png` | TBD | TBD |
-| `test/ref/inpainting/mask.jpg` | TBD | TBD |
-| `test/ref/inpainting/origin.jpg` | TBD | TBD |
-| `test/ref/outpainting.jpg` | TBD | TBD |
-| `test/ref/pose.jpg` | TBD | TBD |
-| `test/ref/removal/mask.jpg` | TBD | TBD |
-| `test/ref/removal/origin.jpg` | TBD | TBD |
-| `test/ref/tile.jpg` | TBD | TBD |
-| `test/ref/union.jfif` | TBD | TBD |
+| `test/ref/inpainting/mask.jpg` | Generated or created by Advanced Micro Devices, Inc. with AI models running on AMD hardware | MIT |
+| `test/ref/inpainting/origin.jpg` | Generated or created by Advanced Micro Devices, Inc. with AI models running on AMD hardware | MIT |
+| `test/ref/outpainting.jpg` | Generated or created by Advanced Micro Devices, Inc. with AI models running on AMD hardware | MIT |
+| `test/ref/union.jfif` | Generated or created by Advanced Micro Devices, Inc. with AI models running on AMD hardware | MIT |
+
+Notes:
+
+1. The model cards for InstantX `SD3-Controlnet-Canny`, `SD3-Controlnet-Pose`, and `SD3-Controlnet-Tile` state no license. These images are published there as the sample control images for those models. The companion `SD3-Controlnet-Depth` repository is Apache-2.0.
+2. `images/bird_canny.png` is published in the `lllyasviel/sd-controlnet-canny` repository, which is licensed under CreativeML OpenRAIL-M. The use-based restrictions of that license continue to apply to this image.
+3. This image was supplied to Advanced Micro Devices, Inc. by a partner for use in this project. It is not covered by the MIT license of this repository.
 
 ## 5. Internal-only files
 

@@ -28,7 +28,7 @@ UnsatisfiableError: The following specifications were found to be incompatible w
    ```
 3. If using an existing Ryzen AI MSI environment, use that directly instead of creating a new one:
    ```bash
-   conda activate ryzen-ai-1.8.0
+   "C:\Program Files\RyzenAI\ryzen-ai-1.9.0\Scripts\activate"
    ```
 
 ---
@@ -61,7 +61,7 @@ WARNING: Package(s) not found: ryzenai-dynamic-dispatch
 
 **Fix:**
 These packages are included in the Ryzen AI MSI installer. If you see this, you either:
-- Are not using the correct conda environment: run `conda activate ryzen-ai-1.8.0` and check again.
+- Are not using the correct environment: activate the Ryzen AI 1.9.0 environment (`"C:\Program Files\RyzenAI\ryzen-ai-1.9.0\Scripts\activate"`) and check again.
 - Did not install via MSI: install Ryzen AI Software following [docs/01-quick-start.md](01-quick-start.md).
 
 ---
