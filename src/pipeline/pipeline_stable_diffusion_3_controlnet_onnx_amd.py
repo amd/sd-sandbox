@@ -1,5 +1,4 @@
-# Modifications Copyright (C) 2025 Advanced Micro Devices, 
-# Inc.  All rights reserved.
+# Modifications Copyright Advanced Micro Devices, Inc.
 #
 # Copyright 2025 Stability AI, The HuggingFace Team and The InstantX Team. All rights reserved.
 #
@@ -414,7 +413,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
         }
         return onnx_to_numpy_dtype[onnx_type_str]
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline._get_t5_prompt_embeds
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline._get_t5_prompt_embeds
     def _get_t5_prompt_embeds(
         self,
         prompt: Union[str, List[str]] = None,
@@ -495,7 +494,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
 
         return prompt_embeds
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline._get_clip_prompt_embeds
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline._get_clip_prompt_embeds
     def _get_clip_prompt_embeds(
         self,
         prompt: Union[str, List[str]],
@@ -595,7 +594,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
 
         return ret_prompt_embeds, ret_pooled_prompt_embeds
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.encode_prompt
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.encode_prompt
     def encode_prompt(
         self,
         prompt: Union[str, List[str]],
@@ -902,7 +901,7 @@ class OnnxStableDiffusion3ControlNetPipelineAMD(
                 f"`max_sequence_length` cannot be greater than 512 but is {max_sequence_length}"
             )
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.prepare_latents
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.prepare_latents
     def prepare_image(
         self,
         image,

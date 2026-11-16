@@ -1,5 +1,4 @@
-# Modifications Copyright (C) 2025 Advanced Micro Devices, 
-# Inc.  All rights reserved.
+# Modifications Copyright Advanced Micro Devices, Inc.
 #
 # Copyright 2025 The HuggingFace Team. All rights reserved.
 #
@@ -7,7 +6,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.1
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -76,7 +75,7 @@ EXAMPLE_DOC_STRING = """
 """
 
 
-# Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.rescale_noise_cfg
+# Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.rescale_noise_cfg
 class StableDiffusionKolorsPipelineAMD(DiffusionPipeline, FromSingleFileMixin,
     AMDPipelineMixin,):
     r"""
@@ -377,7 +376,7 @@ class StableDiffusionKolorsPipelineAMD(DiffusionPipeline, FromSingleFileMixin,
 
         return prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds
 
-    # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_extra_step_kwargs
+    # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_extra_step_kwargs
     def check_inputs(
         self,
         prompt,
@@ -448,7 +447,7 @@ class StableDiffusionKolorsPipelineAMD(DiffusionPipeline, FromSingleFileMixin,
                 "If `negative_prompt_embeds` are provided, `negative_pooled_prompt_embeds` also have to be passed. Make sure to generate `negative_pooled_prompt_embeds` from the same text encoder that was used to generate `negative_prompt_embeds`."
             )
 
-    # Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
+    # Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline.prepare_latents
     def _get_add_time_ids(self, original_size, crops_coords_top_left, target_size, dtype):
         add_time_ids = list(original_size + crops_coords_top_left + target_size)
 

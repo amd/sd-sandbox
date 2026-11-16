@@ -1,4 +1,4 @@
-# Modifications Copyright (C) 2025 Advanced Micro Devices, Inc. All rights reserved.
+# Modifications Copyright Advanced Micro Devices, Inc.
 #
 # Copyright 2025 Black Forest Labs and The HuggingFace Team. All rights reserved.
 #

@@ -1,3 +1,7 @@
+# Copyright Advanced Micro Devices, Inc.
+#
+# SPDX-License-Identifier: MIT
+
 # pr-231: rewritten -- uses subprocess with unified run.py entry point
 """
 Pipeline execution utilities -- subprocess runner invocation.

@@ -1,5 +1,4 @@
-# Modifications Copyright (C) 2025 Advanced Micro Devices, 
-# Inc.  All rights reserved.
+# Modifications Copyright Advanced Micro Devices, Inc.
 #
 # Copyright 2025 The HuggingFace Team. All rights reserved.
 #
@@ -675,7 +674,7 @@ class StableDiffusionONNXPipelineAMD(
                 raise ValueError(
                     f"`ip_adapter_image_embeds` has to be a list of 3D or 4D tensors but is {ip_adapter_image_embeds[0].ndim}D"
                 )
-    # Copied from diffusers.pipelines.latent_consistency_models.pipeline_latent_consistency_text2img.LatentConsistencyModelPipeline.get_guidance_scale_embedding
+    # Adapted from diffusers.pipelines.latent_consistency_models.pipeline_latent_consistency_text2img.LatentConsistencyModelPipeline.get_guidance_scale_embedding
     @property
     def guidance_rescale(self):
         return self._guidance_rescale

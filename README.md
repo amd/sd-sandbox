@@ -255,7 +255,7 @@ Total runs: 1
 Successful: 1/1 (100.0%)
 Total duration: 0:00:36.465767
 
-Results saved to: C:\Users\User\bconsolv\sd-sandbox\results\pipeline_results_quick_20251124_101145.txt
+Results saved to: <repo>\results\pipeline_results_quick_20251124_101145.txt
 
 ```
 
@@ -692,5 +692,13 @@ These guides come from the `GenAI-SD` folder shipped with the **Ryzen AI 1.8 sof
 
 ## License
 
-© 2024–2026 Advanced Micro Devices, Inc. See [LICENSE](LICENSE).
+Copyright Advanced Micro Devices, Inc.
+
+Code written by Advanced Micro Devices, Inc. in this repository is released under the [MIT License](LICENSE).
+
+Some files are derived from third-party projects ([Hugging Face Diffusers](https://github.com/huggingface/diffusers),
+[Hugging Face Transformers](https://github.com/huggingface/transformers), and
+[Kwai-Kolors/Kolors](https://github.com/Kwai-Kolors/Kolors)) and remain under the Apache License 2.0.
+Those files keep their original copyright and license headers. The full Apache-2.0 text is included
+in [LICENSE](LICENSE), and [MANIFEST.md](MANIFEST.md) lists every third-party file, dependency, and media asset.
 

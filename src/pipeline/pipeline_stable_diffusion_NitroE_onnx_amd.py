@@ -1,5 +1,4 @@
-# Modifications Copyright (C) 2025 Advanced Micro Devices, 
-# Inc.  All rights reserved.
+# Modifications Copyright Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -193,7 +192,7 @@ class StableDiffusionNitroEONNXPipelineAMD(
                 f"`max_sequence_length` cannot be greater than 512 but is {max_sequence_length}"
             )
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.prepare_latents
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.prepare_latents
     def image_postprocess(self, images):
         pil_images = []
         for i in range(images.shape[0]):

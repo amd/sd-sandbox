@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# Modifications Copyright (C) 2025 Advanced Micro Devices, Inc. All rights reserved.
+# Modifications Copyright Advanced Micro Devices, Inc.
 """PyTorch T5 model."""
 
 import copy
@@ -1349,7 +1349,7 @@ class T5Stack(T5PreTrainedModel):
             cross_attentions=all_cross_attentions,
         )
 
-    # Copied from transformers.models.gptj.modeling_gptj.GPTJModel._update_causal_mask
+    # Adapted from transformers.models.gptj.modeling_gptj.GPTJModel._update_causal_mask
     def _update_causal_mask(
         self,
         attention_mask: Union[torch.Tensor, "BlockMask"],
@@ -1429,7 +1429,7 @@ class T5Stack(T5PreTrainedModel):
         return causal_mask
 
     @staticmethod
-    # Copied from transformers.models.gptj.modeling_gptj.GPTJModel._prepare_4d_causal_attention_mask_with_cache_position
+    # Adapted from transformers.models.gptj.modeling_gptj.GPTJModel._prepare_4d_causal_attention_mask_with_cache_position
     def _prepare_4d_causal_attention_mask_with_cache_position(
         attention_mask: torch.Tensor,
         sequence_length: int,
@@ -2239,7 +2239,7 @@ class T5ForSequenceClassification(T5PreTrainedModel):
                 f"Passing input embeddings is currently not supported for {self.__class__.__name__}"
             )
 
-        # Copied from models.bart.modeling_bart.BartModel.forward different to other models, T5 automatically creates
+        # Adapted from models.bart.modeling_bart.BartModel.forward different to other models, T5 automatically creates
         # decoder_input_ids from input_ids if no decoder_input_ids are provided
         if decoder_input_ids is None and decoder_inputs_embeds is None:
             if input_ids is None:
@@ -2513,7 +2513,7 @@ class T5ForQuestionAnswering(T5PreTrainedModel):
         if start_positions is not None and end_positions is not None:
             use_cache = False
 
-        # Copied from models.bart.modeling_bart.BartModel.forward
+        # Adapted from models.bart.modeling_bart.BartModel.forward
         #   different to other models, T5 automatically creates decoder_input_ids from
         #   input_ids if no decoder_input_ids are provided
         if decoder_input_ids is None and decoder_inputs_embeds is None:

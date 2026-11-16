@@ -1,3 +1,7 @@
+# Copyright Advanced Micro Devices, Inc.
+#
+# SPDX-License-Identifier: MIT
+
 """
 Consolidated helper functions for pipeline execution and reporting.
 

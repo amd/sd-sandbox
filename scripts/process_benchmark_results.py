@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Copyright Advanced Micro Devices, Inc.
+#
+# SPDX-License-Identifier: MIT
+
 """
 Post-process benchmark result files and generate CSV summaries.
 

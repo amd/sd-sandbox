@@ -1,5 +1,4 @@
-# Modifications Copyright (C) 2025 Advanced Micro Devices, 
-# Inc.  All rights reserved.
+# Modifications Copyright Advanced Micro Devices, Inc.
 #
 # Copyright 2025 Stability AI, The HuggingFace Team and The AlimamaCreative Team. All rights reserved.
 #
@@ -106,7 +105,7 @@ EXAMPLE_DOC_STRING = """
 """
 
 
-# Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.retrieve_timesteps
+# Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.retrieve_timesteps
 class StableDiffusion3ControlNetOutpaintingPipeline(
     DiffusionPipeline,
     SD3LoraLoaderMixin,
@@ -249,7 +248,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
         }
         return onnx_to_numpy_dtype[onnx_type_str]
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline._get_t5_prompt_embeds
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline._get_t5_prompt_embeds
     def _get_t5_prompt_embeds(
         self,
         prompt: Union[str, List[str]] = None,
@@ -332,7 +331,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
 
         return prompt_embeds
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline._get_clip_prompt_embeds
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline._get_clip_prompt_embeds
     def _get_clip_prompt_embeds(
         self,
         prompt: Union[str, List[str]],
@@ -424,7 +423,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
 
         return ret_prompt_embeds, ret_pooled_prompt_embeds
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.encode_prompt
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.encode_prompt
     def encode_prompt(
         self,
         prompt: Union[str, List[str]],
@@ -647,7 +646,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             negative_pooled_prompt_embeds,
         )
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.check_inputs
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.check_inputs
     def check_inputs(
         self,
         prompt,
@@ -774,7 +773,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
         else:
             raise AttributeError("Could not access latents of provided encoder_output")
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.prepare_latents
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.prepare_latents
     def prepare_image_with_mask(
         self,
         image,
@@ -872,7 +871,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
             result[f"block_controlnet_hidden_states_{j}"] = control_block_samples[output_idx]
         return result
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.encode_image
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.encode_image
     def encode_image(
         self, image: PipelineImageInput, device: torch.device
     ) -> torch.Tensor:
@@ -894,7 +893,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
 
         return self.image_encoder(image, output_hidden_states=True).hidden_states[-2]
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.prepare_ip_adapter_image_embeds
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.prepare_ip_adapter_image_embeds
     def prepare_ip_adapter_image_embeds(
         self,
         ip_adapter_image: Optional[PipelineImageInput] = None,
@@ -947,7 +946,7 @@ class StableDiffusion3ControlNetOutpaintingPipeline(
 
         return image_embeds.to(device=device)
 
-    # Copied from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.enable_sequential_cpu_offload
+    # Adapted from diffusers.pipelines.stable_diffusion_3.pipeline_stable_diffusion_3.StableDiffusion3Pipeline.enable_sequential_cpu_offload
     def enable_sequential_cpu_offload(self, *args, **kwargs):
         if (
             self.image_encoder is not None

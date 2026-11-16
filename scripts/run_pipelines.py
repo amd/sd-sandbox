@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Copyright Advanced Micro Devices, Inc.
+#
+# SPDX-License-Identifier: MIT
+
 """
 Comprehensive pipeline runner script with support for:
 - Quick testing (1 round) and benchmarking (10 rounds)

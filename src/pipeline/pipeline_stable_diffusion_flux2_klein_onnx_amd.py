@@ -1,4 +1,4 @@
-# Modifications Copyright (C) 2026 Advanced Micro Devices, Inc. All rights reserved.
+# Modifications Copyright Advanced Micro Devices, Inc.
 #
 # Copyright 2025 Black Forest Labs and The HuggingFace Team. All rights reserved.
 #
@@ -72,7 +72,7 @@ EXAMPLE_DOC_STRING = """
 """
 
 
-# Copied from diffusers.pipelines.flux2.pipeline_flux2.compute_empirical_mu
+# Adapted from diffusers.pipelines.flux2.pipeline_flux2.compute_empirical_mu
 def compute_empirical_mu(image_seq_len: int, num_steps: int) -> float:
     a1, b1 = 8.73809524e-05, 1.89833333
     a2, b2 = 0.00016927, 0.45666666
@@ -91,7 +91,7 @@ def compute_empirical_mu(image_seq_len: int, num_steps: int) -> float:
     return float(mu)
 
 
-# Copied from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.retrieve_timesteps
+# Adapted from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.retrieve_timesteps
 def retrieve_timesteps(
     scheduler,
     num_inference_steps: int | None = None,
@@ -317,7 +317,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
         return prompt_embeds
 
     @staticmethod
-    # Copied from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._prepare_text_ids
+    # Adapted from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._prepare_text_ids
     def _prepare_text_ids(
         x: torch.Tensor,  # (B, L, D) or (L, D)
         t_coord: torch.Tensor | None = None,
@@ -337,7 +337,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
         return torch.stack(out_ids)
 
     @staticmethod
-    # Copied from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._prepare_latent_ids
+    # Adapted from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._prepare_latent_ids
     def _prepare_latent_ids(
         latents: torch.Tensor,  # (B, C, H, W)
     ):
@@ -370,7 +370,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
         return latent_ids
 
     @staticmethod
-    # Copied from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._prepare_image_ids
+    # Adapted from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._prepare_image_ids
     def _prepare_image_ids(
         image_latents: list[torch.Tensor],  # [(1, C, H, W), (1, C, H, W), ...]
         scale: int = 10,
@@ -421,7 +421,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
         return image_latent_ids
 
     @staticmethod
-    # Copied from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._patchify_latents
+    # Adapted from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._patchify_latents
     def _patchify_latents(latents):
         batch_size, num_channels_latents, height, width = latents.shape
         latents = latents.view(batch_size, num_channels_latents, height // 2, 2, width // 2, 2)
@@ -430,7 +430,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
         return latents
 
     @staticmethod
-    # Copied from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._unpatchify_latents
+    # Adapted from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._unpatchify_latents
     def _unpatchify_latents(latents):
         batch_size, num_channels_latents, height, width = latents.shape
         latents = latents.reshape(batch_size, num_channels_latents // (2 * 2), 2, 2, height, width)
@@ -439,7 +439,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
         return latents
 
     @staticmethod
-    # Copied from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._pack_latents
+    # Adapted from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._pack_latents
     def _pack_latents(latents):
         """
         pack latents: (batch_size, num_channels, height, width) -> (batch_size, height * width, num_channels)
@@ -511,7 +511,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
         text_ids = text_ids.to(device)
         return prompt_embeds, text_ids
 
-    # Copied from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._encode_vae_image
+    # Adapted from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline._encode_vae_image
     def _encode_vae_image(self, image: torch.Tensor, generator: torch.Generator):
         if image.ndim != 4:
             raise ValueError(f"Expected image dims 4, got {image.ndim}.")
@@ -525,7 +525,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
 
         return image_latents
 
-    # Copied from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline.prepare_latents
+    # Adapted from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline.prepare_latents
     def prepare_latents(
         self,
         batch_size,
@@ -559,7 +559,7 @@ class StableDiffusionFlux2KleinPipelineAMD(DiffusionPipeline, AMDPipelineMixin):
         latents = self._pack_latents(latents)  # [B, C, H, W] -> [B, H*W, C]
         return latents, latent_ids
 
-    # Copied from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline.prepare_image_latents
+    # Adapted from diffusers.pipelines.flux2.pipeline_flux2.Flux2Pipeline.prepare_image_latents
     def prepare_image_latents(
         self,
         images: list[torch.Tensor],

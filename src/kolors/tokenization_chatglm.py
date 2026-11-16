@@ -1,3 +1,25 @@
+# Modifications Copyright Advanced Micro Devices, Inc.
+#   - ChatGLMTokenizer._pad(): accept the optional `padding_side` argument
+#     passed by newer transformers releases, falling back to
+#     self.padding_side when it is not given.
+#
+# Third-party code from Kwai-Kolors/Kolors (ChatGLM3 text encoder):
+# https://github.com/Kwai-Kolors/Kolors/blob/038818d244ed103056abd10f429729a26af4d239/kolors/models/tokenization_chatglm.py
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import os
 import re
