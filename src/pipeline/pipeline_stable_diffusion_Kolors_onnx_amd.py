@@ -13,10 +13,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.kolors.tokenization_chatglm import ChatGLMTokenizer
+from third_party.kolors.tokenization_chatglm import ChatGLMTokenizer
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import torch
@@ -52,7 +54,7 @@ import numpy as np
 import PIL.Image
 import torch.nn.functional as F
 import time
-from src.pipeline.pipeline_utils import rescale_noise_cfg  # was duplicated inline
+from third_party.diffusers.pipeline_utils import rescale_noise_cfg  # was duplicated inline
 from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # replaces duplicated properties
 
 

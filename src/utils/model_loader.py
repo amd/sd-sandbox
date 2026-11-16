@@ -33,8 +33,8 @@ from transformers import (
 
 from enum import Enum
 
-from src.kolors.modeling_chatglm import ChatGLMModel
-from src.kolors.tokenization_chatglm import ChatGLMTokenizer
+from third_party.kolors.modeling_chatglm import ChatGLMModel
+from third_party.kolors.tokenization_chatglm import ChatGLMTokenizer
 
 from src.utils import common
 import importlib
@@ -657,7 +657,7 @@ class T5NpuModelLoader:
         bin_path = os.path.join(model_path, bin_file)
         common.setup_npu_runtime(bin_path)
 
-        from modeling_t5 import T5Config, T5EncoderModel  # pyright: ignore[reportMissingImports]
+        from third_party.t5.modeling_t5 import T5Config, T5EncoderModel
         from qlinear import AIEGEMM, QLinearPerGrp  # pyright: ignore[reportMissingImports]
         from safetensors import safe_open
         from safetensors.torch import load_file

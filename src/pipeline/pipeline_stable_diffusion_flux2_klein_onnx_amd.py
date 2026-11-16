@@ -13,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 
 import inspect
 import time
@@ -40,7 +42,7 @@ except:
     from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.utils import BaseOutput
-from src.flux2.image_processor import Flux2ImageProcessor
+from third_party.diffusers.flux2.image_processor import Flux2ImageProcessor
 from src.pipeline.base_amd_pipeline import AMDPipelineMixin
 
 if is_torch_xla_available():

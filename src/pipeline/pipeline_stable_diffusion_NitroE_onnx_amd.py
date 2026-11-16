@@ -13,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -38,7 +40,7 @@ from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.pipelines.stable_diffusion_3.pipeline_output import (
     StableDiffusion3PipelineOutput,
 )
-from src.pipeline.pipeline_utils import retrieve_timesteps  # was duplicated inline
+from third_party.diffusers.pipeline_utils import retrieve_timesteps  # was duplicated inline
 from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # replaces duplicated properties
 
 

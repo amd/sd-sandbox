@@ -11,8 +11,8 @@ import importlib
 import logging as Logger
 # Add parent directory to path for Kolors imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.kolors.modeling_chatglm import ChatGLMModel
-from src.kolors.tokenization_chatglm import ChatGLMTokenizer
+from third_party.kolors.modeling_chatglm import ChatGLMModel
+from third_party.kolors.tokenization_chatglm import ChatGLMTokenizer
 
 from src.pipeline import StableDiffusionKolorsPipelineAMD
 from diffusers.utils import load_image

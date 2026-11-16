@@ -4,12 +4,16 @@
 
 import argparse
 import os
+import sys
 
 import torch
 from diffusers import StableDiffusion3Pipeline
-from modeling_t5 import T5Config, T5EncoderModel
 from tqdm import tqdm
 from transformers import set_seed
+
+# modeling_t5 is third-party (Apache-2.0) code kept under third_party/t5
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from third_party.t5.modeling_t5 import T5Config, T5EncoderModel  # noqa: E402
 
 SUPPORTED_MODELS = ("t5",)
 

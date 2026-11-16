@@ -13,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
 
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -48,7 +50,7 @@ import time
 import numpy as np
 
 from .pipeline_stable_diffusion_3_controlnet_onnx_amd import TeaCacheState
-from src.pipeline.pipeline_utils import retrieve_timesteps  # was duplicated inline
+from third_party.diffusers.pipeline_utils import retrieve_timesteps  # was duplicated inline
 from src.pipeline.base_amd_pipeline import AMDPipelineMixin  # replaces duplicated properties
 
 if is_torch_xla_available():
