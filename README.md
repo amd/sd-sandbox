@@ -56,21 +56,21 @@ These are the same NPU-optimized pipelines featured in the **[Ryzen AI Stable Di
 
 The table below lists every model with its Hugging Face model ID (RAI 1.9).
 
-| Model | Hugging Face Model ID (RAI 1.9) | Default Resolution | Text-To-Image | Image-To-Image |
-|-------|---------------------------------|--------------------|---------------|----------------|
-| SD 1.5 | [amd/stable-diffusion-1.5-amdnpu](https://huggingface.co/amd/stable-diffusion-1.5-amdnpu) | 512x512 | ✅ | |
-| SD 1.5 ControlNet (Canny) | [amd/sd1.5-controlnet-canny-amdnpu](https://huggingface.co/amd/sd1.5-controlnet-canny-amdnpu) | 512x512 | | ☑️ |
-| SD Turbo | [amd/sd-turbo-amdnpu](https://huggingface.co/amd/sd-turbo-amdnpu) | 512x512 | ✅ | |
-| SD XL Turbo | [amd/sdxl-turbo-amdnpu](https://huggingface.co/amd/sdxl-turbo-amdnpu) | 512x512, 5x DynRes | ✅ | |
-| SD XL Base | [amd/sdxl-base-amdnpu](https://huggingface.co/amd/sdxl-base-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
-| SSD-1B | [amd/SSD-1B-amdnpu](https://huggingface.co/amd/SSD-1B-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
-| Segmind Vega | [amd/segmind-vega-amdnpu](https://huggingface.co/amd/segmind-vega-amdnpu) | 1024x1024 | ✅ | ☑️ |
-| Playground 2.5 | [amd/playground-v2.5-1024px-aesthetic-amdnpu](https://huggingface.co/amd/playground-v2.5-1024px-aesthetic-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
-| DreamShaper XL | [amd/dreamshaper-xl-lightning-amdnpu](https://huggingface.co/amd/dreamshaper-xl-lightning-amdnpu) | 1024x1024, 20x DynRes | ✅ | |
-| SD 3.0 Medium — Text-to-Image, ControlNet (Canny, Depth, Tile, Pose), Inpainting | [amd/stable-diffusion-3-medium-amdnpu](https://huggingface.co/amd/stable-diffusion-3-medium-amdnpu) | 512x512, 20x DynRes (Inpainting: 1024x1024) | ✅ | ☑️ |
-| SD 3.5 Medium — Text-to-Image | [amd/stable-diffusion-3.5-medium-amdnpu](https://huggingface.co/amd/stable-diffusion-3.5-medium-amdnpu) | 512x512, 20x DynRes | ✅ | |
-| FLUX.1 Schnell | [amd/FLUX.1-schnell-amdnpu](https://huggingface.co/amd/FLUX.1-schnell-amdnpu) | 512x512, 20x DynRes | ✅ | |
-| FLUX.2 Klein | [amd/FLUX.2-klein-4B-amdnpu](https://huggingface.co/amd/FLUX.2-klein-4B-amdnpu) | 1024x1024 | ✅ | |
+| Hugging Face Model ID (RAI 1.9) | Default Resolution | Text-To-Image | Image-To-Image |
+|---------------------------------|--------------------|---------------|----------------|
+| [amd/stable-diffusion-1.5-amdnpu](https://huggingface.co/amd/stable-diffusion-1.5-amdnpu) | 512x512 | ✅ |  |
+| [amd/sd1.5-controlnet-canny-amdnpu](https://huggingface.co/amd/sd1.5-controlnet-canny-amdnpu) | 512x512 |  | ☑️ |
+| [stabilityai/sd-turbo-amdnpu](https://huggingface.co/stabilityai/sd-turbo-amdnpu) | 512x512 | ✅ |  |
+| [stabilityai/sdxl-turbo-amdnpu](https://huggingface.co/stabilityai/sdxl-turbo-amdnpu) | 512x512, 5x DynRes | ✅ |  |
+| [stabilityai/sdxl-base-amdnpu](https://huggingface.co/stabilityai/sdxl-base-amdnpu) | 1024x1024, 20x DynRes | ✅ |  |
+| [amd/SSD-1B-amdnpu](https://huggingface.co/amd/SSD-1B-amdnpu) | 1024x1024, 20x DynRes | ✅ |  |
+| [amd/segmind-vega-amdnpu](https://huggingface.co/amd/segmind-vega-amdnpu) | 1024x1024 | ✅ | ☑️ |
+| [amd/playground-v2.5-1024px-aesthetic-amdnpu](https://huggingface.co/amd/playground-v2.5-1024px-aesthetic-amdnpu) | 1024x1024, 20x DynRes | ✅ |  |
+| [amd/dreamshaper-xl-lightning-amdnpu](https://huggingface.co/amd/dreamshaper-xl-lightning-amdnpu) | 1024x1024, 20x DynRes | ✅ |  |
+| [stabilityai/stable-diffusion-3-medium-amdnpu](https://huggingface.co/stabilityai/stable-diffusion-3-medium-amdnpu) | 512x512, 20x DynRes (Inpainting: 1024x1024) | ✅ | ☑️ |
+| [stabilityai/stable-diffusion-3.5-medium-amdnpu](https://huggingface.co/stabilityai/stable-diffusion-3.5-medium-amdnpu) | 512x512, 20x DynRes | ✅ |  |
+| [amd/FLUX.1-schnell-amdnpu](https://huggingface.co/amd/FLUX.1-schnell-amdnpu) | 512x512, 20x DynRes | ✅ |  |
+| [amd/FLUX.2-klein-4B-amdnpu](https://huggingface.co/amd/FLUX.2-klein-4B-amdnpu) | 1024x1024 | ✅ |  |
 
 **DynRes** indicates the number of dynamic-resolution presets a model supports (e.g. `5x`, `20x`) in addition to its default resolution. The exact width×height pairs for each preset are defined in the `config/dynamic_shape_*.json` files — the 20x grid spans 512x288 – 1024x1024 across 1:1, 3:4, 4:3, 9:16, and 16:9 aspect ratios.
 
