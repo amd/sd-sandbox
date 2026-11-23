@@ -24,7 +24,7 @@ pipelines:
 
   dynres_sdxl_turbo:
     name: "DynRes Smoke - SDXL Turbo (5 shapes)"
-    model_ids: ["amd/sdxl-turbo-amdnpu"]
+    model_ids: ["stabilityai/sdxl-turbo-amdnpu"]
     args:
       num_inference_steps: 1
       guidance_scale: 0.0
@@ -34,7 +34,7 @@ pipelines:
 
   dynres_sdxl_base:
     name: "DynRes Smoke - SDXL Base (20 shapes)"
-    model_ids: ["amd/sdxl-base-amdnpu"]
+    model_ids: ["stabilityai/sdxl-base-amdnpu"]
     args:
       num_inference_steps: 1
       dynamic_shape: true
@@ -70,7 +70,7 @@ pipelines:
 
   dynres_sd3:
     name: "DynRes Smoke - SD3 Medium (20 shapes)"
-    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
+    model_ids: ["stabilityai/stable-diffusion-3-medium-amdnpu"]
     args:
       num_inference_steps: 1
       controlnet: "None"
@@ -80,7 +80,7 @@ pipelines:
 
   dynres_sd35:
     name: "DynRes Smoke - SD3.5 Medium (20 shapes)"
-    model_ids: ["amd/stable-diffusion-3.5-medium-amdnpu"]
+    model_ids: ["stabilityai/stable-diffusion-3.5-medium-amdnpu"]
     args:
       num_inference_steps: 1
       controlnet: "None"

@@ -334,7 +334,7 @@ For example, a fully configured SD3 pipeline:
 ```yaml
   sd3_base:
     name: "SD3 Pipeline"
-    model_ids: ["amd/stable-diffusion-3-medium-amdnpu"]
+    model_ids: ["stabilityai/stable-diffusion-3-medium-amdnpu"]
     args:
       num_inference_steps: 30
       width: 1024
@@ -536,7 +536,7 @@ Every pipeline without a `control_image_path`, `controlnet` type or `edit_image_
     name: "SDXL Base Pipeline"
     width: 1024
     height: 1024
-    model_ids: ["amd/sdxl-base-amdnpu"]
+    model_ids: ["stabilityai/sdxl-base-amdnpu"]
     prompt: "A cozy cabin by a mountain lake in autumn, golden hour lighting"
     args:
       num_inference_steps: 30
@@ -601,7 +601,7 @@ Two `args` keys control dynamic resolution:
     name: "SDXL Base Portrait"
     width: 768
     height: 1024
-    model_ids: ["amd/sdxl-base-amdnpu"]
+    model_ids: ["stabilityai/sdxl-base-amdnpu"]
     args:
       num_inference_steps: 30
       dynamic_shape: true

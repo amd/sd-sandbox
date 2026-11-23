@@ -105,7 +105,7 @@ automatically on first run — no local `onnx_utils` workflow is needed on Linux
 Some models (especially SD3) are gated. Complete authentication once:
 
 1. Request access at the model's Hugging Face page and accept the license before logging in
-   (e.g. [amd/stable-diffusion-3-medium-amdnpu](https://huggingface.co/amd/stable-diffusion-3-medium-amdnpu)).
+   (e.g. [stabilityai/stable-diffusion-3-medium-amdnpu](https://huggingface.co/stabilityai/stable-diffusion-3-medium-amdnpu)).
 2. Create a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) with
    *Read access to all public gated repos*.
 3. Authenticate:
@@ -155,7 +155,7 @@ python scripts/run_pipelines.py --pipelines sdxl_turbo
 Or run a single model directly:
 
 ```bash
-python test/run.py --model_id amd/sdxl-turbo-amdnpu --prompt "a scenic mountain landscape"
+python test/run.py --model_id stabilityai/sdxl-turbo-amdnpu --prompt "a scenic mountain landscape"
 ```
 
 Generated images are saved to `generated_images/`.

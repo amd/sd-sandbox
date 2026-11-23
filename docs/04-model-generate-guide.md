@@ -577,7 +577,7 @@ pipeline run to compile fusion kernels for your NPU. Pre-partitioned `amd/` mode
 Face do not need this flag — see [docs/03-model-reference-guide.md](03-model-reference-guide.md).
 
 ```bash
-python test/run.py --model_id amd/sdxl-turbo-amdnpu --model_path path/to/your/local/model --enable_compile
+python test/run.py --model_id stabilityai/sdxl-turbo-amdnpu --model_path path/to/your/local/model --enable_compile
 ```
 
 ---

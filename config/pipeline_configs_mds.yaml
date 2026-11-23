@@ -35,7 +35,7 @@ pipelines:
   
   sd_15:
     name: "SD 1.5 Pipeline"
-    model_ids: [ "amd/stable-diffusion-1.5-amdnpu-medusa"]
+    model_ids: [ "amd/stable-diffusion-1.5_m1.0_npu"]
     prompt: "A cozy cabin by a mountain lake in autumn, colorful fall foliage, mirror-like water reflections, misty mountains, golden hour lighting, landscape photography, high detail, 4k"
     args:
       num_inference_steps: 20
@@ -44,7 +44,7 @@ pipelines:
     name: "SDXL Turbo Pipeline"
     width: 512
     height: 512
-    model_ids: ["amd/sdxl-turbo-amdnpu-medusa"]
+    model_ids: ["amd/sdxl-turbo_m1.0_npu"]
     args:
       num_inference_steps: 4
       guidance_scale: 0.0
@@ -53,7 +53,7 @@ pipelines:
     name: "SDXL Base Pipeline"
     width: 1024
     height: 1024
-    model_ids: ["amd/sdxl-base-amdnpu-medusa"]
+    model_ids: ["amd/sdxl-base_m1.0_npu"]
     args:
       num_inference_steps: 30
 
@@ -61,7 +61,7 @@ pipelines:
     name: "SSD-1B Pipeline"
     width: 1024
     height: 1024
-    model_ids: ["amd/SSD-1B-amdnpu-medusa"]
+    model_ids: ["amd/SSD-1B_m1.0_npu"]
     prompt: "A red sports car parked beside a mountain lake at sunrise, realistic reflections, detailed photography, clear sky, high quality."
     args:
       num_inference_steps: 30
@@ -70,7 +70,7 @@ pipelines:
     name: "Playground 2.5 Pipeline"
     width: 1024
     height: 1024
-    model_ids: ["amd/playground-v2.5-1024px-aesthetic-amdnpu-medusa"]
+    model_ids: ["amd/playground-v2.5-1024px-aesthetic_m1.0_npu"]
     prompt: "A young woman sitting at a Paris café during golden hour, soft sunlight, shallow depth of field, natural skin texture, stylish clothing, candid photography, award-winning lifestyle photograph."
     args:
       num_inference_steps: 30
@@ -79,7 +79,7 @@ pipelines:
     name: "DreamShaper XL Pipeline"
     width: 1024
     height: 1024
-    model_ids: ["amd/dreamshaper-xl-lightning-amdnpu-medusa"]
+    model_ids: ["amd/dreamshaper-xl-lightning_m1.0_npu"]
     prompt: "A majestic dragon flying above snow-covered mountains at sunset, dramatic clouds, volumetric lighting, fantasy artwork, highly detailed."
     args:
       num_inference_steps: 6
@@ -88,7 +88,7 @@ pipelines:
     name: "Segmind-Vega Pipeline"
     width: 1024
     height: 1024
-    model_ids: ["amd/segmind-vega-amdnpu-medusa"]
+    model_ids: ["amd/segmind-vega_m1.0_npu"]
     prompt: "a cozy European café terrace on a rainy evening, warm amber lights, wet cobblestone street, reflections in puddles, outdoor tables with candles, lush potted plants, charming old buildings, photorealistic, cinematic lighting, high detail"
     args:
       num_inference_steps: 50
@@ -98,7 +98,7 @@ pipelines:
     name: "Segmind-Vega I2I Pipeline"
     width: 1024
     height: 1024
-    model_ids: ["amd/segmind-vega-amdnpu-medusa"]
+    model_ids: ["amd/segmind-vega_m1.0_npu"]
     prompt: "a sailing ship in a fierce storm at night near rocky cliffs, massive waves crashing against rocks, lightning illuminating dark clouds, dramatic cinematic atmosphere, dark fantasy art, highly detailed"
     args:
       num_inference_steps: 50
@@ -111,7 +111,7 @@ pipelines:
   
   sd35_base:
     name: "SD3.5 Pipeline"
-    model_ids: ["amd/stable-diffusion-3.5-medium-amdnpu-medusa"]
+    model_ids: ["amd/stable-diffusion-3.5-medium_m1.0_npu"]
     prompt: "A grand fantasy library built inside an ancient tree, glowing lanterns hanging from branches, scholars reading books on floating platforms, intricate wood carvings, warm golden light, cinematic fantasy concept art, highly detailed."
     args:
       num_inference_steps: 30
@@ -124,7 +124,7 @@ pipelines:
     name: "FLUX.1 Schnell Pipeline"
     width: 1024
     height: 1024
-    model_ids: ["amd/FLUX.1-schnell-amdnpu-medusa"]
+    model_ids: ["amd/FLUX.1-schnell_m1.0_npu"]
     prompt: "A candid photograph of a father teaching his young son how to fish from a wooden dock at sunrise. Light fog rising from the lake, realistic skin texture, natural expressions, detailed clothing, professional photography."
     args:
       num_inference_steps: 4
@@ -134,7 +134,7 @@ pipelines:
     name: "FLUX.2 Klein Pipeline"
     width: 1024
     height: 1024
-    model_ids: ["amd/FLUX.2-klein-4B-amdnpu-medusa"]
+    model_ids: ["amd/FLUX.2-klein-4B_m1.0_npu"]
     prompt: "A small bakery early in the morning. Fresh bread displayed behind glass. A baker wearing a white apron arranges pastries. Warm sunlight enters through the front window. Realistic photography."
     args:
       num_inference_steps: 4
@@ -144,7 +144,7 @@ pipelines:
     name: "FLUX.2 Klein I2I Pipeline (1 image)"
     width: 1024
     height: 1024
-    model_ids: ["amd/FLUX.2-klein-4B-amdnpu-medusa"]
+    model_ids: ["amd/FLUX.2-klein-4B_m1.0_npu"]
     prompt: "Make the overalls red"
     args:
       edit_image_path: ["flux2_img3.png"]
@@ -155,7 +155,7 @@ pipelines:
     name: "FLUX.2 Klein I2I Pipeline (2 images)"
     width: 1024
     height: 1024
-    model_ids: ["amd/FLUX.2-klein-4B-amdnpu-medusa"]
+    model_ids: ["amd/FLUX.2-klein-4B_m1.0_npu"]
     prompt: "Put the man from img3 on the horse in img1"
     args:
       edit_image_path: ["flux2_img3.png", "flux2_img1.png"]

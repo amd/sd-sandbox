@@ -65,17 +65,17 @@ path instead of the built-in `models/` folder.
 | Model | Hugging Face Model ID | Resolution | T2I | I2I | ControlNet | OutPainting |
 |-------|---------------------|-----------|-----|-----|------------|-------------|
 | SD 1.5 | `amd/stable-diffusion-1.5-amdnpu` | 512×512 | ✓ | | | |
-| SD Turbo | `amd/sd-turbo-amdnpu` | 512×512 | ✓ | | | |
+| SD Turbo | `stabilityai/sd-turbo-amdnpu` | 512×512 | ✓ | | | |
 | SD 2.1 *(deprecated — no HF model ID)* | — | 512/768 | ✓ | | | |
 | SD 1.5 ControlNet | `amd/sd15-controlnet-amdnpu` | 512×512 | ✓ | | Canny | |
-| SD XL Base | `amd/sdxl-base-amdnpu` | 1024×1024 | ✓ | | | |
-| SD XL Turbo | `amd/sdxl-turbo-amdnpu` | 512×512 | ✓ | | | |
+| SD XL Base | `stabilityai/sdxl-base-amdnpu` | 1024×1024 | ✓ | | | |
+| SD XL Turbo | `stabilityai/sdxl-turbo-amdnpu` | 512×512 | ✓ | | | |
 | Segmind Vega | `amd/segmind-vega-amdnpu` | 1024×1024 | ✓ | ✓ | | |
 | Playground 2.5 | `amd/playground-v2.5-1024px-aesthetic-amdnpu` | 1024×1024 | ✓ | | | |
 | SSD-1B | `amd/SSD-1B-amdnpu` | 1024×1024 | ✓ | | | |
 | DreamShaper XL | `amd/dreamshaper-xl-lightning-amdnpu` | 1024×1024 | ✓ | | | |
-| SD 3.0 Medium | `amd/stable-diffusion-3-medium-amdnpu` | Multiple* | ✓ | | Canny/Tile/Pose/Depth/Union | ✓ |
-| SD 3.5 Medium | `amd/stable-diffusion-3.5-medium-amdnpu` | Multiple* | ✓ | | Canny/Tile/Pose | ✓ |
+| SD 3.0 Medium | `stabilityai/stable-diffusion-3-medium-amdnpu` | Multiple* | ✓ | | Canny/Tile/Pose/Depth/Union | ✓ |
+| SD 3.5 Medium | `stabilityai/stable-diffusion-3.5-medium-amdnpu` | Multiple* | ✓ | | Canny/Tile/Pose | ✓ |
 | FLUX.1-schnell | `amd/FLUX.1-schnell-amdnpu` | Multiple* | ✓ | | | |
 | FLUX.2 Klein | `amd/FLUX.2-klein-4B-amdnpu` | 1024×1024 | ✓ | ✓ | | |
 
@@ -216,7 +216,7 @@ pipelines:
     width: 512
     height: 512
     model_ids:
-      - "amd/sdxl-turbo-amdnpu"
+      - "stabilityai/sdxl-turbo-amdnpu"
     args:
       num_inference_steps: 4
       guidance_scale: 0.0
@@ -224,7 +224,7 @@ pipelines:
   sd35_base:
     name: "SD3.5 Pipeline"
     model_ids:
-      - "amd/stable-diffusion-3.5-medium-amdnpu"
+      - "stabilityai/stable-diffusion-3.5-medium-amdnpu"
     args:
       num_inference_steps: 30
       width: 1024

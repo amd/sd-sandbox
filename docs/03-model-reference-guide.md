@@ -53,17 +53,17 @@ capabilities, model directory layouts, run commands, and CLI options.
 | Model                 | Hugging Face ID                               | Resolution | T2I | I2I | ControlNet                  | OutPainting |
 | --------------------- | --------------------------------------------- | ---------- | --- | --- | --------------------------- | ----------- |
 | SD 1.5                | `amd/stable-diffusion-1.5-amdnpu`             | 512×512    | ✓   |     |                             |             |
-| SD Turbo              | `amd/sd-turbo-amdnpu`                         | 512×512    | ✓   |     |                             |             |
+| SD Turbo              | `stabilityai/sd-turbo-amdnpu`                         | 512×512    | ✓   |     |                             |             |
 | SD 2.1 *(deprecated)* | —                                             | 512/768    | ✓   |     |                             |             |
 | SD 1.5 ControlNet     | `amd/sd15-controlnet-amdnpu`                  | 512×512    | ✓   |     | Canny                       |             |
-| SDXL-base             | `amd/sdxl-base-amdnpu`                        | 1024×1024  | ✓   |     |                             |             |
-| SDXL-turbo            | `amd/sdxl-turbo-amdnpu`                       | 512×512    | ✓   |     |                             |             |
+| SDXL-base             | `stabilityai/sdxl-base-amdnpu`                        | 1024×1024  | ✓   |     |                             |             |
+| SDXL-turbo            | `stabilityai/sdxl-turbo-amdnpu`                       | 512×512    | ✓   |     |                             |             |
 | Playground 2.5        | `amd/playground-v2.5-1024px-aesthetic-amdnpu` | 1024×1024  | ✓   |     |                             |             |
 | SSD-1B                | `amd/SSD-1B-amdnpu`                           | 1024×1024  | ✓   |     |                             |             |
 | DreamShaper XL        | `amd/dreamshaper-xl-lightning-amdnpu`         | 1024×1024  | ✓   |     |                             |             |
 | Segmind-Vega          | `amd/segmind-vega-amdnpu`                     | 1024×1024  | ✓   | ✓   |                             |             |
-| SD3 Medium            | `amd/stable-diffusion-3-medium-amdnpu`        | 512–1024   | ✓   |     | Canny/Tile/Pose/Depth/Union | ✓           |
-| SD3.5 Medium          | `amd/stable-diffusion-3.5-medium-amdnpu`      | 512–1024   | ✓   |     | Canny/Tile/Pose             | ✓           |
+| SD3 Medium            | `stabilityai/stable-diffusion-3-medium-amdnpu`        | 512–1024   | ✓   |     | Canny/Tile/Pose/Depth/Union | ✓           |
+| SD3.5 Medium          | `stabilityai/stable-diffusion-3.5-medium-amdnpu`      | 512–1024   | ✓   |     | Canny/Tile/Pose             | ✓           |
 | FLUX.1-schnell        | `amd/FLUX.1-schnell-amdnpu`                   | 288–1024   | ✓   |     |                             |             |
 | FLUX.2 Klein          | `amd/FLUX.2-klein-4B-amdnpu`                  | 1024×1024  | ✓   | ✓   |                             |             |
 
@@ -76,16 +76,16 @@ Strix/Krackan models are downloaded automatically from Hugging Face on first use
 
 | Model          | Hugging Face ID                                      | Resolution | T2I | I2I | ControlNet | OutPainting |
 | -------------- | ---------------------------------------------------- | ---------- | --- | --- | ---------- | ----------- |
-| SD 1.5         | `amd/stable-diffusion-1.5-amdnpu-medusa`             | 512×512    | ✓   |     |            |             |
-| SDXL-base      | `amd/sdxl-base-amdnpu-medusa`                        | 1024×1024  | ✓   |     |            |             |
-| SDXL-turbo     | `amd/sdxl-turbo-amdnpu-medusa`                       | 512×512    | ✓   |     |            |             |
-| Playground 2.5 | `amd/playground-v2.5-1024px-aesthetic-amdnpu-medusa` | 1024×1024  | ✓   |     |            |             |
-| SSD-1B         | `amd/SSD-1B-amdnpu-medusa`                           | 1024×1024  | ✓   |     |            |             |
-| DreamShaper XL | `amd/dreamshaper-xl-lightning-amdnpu-medusa`         | 1024×1024  | ✓   |     |            |             |
-| Segmind-Vega   | `amd/segmind-vega-amdnpu-medusa`                     | 1024×1024  | ✓   | ✓   |            |             |
-| SD3.5 Medium   | `amd/stable-diffusion-3.5-medium-amdnpu-medusa`      | 1024x1024  | ✓   |     |            |             |
-| FLUX.1-schnell | `amd/FLUX.1-schnell-amdnpu-medusa`                   | 1024x1024  | ✓   |     |            |             |
-| FLUX.2 Klein   | `amd/FLUX.2-klein-4B-amdnpu-medusa`                  | 1024×1024  | ✓   | ✓   |            |             |
+| SD 1.5         | `amd/stable-diffusion-1.5_m1.0_npu`             | 512×512    | ✓   |     |            |             |
+| SDXL-base      | `amd/sdxl-base_m1.0_npu`                        | 1024×1024  | ✓   |     |            |             |
+| SDXL-turbo     | `amd/sdxl-turbo_m1.0_npu`                       | 512×512    | ✓   |     |            |             |
+| Playground 2.5 | `amd/playground-v2.5-1024px-aesthetic_m1.0_npu` | 1024×1024  | ✓   |     |            |             |
+| SSD-1B         | `amd/SSD-1B_m1.0_npu`                           | 1024×1024  | ✓   |     |            |             |
+| DreamShaper XL | `amd/dreamshaper-xl-lightning_m1.0_npu`         | 1024×1024  | ✓   |     |            |             |
+| Segmind-Vega   | `amd/segmind-vega_m1.0_npu`                     | 1024×1024  | ✓   | ✓   |            |             |
+| SD3.5 Medium   | `amd/stable-diffusion-3.5-medium_m1.0_npu`      | 1024x1024  | ✓   |     |            |             |
+| FLUX.1-schnell | `amd/FLUX.1-schnell_m1.0_npu`                   | 1024x1024  | ✓   |     |            |             |
+| FLUX.2 Klein   | `amd/FLUX.2-klein-4B_m1.0_npu`                  | 1024×1024  | ✓   | ✓   |            |             |
 
 ---
 
@@ -127,13 +127,13 @@ Models are cached under `models/` in the project root by default. Override with 
 ```powershell
 # Windows
 $env:RYZENAI_GENAI_SD_MODELS_ROOT = "D:\my_models"
-python test/run.py --model_id "amd/sdxl-turbo-amdnpu" --prompt "..."
+python test/run.py --model_id "stabilityai/sdxl-turbo-amdnpu" --prompt "..."
 ```
 
 ```bash
 # Linux
 export RYZENAI_GENAI_SD_MODELS_ROOT=/data/my_models
-python test/run.py --model_id "amd/sdxl-turbo-amdnpu" --prompt "..."
+python test/run.py --model_id "stabilityai/sdxl-turbo-amdnpu" --prompt "..."
 ```
 
 ### Environment Variables (inference)
@@ -181,7 +181,7 @@ python test/run.py --model_id "stable-diffusion-v1-5/stable-diffusion-v1-5" \
 #### MDS
 
 ```bash
-python test/run.py --model_id "amd/stable-diffusion-1.5-amdnpu-medusa" \
+python test/run.py --model_id "amd/stable-diffusion-1.5_m1.0_npu" \
     -H 512 -W 512 -n 50
 ```
 
@@ -193,10 +193,10 @@ python test/run.py --model_id "amd/stable-diffusion-1.5-amdnpu-medusa" \
 
 ```bash
 # Batch size 1 (default)
-python test/run.py --model_id "amd/sd-turbo-amdnpu" --prompt "a beautiful landscape"
+python test/run.py --model_id "stabilityai/sd-turbo-amdnpu" --prompt "a beautiful landscape"
 
 # Batch size 2 (generates 2 images per prompt)
-python test/run.py --model_id "amd/sd-turbo-amdnpu" --prompt "a beautiful landscape" \
+python test/run.py --model_id "stabilityai/sd-turbo-amdnpu" --prompt "a beautiful landscape" \
     --num_images_per_prompt 2
 ```
 
@@ -271,17 +271,17 @@ sdxl-turbo/
 #### Strix / Krackan
 
 ```bash
-python test/run.py --model_id "amd/sdxl-base-amdnpu" --prompt "a beautiful landscape"
+python test/run.py --model_id "stabilityai/sdxl-base-amdnpu" --prompt "a beautiful landscape"
 
 # Dynamic resolution (20 presets, 512×288 – 1024×1024)
-python test/run.py --model_id "amd/sdxl-base-amdnpu" --prompt "a beautiful landscape" \
+python test/run.py --model_id "stabilityai/sdxl-base-amdnpu" --prompt "a beautiful landscape" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 ```
 
 #### MDS
 
 ```bash
-python test/run.py --model_id "amd/sdxl-base-amdnpu-medusa" \
+python test/run.py --model_id "amd/sdxl-base_m1.0_npu" \
     -H 1024 -W 1024 -n 30
 ```
 
@@ -292,17 +292,17 @@ python test/run.py --model_id "amd/sdxl-base-amdnpu-medusa" \
 #### Strix / Krackan
 
 ```bash
-python test/run.py --model_id "amd/sdxl-turbo-amdnpu" --prompt "a beautiful landscape"
+python test/run.py --model_id "stabilityai/sdxl-turbo-amdnpu" --prompt "a beautiful landscape"
 
 # Dynamic resolution (20 presets, 512×288 – 1024×1024)
-python test/run.py --model_id "amd/sdxl-turbo-amdnpu" --prompt "a beautiful landscape" \
+python test/run.py --model_id "stabilityai/sdxl-turbo-amdnpu" --prompt "a beautiful landscape" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 ```
 
 #### MDS
 
 ```bash
-python test/run.py --model_id "amd/sdxl-turbo-amdnpu-medusa" \
+python test/run.py --model_id "amd/sdxl-turbo_m1.0_npu" \
     -H 512 -W 512 -n 4
 ```
 
@@ -325,7 +325,7 @@ python test/run.py --model_id "amd/playground-v2.5-1024px-aesthetic-amdnpu" \
 #### MDS
 
 ```bash
-python test/run.py --model_id "amd/playground-v2.5-1024px-aesthetic-amdnpu-medusa" \
+python test/run.py --model_id "amd/playground-v2.5-1024px-aesthetic_m1.0_npu" \
     -H 1024 -W 1024 -n 30
 ```
 
@@ -344,7 +344,7 @@ python test/run.py --model_id "amd/SSD-1B-amdnpu" --prompt "a beautiful landscap
 #### MDS
 
 ```bash
-python test/run.py --model_id "amd/SSD-1B-amdnpu-medusa" \
+python test/run.py --model_id "amd/SSD-1B_m1.0_npu" \
     -H 1024 -W 1024 -n 30
 ```
 
@@ -370,7 +370,7 @@ python test/run.py --model_id "amd/dreamshaper-xl-lightning-amdnpu" \
 #### MDS
 
 ```bash
-python test/run.py --model_id "amd/dreamshaper-xl-lightning-amdnpu-medusa" \
+python test/run.py --model_id "amd/dreamshaper-xl-lightning_m1.0_npu" \
     -H 1024 -W 1024 -n 6
 ```
 
@@ -387,7 +387,7 @@ python test/run.py --model_id "amd/segmind-vega-amdnpu" --prompt "a beautiful la
 #### MDS
 
 ```bash
-python test/run.py --model_id "amd/segmind-vega-amdnpu-medusa" \
+python test/run.py --model_id "amd/segmind-vega_m1.0_npu" \
     -H 1024 -W 1024 -n 9
 ```
 
@@ -410,7 +410,7 @@ python test/run.py --model_id "amd/segmind-vega-amdnpu" \
 #### MDS
 
 ```bash
-python test/run.py --model_id "amd/segmind-vega-amdnpu-medusa" \
+python test/run.py --model_id "amd/segmind-vega_m1.0_npu" \
     --control_image_path test/assets/controlimg_input_1024x1024.png \
     -H 1024 -W 1024 -n 9
 ```
@@ -455,15 +455,15 @@ sd3/
 
 ```bash
 # 512×512
-python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C None --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape"
 
 # 1024×1024
-python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C None --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" -H 1024 -W 1024
 
 # With profiling
-python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C None --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" -p
 ```
 
@@ -471,7 +471,7 @@ python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
 
 ### SD3.5 Text-to-Image
 
-> **Note:** The SD3.5 Hugging Face release (`amd/stable-diffusion-3.5-medium-amdnpu`) includes
+> **Note:** The SD3.5 Hugging Face release (`stabilityai/stable-diffusion-3.5-medium-amdnpu`) includes
 > **Text-to-Image (T2I) weights only**. For ControlNet and painting modes, copy the relevant
 > controlnet directories from your SD3 model folder — see the
 > [SD3.5 ControlNet](#sd35-controlnet-cannytilepose) and
@@ -480,14 +480,14 @@ python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
 #### Strix / Krackan
 
 ```bash
-python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu" \
+python test/run.py -C None --model_id "stabilityai/stable-diffusion-3.5-medium-amdnpu" \
     --prompt "a beautiful landscape"
 ```
 
 #### MDS
 
 ```bash
-python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu-medusa" \
+python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium_m1.0_npu" \
     -H 1024 -W 1024 -n 30
 ```
 
@@ -499,15 +499,15 @@ python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu-me
 
 ```bash
 # Canny
-python test/run.py -C Canny --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C Canny --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" --control_image_path path/to/image.png
 
 # Tile
-python test/run.py -C Tile --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C Tile --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" --control_image_path path/to/image.png
 
 # Pose
-python test/run.py -C Pose --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C Pose --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" --control_image_path path/to/image.png
 ```
 
@@ -534,7 +534,7 @@ python test/run.py -C Pose --model_id "amd/stable-diffusion-3-medium-amdnpu" \
 Same commands as SD3 ControlNet, using `stable-diffusion-3.5-medium-amdnpu`:
 
 ```bash
-python test/run.py -C Canny --model_id "amd/stable-diffusion-3.5-medium-amdnpu" \
+python test/run.py -C Canny --model_id "stabilityai/stable-diffusion-3.5-medium-amdnpu" \
     --prompt "a beautiful landscape" --control_image_path path/to/image.png
 ```
 
@@ -543,7 +543,7 @@ python test/run.py -C Canny --model_id "amd/stable-diffusion-3.5-medium-amdnpu" 
 #### Strix / Krackan
 
 > **Availability:** Only the **InPainting** controlnet weights are published on Hugging Face
-> (`amd/stable-diffusion-3-medium-amdnpu`). OutPainting and Removal weights are not currently
+> (`stabilityai/stable-diffusion-3-medium-amdnpu`). OutPainting and Removal weights are not currently
 > available publicly.
 
 **Additional model directories:**
@@ -561,21 +561,21 @@ sd3/inpainting/
 ```bash
 # OutPainting — extend image borders (requires local weights)
 python test/run.py -C OutPainting \
-    --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+    --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" \
     --control_image_path path/to/image.png \
     --image_pads 100 100 0 0    # [top, bottom, left, right] pixels
 
 # Removal — remove objects from image (requires local weights)
 python test/run.py -C Removal \
-    --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+    --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "" \
     --control_image_path path/to/image.png \
     --control_mask_path path/to/mask.png
 
 # InPainting — fill masked region guided by prompt (available on Hugging Face)
 python test/run.py -C InPainting \
-    --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+    --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "holiday decorations" \
     --control_image_path path/to/image.png \
     --control_mask_path path/to/mask.png
@@ -609,7 +609,7 @@ Same commands as SD3, using `stable-diffusion-3.5-medium-amdnpu`:
 
 ```bash
 python test/run.py -C OutPainting \
-    --model_id "amd/stable-diffusion-3.5-medium-amdnpu" \
+    --model_id "stabilityai/stable-diffusion-3.5-medium-amdnpu" \
     --prompt "a beautiful landscape" \
     --control_image_path path/to/image.png
 ```
@@ -633,17 +633,17 @@ sd3/
 
 ```bash
 # Text-to-image with dynamic resolution (20 resolutions)
-python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C None --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 
 # Specify resolution explicitly
-python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C None --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v -H 768 -W 1024
 
 # With profiling
-python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C None --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v -p
 ```
@@ -660,7 +660,7 @@ python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
 #### Strix / Krackan
 
 ```bash
-python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu" \
+python test/run.py -C None --model_id "stabilityai/stable-diffusion-3.5-medium-amdnpu" \
     --prompt "a beautiful landscape" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 ```
@@ -668,7 +668,7 @@ python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu" \
 #### MDS
 
 ```bash
-python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu-medusa" \
+python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium_m1.0_npu" \
     -H 1024 -W 1024 -n 30
 ```
 
@@ -680,12 +680,12 @@ python test/run.py -C None --model_id "amd/stable-diffusion-3.5-medium-amdnpu-me
 
 ```bash
 # SD3 ControlNet Canny with dynamic shapes
-python test/run.py -C Canny --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C Canny --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" --control_image_path path/to/image.png \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 
 # SD3 ControlNet Union — supports Canny, Tile, Pose, Depth, Scribble
-python test/run.py -C Union --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C Union --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 ```
@@ -702,7 +702,7 @@ python test/run.py -C Union --model_id "amd/stable-diffusion-3-medium-amdnpu" \
 
 ```bash
 # Union Canny example
-python test/run.py -C Union --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C Union --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v \
     --num_inference_steps 20 --controlnet_conditioning_scale 0.7 --guidance_scale 3.0 \
@@ -714,7 +714,7 @@ python test/run.py -C Union --model_id "amd/stable-diffusion-3-medium-amdnpu" \
 #### Strix / Krackan
 
 ```bash
-python test/run.py -C Canny --model_id "amd/stable-diffusion-3.5-medium-amdnpu" \
+python test/run.py -C Canny --model_id "stabilityai/stable-diffusion-3.5-medium-amdnpu" \
     --prompt "a beautiful landscape" --control_image_path path/to/image.png \
     -ds --dynamic_shape_file_path config/dynamic_shape_20x.json -v
 ```
@@ -761,7 +761,7 @@ python test/run.py --model_id "amd/FLUX.1-schnell-amdnpu" \
 #### MDS
 
 ```bash
-python test/run.py --model_id "amd/FLUX.1-schnell-amdnpu-medusa" \
+python test/run.py --model_id "amd/FLUX.1-schnell_m1.0_npu" \
     -H 1024 -W 1024 -n 4
 ```
 
@@ -828,21 +828,21 @@ python test/run.py --model_id "amd/FLUX.2-klein-4B-amdnpu" \
 
 ```bash
 # Text-to-image
-python test/run.py --model_id "amd/FLUX.2-klein-4B-amdnpu-medusa" \
+python test/run.py --model_id "amd/FLUX.2-klein-4B_m1.0_npu" \
     -H 1024 -W 1024 -n 4 -v
 
 # With profiling
-python test/run.py --model_id "amd/FLUX.2-klein-4B-amdnpu-medusa" \
+python test/run.py --model_id "amd/FLUX.2-klein-4B_m1.0_npu" \
     -H 1024 -W 1024 -n 4 -v -p
 
 # Image editing — single input
-python test/run.py --model_id "amd/FLUX.2-klein-4B-amdnpu-medusa" \
+python test/run.py --model_id "amd/FLUX.2-klein-4B_m1.0_npu" \
     -H 1024 -W 1024 -n 4 -v   \
     --prompt "Change the dress to red" `
     --edit_image_path "test/assets/flux2_img2.png"
 
 # Image editing — double input
-python test/run.py --model_id "amd/FLUX.2-klein-4B-amdnpu-medusa" \
+python test/run.py --model_id "amd/FLUX.2-klein-4B_m1.0_npu" \
     --prompt "Replace the astronaut in image 1 with the girl in image 2" \
     --edit_image_path "test/assets/flux2_img1.png" "test/assets/flux2_img2.png" \
     -H 1024 -W 1024 -n 4 -v
@@ -864,7 +864,7 @@ optimization preset that skips certain DiT steps during denoising.
 #### Strix / Krackan
 
 ```bash
-python test/run.py -C None --model_id "amd/stable-diffusion-3-medium-amdnpu" \
+python test/run.py -C None --model_id "stabilityai/stable-diffusion-3-medium-amdnpu" \
     --prompt "a beautiful landscape" -O1
 ```
 

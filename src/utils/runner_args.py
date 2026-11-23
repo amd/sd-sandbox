@@ -309,7 +309,7 @@ def _resolve_npu_platform(args) -> str:
          xrt-smi is untrusted, missing, or reports the wrong value.
       2. xrt-smi hardware detection -- authoritative, but non-fatal: any failure
          or 'unknown' simply falls through (it never exits).
-      3. ``model_id`` naming convention ('-medusa' => mds, else stx) as a
+      3. ``model_id`` naming convention ('-medusa' or '_m1.0_npu' => mds, else stx) as a
          last-resort fallback.
 
     A hardware/model disagreement is logged as an advisory only; this function
@@ -320,7 +320,7 @@ def _resolve_npu_platform(args) -> str:
     # prompt, which kills or hangs orchestrated runs; env override covers a bad xrt-smi.
     model_id = getattr(args, "model_id", None) or ""
     model_name = model_id.rsplit("/", 1)[-1]
-    inferred = "mds" if model_name.lower().endswith("-medusa") else "stx"
+    inferred = "mds" if model_name.lower().endswith(("-medusa", "_m1.0_npu")) else "stx"
 
     override = (os.environ.get("NPU_PLATFORM") or "").strip().lower()
     if override in ("mds", "stx"):
